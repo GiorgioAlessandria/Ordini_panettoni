@@ -10,4 +10,7 @@ def create_app():
     from . import db_conn
     db_conn.init_app(app)
 
+    from . import auth
+    app.register_blueprint(auth.bp)
+
     return app
