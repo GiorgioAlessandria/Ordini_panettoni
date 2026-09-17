@@ -1,0 +1,30 @@
+<table>
+    <thead>
+    <tr>
+        <td>Cliente</td>
+        <td>Codice panettone</td>
+        <td>Descrizione</td>
+        <td>Consegna</td>
+        <td>Quantità ordinata</td>
+        <td>Prezzatura</td>
+        <td>Glassa</td>
+    </tr>
+    </thead>
+    <tbody>
+    {% for ordine_cliente in ordini_cliente %}
+    <tr
+        data-id-documento = "{{ ordine_cliente.IdDocumento }}"
+        data-id-riga="{{ ordine_cliente.IdRigaDoc }}"
+        data-data-registrazione = "{{ ordine_cliente.DataRegistrazione }}"
+        data-numero-registrazione = "{{ ordine_cliente.NumRegistraz }}">
+        <td>{{ ordine_cliente.Cliente }}</td>
+        <td>{{ ordine_cliente.CodArt }}</td>
+        <td>{{ ordine_cliente.DesArt }}</td>
+        <td>{{ ordine_cliente.DataConsegna }}</td>
+        <td>{{ ordine_cliente.QTA_ORD }}</td>
+        <td>{{ ordine_cliente.Prezzatura }}</td>
+        <td>{{ ordine_cliente.Glassa }}</td>
+    </tr>
+    {%  endfor %}
+    </tbody>
+</table>

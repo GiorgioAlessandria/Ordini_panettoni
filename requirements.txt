@@ -5,3 +5,4 @@ SQLAlchemy
 pandas
 pyodbc
 wfastcgi
+Flask-Migrate

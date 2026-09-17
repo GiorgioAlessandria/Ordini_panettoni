@@ -1,1 +1,3 @@
-/instance/db_ordini.sqlite3
+
+/flaskr/instance/db_ordini.sqlite3
+.sqlite

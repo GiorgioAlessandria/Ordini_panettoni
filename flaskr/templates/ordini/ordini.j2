@@ -1,0 +1,17 @@
+{% extends "base.j2" %}
+
+{% block title %}
+    Ordini panettoni
+{% endblock %}
+
+{% block content %}
+
+    <h1>Ordini panettoni</h1>
+    <div id="ordini_cliente"
+         hx-get="{{ url_for("ordini_cliente.tabella_ordini_cliente") }}"
+        hx-trigger="load">
+    <p>Caricamento ordini...</p>
+    </div>
+
+
+{% endblock %}
