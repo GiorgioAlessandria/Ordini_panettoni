@@ -18,10 +18,10 @@ def create_app():
     # flask --app flaskr:create_app db upgrade
 
     from . import models
-    from . import auth
-    app.register_blueprint(auth.bp_login)
-    from . import routes
-    app.register_blueprint(routes.bp_ordini_cliente)
+    from . import routes_auth
+    app.register_blueprint(routes_auth.bp_login)
+    from . import routes_production
+    app.register_blueprint(routes_production.bp_ordini_cliente)
 
 
     @app.route('/')

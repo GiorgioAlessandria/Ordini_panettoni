@@ -1,14 +1,14 @@
 from flask import (Blueprint, flash, g, redirect, render_template, request, session, url_for)
-from flaskr.auth import login_required
+from flaskr.routes_auth import login_required
 from flaskr.extensions import db
 from flaskr.models.model_ordini import OrdiniCliente
 
-bp_ordini_cliente = Blueprint('ordini_cliente', __name__, url_prefix = '/ordini_cliente')
+bp_ordini_cliente = Blueprint('ordini_cliente', __name__, url_prefix = '/')
 
 @login_required
-@bp_ordini_cliente.route('/')
+@bp_ordini_cliente.route('/index/')
 def ordini_cliente():
-    render_template("ordini/ordini.j2")
+    return render_template("ordini/ordini.j2")
 
 @bp_ordini_cliente.route('/tabella_ordini')
 def tabella_ordini_cliente():

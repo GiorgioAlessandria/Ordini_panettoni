@@ -59,7 +59,7 @@ def login():
         if error is None:
             session.clear()
             session["user_id"] = user.id
-            return redirect("ordini_cliente/")
+            return redirect(url_for("ordini_cliente.ordini_cliente"))
         flash(error)
 
     return render_template("login/login.j2")
