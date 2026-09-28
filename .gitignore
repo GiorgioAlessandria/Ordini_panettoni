@@ -1,3 +1,5 @@
 
 /flaskr/instance/db_ordini.sqlite3
 .sqlite
+/doc/
+/alembic.ini

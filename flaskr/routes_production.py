@@ -19,7 +19,7 @@ def tabella_ordini_cliente():
         "IdRigaDoc": ordine_cliente.IdRigaDoc,
         "DataRegistrazione": ordine_cliente.DataRegistrazione,
         "NumRegistraz": ordine_cliente.NumRegistraz,
-        "Cliente": ordine_cliente.cliente.RagioneSociale,
+        "Cliente": ordine_cliente.Cliente.RagioneSociale,
         "CodArt": ordine_cliente.CodArt,
         "DesArt": ordine_cliente.DesArt,
         "DataConsegna": ordine_cliente.DataConsegna,
