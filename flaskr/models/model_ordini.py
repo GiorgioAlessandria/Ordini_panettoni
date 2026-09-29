@@ -55,7 +55,7 @@ class AnagraficaArticoli(db.Model):
     DesArt: Mapped[str]
     CodFamiglia: Mapped[str]
     Prezzatura: Mapped[int]
-    Glassa: Mapped[bool]
+    Glassatura: Mapped[bool]
     synced_at: Mapped[datetime]
     ordini: Mapped[list[OrdiniCliente]] = relationship(back_populates = "articolo", uselist = True)
 
@@ -75,7 +75,7 @@ class StatoRigaOrdine(db.Model):
                 "ordini_cliente_aperti.IdDocumento",
                 "ordini_cliente_aperti.IdRigaDoc"
                 ]
-            ),)
+            , ondelete = "CASCADE"),)
 
 
 class LogOperazioni(db.Model):
@@ -85,7 +85,6 @@ class LogOperazioni(db.Model):
     IdRigaDoc: Mapped[int]
     Stato: Mapped[str]
     Operatore: Mapped[str]
-    DataInserimentoLog: Mapped[date]
     synced_at: Mapped[datetime]
     ordine: Mapped[OrdiniCliente] = relationship(back_populates = "log")
     __table_args__ = (ForeignKeyConstraint(
