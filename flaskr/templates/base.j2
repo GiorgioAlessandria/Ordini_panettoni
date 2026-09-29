@@ -14,7 +14,7 @@
 
     <!-- Bootstrap -->
     <link
-            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+            href={{ url_for('static', filename="vendor/bootstrap-5.0.2-dist/css/bootstrap.min.css")}}
             rel="stylesheet"
     >
 
@@ -23,6 +23,18 @@
             rel="stylesheet"
             href="{{ url_for('static', filename='css/style.css') }}"
     >
+
+    <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/skeleton.css') }}">
+
+    <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/monarch/theme.css') }}">
+
+    <script
+            src="{{ url_for('static', filename="vendor/fullcalendar-7.1.0/dist/locales-all/global.js") }}">
+    </script>
 
     {% block head %}
     {% endblock %}
@@ -73,14 +85,14 @@
 <div id="htmx-global"></div>
 
 
-<!-- Bootstrap JS -->
+<!--  HTMX-->
 <script
-        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js">
+        src= {{url_for('static', filename="vendor/htmx/htmx.min.js") }}>
 </script>
 
-<!-- HTMX -->
+<!-- Bootstrap JS -->
 <script
-        src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js">
+        src={{ url_for('static', filename="vendor/bootstrap-5.0.2-dist/js/bootstrap.bundle.min.js")}}>
 </script>
 
 

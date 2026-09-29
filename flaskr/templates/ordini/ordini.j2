@@ -6,12 +6,19 @@
 
 {% block content %}
 
-    <h1>Ordini panettoni</h1>
-    <div id="ordini_cliente"
-         hx-get="{{ url_for("ordini_cliente.tabella_ordini_cliente") }}"
+    <h1>Ordini panettoni da produrre</h1>
+    <div id="ordini_cliente_da_produrre"
+         hx-get="{{ url_for("ordini_cliente.tabella_ordini_cliente_da_produrre") }}"
         hx-trigger="load">
-    <p>Caricamento ordini...</p>
+    <p>Caricamento ordini da produrre...</p>
     </div>
-
-
+    <h1>Ordini panettoni in produzione</h1>
+    <div id="ordini_cliente_da_produrre"
+         hx-get="{{ url_for("ordini_cliente.tabella_ordini_cliente_in_produzione") }}"
+         hx-trigger="load">
+        <p>Caricamento ordini...</p>
+    </div>
+    <a href="{{ url_for("ordini_cliente.ordini_calendario") }}" >
+    Calendario
+    </a>
 {% endblock %}

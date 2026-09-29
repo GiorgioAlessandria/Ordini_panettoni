@@ -1,3 +1,8 @@
+<style>
+    table{
+        text-align: center;
+    }
+</style>
 <table>
     <thead>
     <tr>
@@ -8,9 +13,10 @@
         <td>Quantità ordinata</td>
         <td>Prezzatura</td>
         <td>Glassa</td>
+        <td>Stato</td>
     </tr>
     </thead>
-    <tbody>
+    <tbody >
     {% for ordine_cliente in ordini_cliente %}
     <tr
         data-id-documento = "{{ ordine_cliente.IdDocumento }}"
@@ -24,6 +30,7 @@
         <td>{{ ordine_cliente.QTA_ORD }}</td>
         <td>{{ ordine_cliente.Prezzatura }}</td>
         <td>{{ ordine_cliente.Glassa }}</td>
+        <td>{{ ordine_cliente.Stato }}</td>
     </tr>
     {%  endfor %}
     </tbody>

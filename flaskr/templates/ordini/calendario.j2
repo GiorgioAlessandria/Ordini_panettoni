@@ -1,0 +1,16 @@
+{% extends "base.j2" %}
+
+{% block title %}
+    Calendario ordini
+{% endblock %}
+
+{% block content %}
+
+    <div
+        id="calendar"></div>
+
+{% endblock %}
+{%  block javascript %}
+    <script src={{ url_for('static', filename="vendor/fullcalendar-7.1.0/dist/locales-all/global.js") }}></script>
+    <script src={{ url_for('static', filename="js/calendario.js") }}></script>
+{% endblock %}
