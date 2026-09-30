@@ -32,7 +32,6 @@ class OrdiniCliente(db.Model):
     synced_at: Mapped[datetime]
     stato: Mapped["StatoRigaOrdine"] = relationship(back_populates = "ordine", uselist = False)
     articolo: Mapped["AnagraficaArticoli"] = relationship(back_populates = "ordini", uselist = False)
-    log: Mapped[list["LogOperazioni"]] = relationship(back_populates = "ordine", uselist = True)
 
 
 class AnagraficaClienti(db.Model):
@@ -86,14 +85,6 @@ class LogOperazioni(db.Model):
     Stato: Mapped[str]
     Operatore: Mapped[str]
     synced_at: Mapped[datetime]
-    ordine: Mapped[OrdiniCliente] = relationship(back_populates = "log")
-    __table_args__ = (ForeignKeyConstraint(
-            ["IdDocumento", "IdRigaDoc"],
-            [
-                "ordini_cliente_aperti.IdDocumento",
-                "ordini_cliente_aperti.IdRigaDoc"
-                ]
-            ),)
 
 
 class AnagraficaImpastatrici(db.Model):

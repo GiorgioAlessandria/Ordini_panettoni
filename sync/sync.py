@@ -67,7 +67,7 @@ def articoli(table_articoli: list[VwESArticoli],
     import re
     articoli_filtrati = {}
     for articolo in table_articoli:
-        if articolo.CodFamiglia == "PNT" and (articolo.CodArt.startswith("PNT") or articolo.CodArt.startswith("CLB")):
+        if articolo.CodFamiglia == "PNT":
             glassatura = articolo.CodArt.endswith("G")
             match = re.search(r"\d{3,4}", articolo.CodArt)
             if match is None:
@@ -186,7 +186,7 @@ def stato_riga(ordini_nuovi: list[dict[str, Any]], sync_time: datetime):
 def main():
     try:
         with SessionSqlite() as sess:
-            ordini_esistenti = set(sess.scalars(select(OrdiniCliente.IdDocumento, OrdiniCliente.IdRigaDoc)).all())
+            ordini_esistenti = set(sess.execute(select(OrdiniCliente.IdDocumento, OrdiniCliente.IdRigaDoc)).all())
     except sqlalchemy.exc.IntegrityError as e:
         print(f"Errore di lettura dati {e}")
     articoli_raw = leggi_view(VwESArticoli, SessionSQLServer)
@@ -277,14 +277,16 @@ def main():
             sess.execute(stmt_clienti_upsert)
             sess.execute(stmt_articoli_upsert)
             sess.execute(stmt_ordini_upsert)
-            sess.execute(stmt_ordini_delete)
             sess.execute(stmt_articoli_delete)
-            sess.execute(stmt_log_operazioni_upsert)
-            sess.execute(stmt_stato_riga_upsert)
+            if ordini_nuovi_log:
+                sess.execute(stmt_log_operazioni_upsert)
+            if ordini_stato_riga:
+                sess.execute(stmt_stato_riga_upsert)
             sess.execute(stmt_stato_riga_delete)
+            sess.execute(stmt_ordini_delete)
             sess.commit()
     except sqlalchemy.exc.IntegrityError as e:
-        print(f"Errore di inserimento dati {e}")
+        print(f"Errore di inserimento dati:\n{e}")
 
 
 if __name__ == "__main__":
