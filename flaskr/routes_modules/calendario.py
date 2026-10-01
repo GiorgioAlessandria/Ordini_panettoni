@@ -42,7 +42,7 @@ def ordini_calendario_scadenze():
             "allDay": True,
             "extendedProps": {
                 "detailUrl": url_for(
-                    "ordini_cliente.dettaglio_ordine_calendario",
+                    "ordini_cliente.dettaglio_ordine",
                     IdDocumento=ordine.IdDocumento,
                     IdRigaDoc=ordine.IdRigaDoc,
                 )
@@ -55,7 +55,7 @@ def ordini_calendario_scadenze():
 
 @bp_ordini_cliente.route("/dettaglio/<int:IdDocumento>/<int:IdRigaDoc>")
 @login_required
-def dettaglio_ordine_calendario(IdDocumento: int, IdRigaDoc: int):
+def dettaglio_ordine(IdDocumento: int, IdRigaDoc: int):
     stmt_ordine = (
         db.select(OrdiniCliente)
         .options(

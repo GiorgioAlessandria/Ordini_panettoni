@@ -3,35 +3,51 @@
         text-align: center;
     }
 </style>
-<table>
-    <thead>
-    <tr>
-        <td>Cliente</td>
-        <td>Codice panettone</td>
-        <td>Descrizione</td>
-        <td>Consegna</td>
-        <td>Quantità ordinata</td>
-        <td>Prezzatura</td>
-        <td>Glassa</td>
-        <td>Stato</td>
-    </tr>
-    </thead>
-    <tbody >
-    {% for ordine_cliente in ordini_cliente %}
-    <tr
-        data-id-documento = "{{ ordine_cliente.IdDocumento }}"
-        data-id-riga="{{ ordine_cliente.IdRigaDoc }}"
-        data-data-registrazione = "{{ ordine_cliente.DataRegistrazione }}"
-        data-numero-registrazione = "{{ ordine_cliente.NumRegistraz }}">
-        <td>{{ ordine_cliente.Cliente }}</td>
-        <td>{{ ordine_cliente.CodArt }}</td>
-        <td>{{ ordine_cliente.DesArt }}</td>
-        <td>{{ ordine_cliente.DataConsegna }}</td>
-        <td>{{ ordine_cliente.QTA_ORD }}</td>
-        <td>{{ ordine_cliente.Prezzatura }}</td>
-        <td>{{ ordine_cliente.Glassatura }}</td>
-        <td>{{ ordine_cliente.Stato }}</td>
-    </tr>
-    {%  endfor %}
-    </tbody>
-</table>
+<form id="form-ordini">
+    <table>
+        <thead>
+        <tr>
+            <th></th>
+            <th>Cliente</th>
+            <th>Codice panettone</th>
+            <th>Descrizione</th>
+            <th>Consegna</th>
+            <th>Quantità ordinata</th>
+            <th>Prezzatura</th>
+            <th>Glassa</th>
+            <th>Stato</th>
+        </tr>
+        </thead>
+        <tbody >
+        {% for ordine_cliente in ordini_cliente %}
+            <tr
+            hx-get="{{ url_for(
+            'ordini_cliente.dettaglio_ordine',
+            IdDocumento=ordine_cliente.IdDocumento,
+            IdRigaDoc=ordine_cliente.IdRigaDoc) }}"
+                    hx-target="#htmx-global"
+                    hx-swap="innerHTML"
+            data-id-documento = "{{ ordine_cliente.IdDocumento }}"
+            data-id-riga="{{ ordine_cliente.IdRigaDoc }}"
+            data-data-registrazione = "{{ ordine_cliente.DataRegistrazione }}"
+            data-numero-registrazione = "{{ ordine_cliente.NumRegistraz }}">
+            <td>
+                <input
+                type="checkbox"
+                name="ordini_selezionati"
+                value="{{ ordine_cliente.IdDocumento }}-{{ ordine_cliente.IdRigaDoc }}"
+                onclick="event.stopPropagation()">
+            </td>
+            <td>{{ ordine_cliente.Cliente }}</td>
+            <td>{{ ordine_cliente.CodArt }}</td>
+            <td>{{ ordine_cliente.DesArt }}</td>
+            <td>{{ ordine_cliente.DataConsegna }}</td>
+            <td>{{ ordine_cliente.QTA_ORD }}</td>
+            <td>{{ ordine_cliente.Prezzatura }}</td>
+            <td>{{ ordine_cliente.Glassatura }}</td>
+            <td>{{ ordine_cliente.Stato }}</td>
+        </tr>
+        {%  endfor %}
+        </tbody>
+    </table>
+</form>

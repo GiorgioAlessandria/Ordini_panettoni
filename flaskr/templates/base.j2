@@ -5,25 +5,21 @@
 
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0">
-
     <title>
         {% block title %}
             Login
         {% endblock %}
     </title>
-
     <!-- Bootstrap -->
     <link
             href={{ url_for('static', filename="vendor/bootstrap-5.0.2-dist/css/bootstrap.min.css")}}
             rel="stylesheet"
     >
-
     <!-- CSS applicazione -->
     <link
             rel="stylesheet"
             href="{{ url_for('static', filename='css/style.css') }}"
     >
-
     <link
             rel="stylesheet"
             href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/skeleton.css') }}">
@@ -31,10 +27,6 @@
     <link
             rel="stylesheet"
             href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/forma/theme.css') }}">
-
-    <script
-            src="{{ url_for('static', filename="vendor/fullcalendar-7.1.0/dist/fullcalendar.global.js") }}">
-    </script>
 
     {% block head %}
     {% endblock %}
@@ -77,26 +69,21 @@
 
 </main>
 
-
-<!--
-        Area opzionale per contenuti HTMX globali:
-        modal, toast, pannelli laterali, ecc.
-    -->
 <div id="htmx-global"></div>
-
-
-<!--  HTMX-->
-<script
-        src= {{url_for('static', filename="vendor/htmx/htmx.min.js") }}>
-</script>
-
-<!-- Bootstrap JS -->
-<script
-        src={{ url_for('static', filename="vendor/bootstrap-5.0.2-dist/js/bootstrap.bundle.min.js")}}>
-</script>
-
-
 {% block scripts %}
+    <script
+            src="{{ url_for('static', filename="vendor/fullcalendar-7.1.0/dist/fullcalendar.global.js") }}">
+    </script>
+    <!--  HTMX-->
+    <script
+            src= {{url_for('static', filename="vendor/htmx/htmx.min.js") }}>
+    </script>
+    <!-- Bootstrap JS -->
+    <script
+            src={{ url_for('static', filename="vendor/bootstrap-5.0.2-dist/js/bootstrap.bundle.min.js")}}>
+    </script>
+    <!-- Modal -->
+    <script src={{ url_for('static', filename="js/modal.js") }}></script>
 {% endblock %}
 
 </body>
