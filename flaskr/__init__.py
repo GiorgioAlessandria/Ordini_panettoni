@@ -1,7 +1,9 @@
 import os
+
 from flask import Flask, redirect, url_for
 
 from flaskr.extensions import db, migrate
+
 
 def create_app():
     app = Flask(__name__)
@@ -17,14 +19,29 @@ def create_app():
     # flask --app flaskr:create_app db migrate -m "Titolo migrazione"
     # flask --app flaskr:create_app db upgrade
 
-    from . import models
-    from . import routes_auth
-    app.register_blueprint(routes_auth.bp_login)
-    from . import routes_production
-    app.register_blueprint(routes_production.bp_ordini_cliente)
+    from flaskr import routes_auth
+    from flaskr import routes_production
+    from flaskr.routes_modules import ordini
+    from flaskr.routes_modules import calendario
+    from flaskr.routes_blueprint import bp_login, bp_ordini_cliente
+    app.register_blueprint(bp_login)
+    app.register_blueprint(bp_ordini_cliente)
 
 
     @app.route('/')
     def index():
         return redirect(url_for('auth.login'))
     return app
+
+
+
+#   routes_blueprint.py
+#   CREA
+#
+#   routes_auth.py
+#   routes_production.py
+#   routes_modules/*.py
+#   POPOLANO
+#
+#   __init__.py
+#   ASSEMBLA E REGISTRA

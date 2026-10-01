@@ -1,7 +1,10 @@
-from flask import (
-    Blueprint,
-)
+from flask import render_template
 
-bp_ordini_cliente = Blueprint('ordini_cliente', __name__, url_prefix = '/')
+from flaskr.routes_auth import login_required
+from flaskr.routes_blueprint import bp_ordini_cliente
 
-from flaskr.routes_modules import calendario, ordini
+
+@bp_ordini_cliente.route("/index/")
+@login_required
+def ordini_cliente():
+    return render_template("ordini/ordini.j2")

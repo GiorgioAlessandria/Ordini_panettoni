@@ -1,6 +1,6 @@
 import functools
+
 from flask import (
-    Blueprint,
     flash,
     g,
     redirect,
@@ -8,12 +8,13 @@ from flask import (
     request,
     session,
     url_for,
-    )
+)
 from werkzeug.security import check_password_hash, generate_password_hash
+
 from flaskr.extensions import db
 from flaskr.models.model_auth import User
+from flaskr.routes_blueprint import bp_login
 
-bp_login = Blueprint('auth', __name__, url_prefix= '/auth')
 
 @bp_login.route('/register', methods = ['GET', 'POST'])
 def register():

@@ -54,7 +54,7 @@ class AnagraficaArticoli(db.Model):
     DesArt: Mapped[str]
     CodFamiglia: Mapped[str]
     Prezzatura: Mapped[int]
-    Glassatura: Mapped[bool]
+    Glassatura: Mapped[int]
     synced_at: Mapped[datetime]
     ordini: Mapped[list[OrdiniCliente]] = relationship(back_populates = "articolo", uselist = True)
 

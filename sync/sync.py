@@ -5,19 +5,16 @@ from zoneinfo import ZoneInfo
 
 import dateutil.utils
 import sqlalchemy
-from sqlalchemy.orm.sync import update
-
 from models_sync import VwESArticoli, VwESClientiFornitori, VwESOrdiniClienteAperti
-from sqlalchemy import create_engine, exc, select, delete, tuple_
+from sqlalchemy import create_engine, delete, event, exc, select, tuple_
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import event
 
 from flaskr.models.model_ordini import (
     AnagraficaArticoli,
     AnagraficaClienti,
-    OrdiniCliente,
     LogOperazioni,
+    OrdiniCliente,
     StatoRigaOrdine,
 )
 
@@ -68,7 +65,7 @@ def articoli(table_articoli: list[VwESArticoli],
     articoli_filtrati = {}
     for articolo in table_articoli:
         if articolo.CodFamiglia == "PNT":
-            glassatura = articolo.CodArt.endswith("G")
+            glassatura = 1 if articolo.CodArt.endswith("G") else 0
             match = re.search(r"\d{3,4}", articolo.CodArt)
             if match is None:
                 continue

@@ -1,0 +1,42 @@
+<div class="modal fade"
+     id="ordineModal"
+     tabindex="-1"
+     aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    Dettaglio ordine
+                </h5>
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal">
+                </button>
+            </div>
+            <div class="modal-body">
+                <h5>{{ ordine.Cliente.RagioneSociale }}</h5>
+
+                <p>
+                    Ordine:
+                    {{ ordine.IdDocumento }} / {{ ordine.IdRigaDoc }}
+                </p>
+
+                <p>
+                    Articolo:
+                    {{ ordine.CodArt }} - {{ ordine.DesArt }}
+                </p>
+                <p>
+                    Quantità ordinata:
+                    {{ ordine.QTA_ORD }}
+                </p>
+                <p>
+                    Consegna:
+                    {{ ordine.DataConsegna.strftime("%d-%m-%Y") }}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
