@@ -53,23 +53,3 @@ def ordini_calendario_scadenze():
 
     return jsonify(json_ordini_data_scadenza)
 
-@bp_ordini_cliente.route("/dettaglio/<int:IdDocumento>/<int:IdRigaDoc>")
-@login_required
-def dettaglio_ordine(IdDocumento: int, IdRigaDoc: int):
-    stmt_ordine = (
-        db.select(OrdiniCliente)
-        .options(
-            joinedload(OrdiniCliente.Cliente),
-            joinedload(OrdiniCliente.articolo),
-            joinedload(OrdiniCliente.stato),
-        )
-        .where(
-            OrdiniCliente.IdDocumento == IdDocumento,
-            OrdiniCliente.IdRigaDoc == IdRigaDoc,
-        )
-    )
-    ordine = db.session.execute(stmt_ordine).scalar_one_or_none()
-    if ordine is None:
-        abort(404)
-
-    return render_template("ordini/_partials/_partial_dettaglio_ordine.j2", ordine=ordine)

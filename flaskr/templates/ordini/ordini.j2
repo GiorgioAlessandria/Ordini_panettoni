@@ -1,11 +1,12 @@
 {% extends "base.j2" %}
 
 {% block title %}
+    <title>
     Ordini panettoni
+    </title>
 {% endblock %}
 
 {% block content %}
-
     <h1>Ordini panettoni da produrre</h1>
     <div id="ordini_cliente_da_produrre"
          hx-get="{{ url_for("ordini_cliente.tabella_ordini_cliente_da_produrre") }}"
@@ -18,6 +19,10 @@
         hx-include="#form-ordini">
         Raggruppa ordini
     </button>
+    <div id="riepilogo-ordini">
+        Nessun ordine selezionato
+    </div>
+
     <h1>Ordini panettoni in produzione</h1>
     <div id="ordini_cliente_in_produzione"
          hx-get="{{ url_for("ordini_cliente.tabella_ordini_cliente_in_produzione") }}"
@@ -27,4 +32,11 @@
     <a href="{{ url_for("ordini_cliente.ordini_calendario") }}" >
     Calendario
     </a>
+{% endblock %}
+{% block scripts %}
+    {{  super() }}
+    <script src="{{ url_for(
+        'static',
+        filename='js/selezione_ordini.js'
+    ) }}"></script>
 {% endblock %}

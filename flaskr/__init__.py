@@ -2,7 +2,16 @@ import os
 
 from flask import Flask, redirect, url_for
 
+from flaskr import (
+    routes_auth,  # noqa: F401
+    routes_production,  # noqa: F401
+)
 from flaskr.extensions import db, migrate
+from flaskr.routes_blueprint import bp_login, bp_ordini_cliente  # noqa: F401
+from flaskr.routes_modules import (
+    calendario,  # noqa: F401
+    ordini,  # noqa: F401
+)
 
 
 def create_app():
@@ -16,14 +25,9 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     # Per migrare nuovi dati nel db
-    # flask --app flaskr:create_app db migrate -m "Titolo migrazione"
-    # flask --app flaskr:create_app db upgrade
+    # flask --app flaskr:create_app db migrate --directory flaskr/migrations -m "xxx"
+    # flask --app flaskr:create_app db upgrade --directory flaskr/migrations
 
-    from flaskr import routes_auth
-    from flaskr import routes_production
-    from flaskr.routes_modules import ordini
-    from flaskr.routes_modules import calendario
-    from flaskr.routes_blueprint import bp_login, bp_ordini_cliente
     app.register_blueprint(bp_login)
     app.register_blueprint(bp_ordini_cliente)
 

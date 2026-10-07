@@ -2,14 +2,13 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0">
-    <title>
-        {% block title %}
+    {% block title %}
+        <title>
             Login
-        {% endblock %}
-    </title>
+        </title>
+    {% endblock %}
     <!-- Bootstrap -->
     <link
             href={{ url_for('static', filename="vendor/bootstrap-5.0.2-dist/css/bootstrap.min.css")}}
@@ -23,32 +22,24 @@
     <link
             rel="stylesheet"
             href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/skeleton.css') }}">
-
     <link
             rel="stylesheet"
             href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/forma/theme.css') }}">
-
     {% block head %}
     {% endblock %}
 </head>
-
 <body>
-
 <!-- Contenuto principale -->
 <main class="container py-4">
-
     <!-- Flash messages Flask -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-
             {% for category, message in messages %}
-
                 <div
                         class="alert alert-{{ category }} alert-dismissible fade show"
                         role="alert"
                 >
                     {{ message }}
-
                     <button
                             type="button"
                             class="btn-close"
@@ -56,19 +47,13 @@
                             aria-label="Chiudi"
                     ></button>
                 </div>
-
             {% endfor %}
-
         {% endif %}
     {% endwith %}
-
-
     <!-- Contenuto della pagina -->
     {% block content %}
     {% endblock %}
-
 </main>
-
 <div id="htmx-global"></div>
 {% block scripts %}
     <script
@@ -82,9 +67,9 @@
     <script
             src={{ url_for('static', filename="vendor/bootstrap-5.0.2-dist/js/bootstrap.bundle.min.js")}}>
     </script>
+    <!-- Sezione JS -->
     <!-- Modal -->
     <script src={{ url_for('static', filename="js/modal.js") }}></script>
 {% endblock %}
-
 </body>
 </html>
