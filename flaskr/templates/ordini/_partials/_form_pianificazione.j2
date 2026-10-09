@@ -1,0 +1,60 @@
+{% if error %}
+    <div class="modal-body">
+        <div class="alert alert-danger">
+            {{ error }}
+        </div>
+    </div>
+{% else %}
+    <div class="modal-header">
+        <h5 class="modal-title">
+            Pianificazione produzione
+        </h5>
+        <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal">
+
+        </button>
+    </div>
+    <form id="form-pianificazione"
+          hx-post="{{ url_for('ordini_cliente.conferma_pianificazione') }}"
+          hx-target="#contenuto-pianificazione"
+          hx-swap="innerHTML">
+        <div class="modal-body">
+            <p>
+                Ordini selezionati:
+                {{ ordini_selezionati|length }}
+            </p>
+            {% for impastatrice in impastatrici %}
+                <label>
+                    <input
+                            type="checkbox"
+                            name="impastatrici_selezionate"
+                            value="{{ impastatrice.IdImpastatrice }}">
+                    {{ impastatrice.ModelloImpastatrice }}
+                    {{ impastatrice.DescrizioneImpastatrice }}
+                    {{ impastatrice.CapienzaImpastatrice }}
+                </label>
+            {% endfor %}
+            <p>Seleziona la data di inizio produzione</p>
+            <label><input type="date"
+                          name="data_inizio_produzione"></label>
+            {% for ordine in ordini_selezionati %}
+                <input type="hidden"
+                       name="ordini_selezionati"
+                       value="{{ ordine }}">
+            {% endfor %}
+        </div>
+        <div class="modal-footer">
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+            ></button>
+            <button type="submit"
+                    class="btn btn-primary">Conferma dati
+            </button>
+        </div>
+    </form>
+{% endif %}
+
+

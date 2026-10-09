@@ -5,10 +5,9 @@
         <tbody>
         <td><h5>N° ordini: {{ numero_ordini }} </h5></td>
         <td><h5>Qta panettoni: {{ qta_panettoni }} </h5></td>
-        <td><h5>Peso impasto: {{ peso_impasto }} kg </h5></td>
+        <td><h5>Peso impasto: {{ "%.2f"|format(peso_impasto) }} kg </h5></td>
         <td><h5>N° cotte: {{ numero_cotte }} </h5></td>
-        <td><h5>Panettoni di avanzo: {{ panettoni_avanzo }} </h5></td>
-
+        <td><h5>Impasto di avanzo: {{ "%.2f"|format(panettoni_avanzo) }} </h5></td>
         </tbody>
     </table>
 {% endif %}

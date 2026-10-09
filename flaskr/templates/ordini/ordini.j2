@@ -2,7 +2,7 @@
 
 {% block title %}
     <title>
-    Ordini panettoni
+        Ordini panettoni
     </title>
 {% endblock %}
 
@@ -10,14 +10,19 @@
     <h1>Ordini panettoni da produrre</h1>
     <div id="ordini_cliente_da_produrre"
          hx-get="{{ url_for("ordini_cliente.tabella_ordini_cliente_da_produrre") }}"
-        hx-trigger="load">
-    <p>Caricamento ordini da produrre...</p>
+         hx-trigger="load">
+        <p>Caricamento ordini da produrre...</p>
     </div>
     <button
-        type="button"
-        hx-post="..."
-        hx-include="#form-ordini">
-        Raggruppa ordini
+            type="button"
+            hx-post="{{ url_for('ordini_cliente.anteprima_pianificazione') }}"
+            hx-include="#ordini_cliente_da_produrre"
+            hx-target="#contenuto-pianificazione"
+            hx-swap="innerHTML"
+            data-bs-toggle="modal"
+            data-bs-target="#modal-pianificazione"
+    >
+        Pianifica ordini
     </button>
     <div id="riepilogo-ordini">
         Nessun ordine selezionato
@@ -29,12 +34,23 @@
          hx-trigger="load">
         <p>Caricamento ordini...</p>
     </div>
-    <a href="{{ url_for("ordini_cliente.ordini_calendario") }}" >
-    Calendario
+    <a href="{{ url_for("ordini_cliente.ordini_calendario") }}">
+        Calendario
     </a>
+
+    <div class="modal fade"
+         id="modal-pianificazione"
+         tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div
+                    class="modal-content"
+                    id="contenuto-pianificazione"
+            ></div>
+        </div>
+    </div>
 {% endblock %}
 {% block scripts %}
-    {{  super() }}
+    {{ super() }}
     <script src="{{ url_for(
         'static',
         filename='js/selezione_ordini.js'

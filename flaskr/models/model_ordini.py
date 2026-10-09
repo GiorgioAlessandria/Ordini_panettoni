@@ -128,6 +128,7 @@ class TipologiaRicette(db.Model):
     IdRicetta: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     Ricetta: Mapped[str]
     Descrizione: Mapped[str]
+    Standard: Mapped[int]
     fasi: Mapped[list["RicettaFasi"]] = relationship(
         back_populates="ricetta", uselist=True, order_by="RicettaFasi.IdFase"
     )
@@ -139,8 +140,9 @@ class RicettaFasi(db.Model):
     IdFase: Mapped[int]
     IdRicetta: Mapped[int] = mapped_column(ForeignKey("tipologia_ricette.IdRicetta"))
     IdLavorazione: Mapped[int] = mapped_column(ForeignKey("tipologia_lavorazione.IdLavorazione"))
-    ricetta: Mapped["TipologiaRicette"] = relationship(back_populates="fasi")
     OffsetBlocchi: Mapped[int]
+    CapacitaMax: Mapped[int]
+    ricetta: Mapped["TipologiaRicette"] = relationship(back_populates="fasi")
     __table_args__ = (UniqueConstraint("IdRicetta", "IdFase", name="uq_ricetta_fase"),)
     lavorazione: Mapped["TipologieLavorazione"] = relationship(back_populates="fasi")
 
@@ -179,3 +181,50 @@ class Stock(db.Model):
     CodArt: Mapped[str] = mapped_column(ForeignKey("articoli.CodArt"), primary_key=True)
     Quantita: Mapped[int]
     articolo: Mapped[AnagraficaArticoli] = relationship(back_populates="stock", uselist=False)
+
+
+class Costanti(db.Model):
+    __tablename__ = "costanti"
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    Descrizione: Mapped[str]
+    Valore: Mapped[int]
+
+
+class PianificazioneProduzione(db.Model):
+    __tablename__ = "pianificazione_produzione"
+    IdPianificazione: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    DataProduzione: Mapped[date]
+    IdForno: Mapped[int] = mapped_column(ForeignKey("anagrafica_forni.IdForno"))
+    TipologiaPanettone: Mapped[str]
+    StatoRigaOrdine: Mapped[str]
+    PesoTotale: Mapped[int]
+    NumeroCotte: Mapped[int]
+
+
+class PianificazioneOrdini(db.Model):
+    __tablename__ = "pianificazione_ordini"
+    IdPianificazione: Mapped[int] = mapped_column(
+        ForeignKey("pianificazione_produzione.IdPianificazione"), primary_key=True
+    )
+    IdDocumento: Mapped[int] = mapped_column(primary_key=True)
+    IdRiga: Mapped[int] = mapped_column(primary_key=True)
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["IdDocumento", "IdRiga"],
+            [
+                "ordini_cliente_aperti.IdDocumento",
+                "ordini_cliente_aperti.IdRigaDoc",
+            ],
+            name="fk_pianificazione_ordini_ordine",
+        ),
+    )
+
+
+class PianificazioneOrdiniImpastatrici(db.Model):
+    __tablename__ = "pianificazione_ordini_impastatrici"
+    IdPianificazione: Mapped[int] = mapped_column(
+        ForeignKey("pianificazione_produzione.IdPianificazione"), primary_key=True
+    )
+    IdImpastatrice: Mapped[int] = mapped_column(
+        ForeignKey("anagrafica_impastatrici.IdImpastatrice"), primary_key=True
+    )
