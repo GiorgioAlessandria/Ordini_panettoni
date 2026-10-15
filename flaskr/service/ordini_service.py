@@ -1,11 +1,12 @@
-from typing import Any, Iterator, Literal
+from typing import (
+    Any,
+    Literal,
+)
 
-from flask import abort, render_template
 from sqlalchemy.orm import joinedload
 
 from flaskr.extensions import db
 from flaskr.models.model_ordini import (
-    AnagraficaForni,
     CapacitaForno,
     Coefficienti,
     OrdiniCliente,
@@ -13,7 +14,6 @@ from flaskr.models.model_ordini import (
     StatoRigaOrdine,
     TipLavorazioniAnagForni,
     TipologiaRicette,
-    TipologieLavorazione,
     TipRicetteAnagArticoli,
 )
 
@@ -65,9 +65,8 @@ def determina_tipologia_panettone(glassatura: Any) -> Literal["TO", "MI"]:
 
 def trova_capacita_forno(
     ordine: OrdiniCliente, tipologia_panettone: Literal["TO", "MI"]
-) -> int | str:
+) -> tuple[CapacitaForno, TipologiaRicette]:
     # 1
-    errore = None
     stmt_ricetta_articolo = db.select(TipRicetteAnagArticoli).where(
         TipRicetteAnagArticoli.CodArt == ordine.CodArt
     )
@@ -76,18 +75,18 @@ def trova_capacita_forno(
     ).one_or_none()
 
     if ricette_articoli_selezionati is None:
-        errore = "Nessun articolo selezionato"
-        return errore
+        raise ErroreCalcoloRiepilogo("Nessun articolo selezionato")
 
     # 2
     stmt_tipologia_ricetta = db.select(TipologiaRicette).where(
         TipologiaRicette.IdRicetta == ricette_articoli_selezionati.IdRicetta
     )
-    ricetta_selezionata = db.session.scalars(stmt_tipologia_ricetta).one_or_none()
+    ricetta_selezionata: TipologiaRicette | None = db.session.scalars(
+        stmt_tipologia_ricetta
+    ).one_or_none()
 
     if ricetta_selezionata is None:
-        errore = "Nessuna ricetta selezionata"
-        return errore
+        raise ErroreCalcoloRiepilogo("Nessuna ricetta selezionata")
 
     # 3
     stmt_ricette_fasi = db.select(RicettaFasi).where(
@@ -107,27 +106,30 @@ def trova_capacita_forno(
             # 6
             id_forni = [associazione.IdForno for associazione in lavorazioni_forno]
             # 7
-            stmt_capacita_forno = db.select(CapacitaForno).where(
+            stmt_forno = db.select(CapacitaForno).where(
                 CapacitaForno.IdForno.in_(id_forni),
                 CapacitaForno.DimensionePanettone == ordine.articolo.Prezzatura,
                 CapacitaForno.TipologiaPanettone == tipologia_panettone,
             )
-            capacita_forno = db.session.scalars(stmt_capacita_forno).one_or_none()
-            if not capacita_forno:
-                errore = "Non è stato possibile trovare la capacità del forno"
-                return errore
-            return capacita_forno.Capienza
+            forno: CapacitaForno | None = db.session.scalars(stmt_forno).one_or_none()
+            if forno is None:
+                raise ErroreCalcoloRiepilogo("Non è stato possibile trovare la capacità del forno")
+
+            return forno, ricetta_selezionata
         else:
             pass
-    return "Capacità forno non trovata"
+    raise ErroreCalcoloRiepilogo("Capacità forno non trovata")
 
 
 def calcolo_infornate(capacita_panettone: int, quantita_panettoni: int):
+    if not capacita_panettone:
+        raise ErroreCalcoloRiepilogo("La capacità dei panettoni non è stata inserita o è 0")
+    if capacita_panettone <= 0:
+        raise ErroreCalcoloRiepilogo("La capacità dei panettoni è negativa")
     numero_infornate = quantita_panettoni // capacita_panettone
     panettoni_restanti = quantita_panettoni % capacita_panettone
-    if numero_infornate == 0 and panettoni_restanti:
-        numero_infornate = 1
-        panettoni_restanti = 0
+    if panettoni_restanti:
+        numero_infornate += 1
     return numero_infornate, panettoni_restanti
 
 
@@ -156,7 +158,8 @@ def calcolo_riepilogo_ordini(list_ordini_selezionati: list[OrdiniCliente]):
     codici_articolo_complessivo = {ordine.CodArt for ordine in list_ordini_selezionati}
     prezzature_complessivo = {ordine.articolo.Prezzatura for ordine in list_ordini_selezionati}
     valori_glassatura: set[int] = {ordine.articolo.Glassatura for ordine in list_ordini_selezionati}
-    if len(valori_glassatura) > 1:
+
+    if len(valori_glassatura) != 1:
         raise ErroreCalcoloRiepilogo(
             "Sono stati selezionati ordini di formato eterogeneo (Torino - Milano)"
         )
@@ -164,7 +167,7 @@ def calcolo_riepilogo_ordini(list_ordini_selezionati: list[OrdiniCliente]):
 
     if len(codici_articolo_complessivo) != 1:
         raise ErroreCalcoloRiepilogo("Il numero di codici selezionati è eterogeneo")
-    if len(prezzature_complessivo) > 1:
+    if len(prezzature_complessivo) != 1:
         raise ErroreCalcoloRiepilogo("Il numero di prezzature selezionate è eterogeneo")
 
     tipologia_panettone = determina_tipologia_panettone(glassatura_complessivo)
@@ -196,19 +199,20 @@ def calcolo_riepilogo_ordini(list_ordini_selezionati: list[OrdiniCliente]):
             else ((ordine.QTA_ORD * ordine.articolo.Prezzatura) * coefficiente_glassatura.Valore)
         )
 
-    peso_impasto = peso_impasto * coefficiente_peso_totale.Valore
+    peso_totale_grammi = peso_impasto * coefficiente_peso_totale.Valore
     # qty_impasto_panettoni = peso_impasto / list(prezzature_complessivo)[0]
-    peso_impasto /= 1000
-    capacita_forno = trova_capacita_forno(list_ordini_selezionati[0], tipologia_panettone)
-    if type(capacita_forno) is int:
-        numero_cotte, panettoni_avanzo = calcolo_infornate(capacita_forno, qta_panettoni)
-    else:
-        raise ErroreCalcoloRiepilogo(capacita_forno)
+    peso_impasto_kg = peso_totale_grammi / 1000
+    forno, ricetta = trova_capacita_forno(list_ordini_selezionati[0], tipologia_panettone)
+    numero_cotte, panettoni_avanzo = calcolo_infornate(forno.Capienza, qta_panettoni)
     return {
         "numero_ordini": numero_ordini,
         "qta_panettoni": qta_panettoni,
-        "peso_impasto": peso_impasto,
+        "peso_impasto": peso_impasto_kg,
+        "peso_totale_grammi": peso_totale_grammi,
         "numero_cotte": numero_cotte,
         "panettoni_avanzo": panettoni_avanzo,
         "tipologia_panettone": tipologia_panettone,
+        "id_forno": forno.IdForno,
+        "codart_ordine": next(iter(codici_articolo_complessivo)),
+        "id_ricetta": ricetta.IdRicetta,
     }

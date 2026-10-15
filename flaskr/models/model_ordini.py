@@ -1,6 +1,7 @@
 from datetime import date, datetime
+from decimal import Decimal
 
-from sqlalchemy import ForeignKey, ForeignKeyConstraint, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKey, ForeignKeyConstraint, Numeric, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from flaskr.extensions import db
@@ -197,8 +198,17 @@ class PianificazioneProduzione(db.Model):
     IdForno: Mapped[int] = mapped_column(ForeignKey("anagrafica_forni.IdForno"))
     TipologiaPanettone: Mapped[str]
     StatoRigaOrdine: Mapped[str]
-    PesoTotale: Mapped[int]
+    PesoTotale: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     NumeroCotte: Mapped[int]
+    CodArt: Mapped[str] = mapped_column(ForeignKey("articoli.CodArt"))
+    BloccoIniziale: Mapped[str]
+    IdRicetta: Mapped[int] = mapped_column(ForeignKey("tipologia_ricette.IdRicetta"))
+    fasi: Mapped[list["PianificazioneFasi"]] = relationship(
+        back_populates="pianificazione", order_by="PianificazioneFasi.OffsetBlocchi"
+    )
+    __table_args__ = (
+        CheckConstraint("BloccoIniziale IN ('M', 'P')", name="ck_pianificazione_blocco_iniziale"),
+    )
 
 
 class PianificazioneOrdini(db.Model):
@@ -227,4 +237,28 @@ class PianificazioneOrdiniImpastatrici(db.Model):
     )
     IdImpastatrice: Mapped[int] = mapped_column(
         ForeignKey("anagrafica_impastatrici.IdImpastatrice"), primary_key=True
+    )
+
+
+class PianificazioneFasi(db.Model):
+    __tablename__ = "pianificazione_fasi"
+    IdPianificazioneFase: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    IdPianificazione: Mapped[int] = mapped_column(
+        ForeignKey("pianificazione_produzione.IdPianificazione")
+    )
+    IdRicettaFase: Mapped[int] = mapped_column(ForeignKey("ricetta_fasi.id"))
+    IdLavorazione: Mapped[int] = mapped_column(ForeignKey("tipologia_lavorazione.IdLavorazione"))
+    OffsetBlocchi: Mapped[int]
+    DataFase: Mapped[date]
+    Blocco: Mapped[str]
+    pianificazione: Mapped["PianificazioneProduzione"] = relationship(back_populates="fasi")
+    __table_args__ = (
+        UniqueConstraint("IdLavorazione", "DataFase", "Blocco", name="uq_lavorazione_data_blocco"),
+        UniqueConstraint(
+            "IdPianificazione", "DataFase", "Blocco", name="uq_pianificazione_data_blocco"
+        ),
+        UniqueConstraint(
+            "IdPianificazione", "IdRicettaFase", name="uq_pianificazione_ricetta_fase"
+        ),
+        CheckConstraint("Blocco IN ('M', 'P')", name="ck_pianificazione_fasi_blocco"),
     )

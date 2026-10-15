@@ -39,6 +39,13 @@
             <p>Seleziona la data di inizio produzione</p>
             <label><input type="date"
                           name="data_inizio_produzione"></label>
+            <p>Seleziona il blocco iniziale di partenza</p>
+            <label><input type="radio"
+                          name="blocco_inizio_produzione"
+                          value="0">Mattina</label>
+            <label><input type="radio"
+                          name="blocco_inizio_produzione"
+                          value="1">Pomeriggio</label>
             {% for ordine in ordini_selezionati %}
                 <input type="hidden"
                        name="ordini_selezionati"

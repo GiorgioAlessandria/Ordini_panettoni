@@ -1,7 +1,30 @@
 {% if error %}
-    <div class="alert alert-danger">
-        {{ error }}
+    <div class="modal-header">
+        <h5 class="modal-title">Errore pianificazione</h5>
+    </div>
+
+    <div class="modal-body">
+        <div class="alert alert-danger">
+            {{ error }}
+        </div>
     </div>
 {% else %}
-    <h1>Pianificazione creata correttamente</h1>
+    <div class="modal-header">
+        <h5 class="modal-title">Pianificazione confermata</h5>
+    </div>
+
+    <div class="modal-body">
+        <div class="alert alert-success">
+            Pianificazione n. {{ id_pianificazione }}
+            salvata correttamente.
+        </div>
+    </div>
+
+    <div class="modal-footer">
+        <button type="button"
+                class="btn btn-secondary"
+                data-bs-dismiss="modal">
+            Chiudi
+        </button>
+    </div>
 {% endif %}
