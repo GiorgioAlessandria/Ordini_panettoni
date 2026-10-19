@@ -3,6 +3,7 @@ from typing import (
     Literal,
 )
 
+from sqlalchemy import and_
 from sqlalchemy.orm import joinedload
 
 from flaskr.extensions import db
@@ -10,6 +11,7 @@ from flaskr.models.model_ordini import (
     CapacitaForno,
     Coefficienti,
     OrdiniCliente,
+    PianificazioneOrdini,
     RicettaFasi,
     StatoRigaOrdine,
     TipLavorazioniAnagForni,
@@ -24,36 +26,141 @@ class ErroreCalcoloRiepilogo(Exception):
     pass
 
 
-def dati_tabella_produzione(stato: str) -> list[dict[str, Any]]:
+def crea_riga_tabella(
+    ordine: OrdiniCliente,
+    quantita: int,
+    stato: str,
+    id_pianificazione: int | None = None,
+) -> dict[str, Any]:
+
+    return {
+        "IdDocumento": ordine.IdDocumento,
+        "IdRigaDoc": ordine.IdRigaDoc,
+        "IdPianificazione": id_pianificazione,
+        "DataRegistrazione": ordine.DataRegistrazione,
+        "NumRegistraz": ordine.NumRegistraz,
+        "Cliente": ordine.Cliente.RagioneSociale,
+        "CodArt": ordine.CodArt,
+        "DesArt": ordine.DesArt,
+        "DataConsegna": ordine.DataConsegna.strftime(date_format),
+        "QTA_ORD": ordine.QTA_ORD,
+        "QTA_Saldo": quantita,
+        "Prezzatura": ordine.articolo.Prezzatura,
+        "Glassatura": ("Si" if ordine.articolo.Glassatura == 1 else "No"),
+        "Stato": stato,
+    }
+
+
+def recupera_righe_in_produzione() -> list[dict[str, Any]]:
+
     stmt = (
-        db.select(OrdiniCliente)
-        .join(OrdiniCliente.stato)
+        db.select(
+            PianificazioneOrdini,
+            OrdiniCliente,
+        )
+        .join(
+            OrdiniCliente,
+            and_(
+                PianificazioneOrdini.IdDocumento == OrdiniCliente.IdDocumento,
+                PianificazioneOrdini.IdRiga == OrdiniCliente.IdRigaDoc,
+            ),
+        )
         .options(
             joinedload(OrdiniCliente.Cliente),
             joinedload(OrdiniCliente.articolo),
-            joinedload(OrdiniCliente.stato),
         )
-        .where(StatoRigaOrdine.Stato == stato)
+        .where(PianificazioneOrdini.Stato == "In produzione")
+        .order_by(
+            OrdiniCliente.DataConsegna.asc(),
+            PianificazioneOrdini.IdPianificazione.asc(),
+        )
     )
-    ordini_cliente_grezzi = db.session.execute(stmt).scalars().all()
-    ordini_cliente_assegnati = [
-        {
-            "IdDocumento": ordine.IdDocumento,
-            "IdRigaDoc": ordine.IdRigaDoc,
-            "DataRegistrazione": ordine.DataRegistrazione,
-            "NumRegistraz": ordine.NumRegistraz,
-            "Cliente": ordine.Cliente.RagioneSociale,
-            "CodArt": ordine.CodArt,
-            "DesArt": ordine.DesArt,
-            "DataConsegna": ordine.DataConsegna.strftime(date_format),
-            "QTA_ORD": ordine.QTA_ORD,
-            "Prezzatura": ordine.articolo.Prezzatura,
-            "Glassatura": "Si" if ordine.articolo.Glassatura == 1 else "No",
-            "Stato": ordine.stato.Stato,
-        }
-        for ordine in ordini_cliente_grezzi
-    ]
-    return ordini_cliente_assegnati
+
+    risultati = db.session.execute(stmt).all()
+
+    righe_tabella = []
+
+    for associazione, ordine in risultati:
+        if associazione.QtaPianificata is None:
+            raise ErroreCalcoloRiepilogo(
+                "Quantità mancante nella pianificazione "
+                f"{associazione.IdPianificazione}, "
+                f"ordine {ordine.IdDocumento}-{ordine.IdRigaDoc}"
+            )
+
+        riga = crea_riga_tabella(
+            ordine=ordine,
+            quantita=associazione.QtaPianificata,
+            stato=associazione.Stato,
+            id_pianificazione=associazione.IdPianificazione,
+        )
+
+        righe_tabella.append(riga)
+
+    return righe_tabella
+
+
+def dati_tabella_produzione(
+    stato: str,
+) -> list[dict[str, Any]]:
+
+    if stato == "Nuovo":
+        # Recupero tutti gli ordini ERP ordinati per consegna
+        stmt = (
+            db.select(OrdiniCliente)
+            .options(
+                joinedload(OrdiniCliente.Cliente),
+                joinedload(OrdiniCliente.articolo),
+            )
+            .order_by(
+                OrdiniCliente.DataConsegna.asc(),
+                OrdiniCliente.IdDocumento.asc(),
+                OrdiniCliente.IdRigaDoc.asc(),
+            )
+        )
+
+        ordini = db.session.scalars(stmt).all()
+
+        # Quantità già impegnate nelle pianificazioni
+        quantita_impegnate = recupera_quantita_impegnate()
+
+        righe_tabella = []
+
+        for ordine in ordini:
+            chiave = (
+                ordine.IdDocumento,
+                ordine.IdRigaDoc,
+            )
+
+            impegnata = quantita_impegnate.get(chiave, 0)
+
+            if ordine.QTA_SALDO_DOC is None:
+                raise ErroreCalcoloRiepilogo(f"Saldo mancante per l'ordine {chiave}")
+
+            quantita_nuova = max(
+                0,
+                ordine.QTA_SALDO_DOC - impegnata,
+            )
+
+            # Un ordine completamente assegnato
+            # non compare tra quelli da produrre
+            if quantita_nuova <= 0:
+                continue
+
+            riga = crea_riga_tabella(
+                ordine=ordine,
+                quantita=quantita_nuova,
+                stato="Nuovo",
+            )
+
+            righe_tabella.append(riga)
+
+        return righe_tabella
+
+    if stato == "In produzione":
+        return recupera_righe_in_produzione()
+
+    raise ValueError(f"Stato non gestito: {stato}")
 
 
 def determina_tipologia_panettone(glassatura: Any) -> Literal["TO", "MI"]:
@@ -215,4 +322,42 @@ def calcolo_riepilogo_ordini(list_ordini_selezionati: list[OrdiniCliente]):
         "id_forno": forno.IdForno,
         "codart_ordine": next(iter(codici_articolo_complessivo)),
         "id_ricetta": ricetta.IdRicetta,
+    }
+
+
+def calcola_quantita_residua_ordine(
+    qta_residua: int, qta_pianificata: int, qta_saldo_documento: int
+):
+    quantita_ordine_residua = max(0, qta_saldo_documento - qta_pianificata)
+
+    quantita_da_assegnare = min(
+        quantita_ordine_residua,
+        qta_residua,
+    )
+    qta_residua -= quantita_da_assegnare
+    if quantita_da_assegnare <= 0:
+        return 0
+    return quantita_da_assegnare
+
+
+def recupera_quantita_impegnate() -> dict[tuple[int, int], int]:
+    """Totale delle quantità associate a pianificazioni valide per ordine."""
+    stmt = (
+        db.select(
+            PianificazioneOrdini.IdDocumento,
+            PianificazioneOrdini.IdRiga,
+            db.func.coalesce(
+                db.func.sum(PianificazioneOrdini.QtaPianificata), 0
+            ).label("quantita_impegnata"),
+        )
+        .where(PianificazioneOrdini.Stato.in_(("In produzione", "Chiuso")))
+        .group_by(
+            PianificazioneOrdini.IdDocumento,
+            PianificazioneOrdini.IdRiga,
+        )
+    )
+    risultati = db.session.execute(stmt).all()
+    return {
+        (r.IdDocumento, r.IdRiga): r.quantita_impegnata
+        for r in risultati
     }

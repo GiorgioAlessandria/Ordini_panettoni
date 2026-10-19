@@ -6,7 +6,9 @@
 # salvataggio pianificazione completa
 from collections.abc import Sequence
 from datetime import date, datetime, timedelta
+from typing import Literal
 
+from sqlalchemy import tuple_
 from sqlalchemy.exc import SQLAlchemyError
 
 from flaskr import db
@@ -116,14 +118,65 @@ def validazione_linearita_offset(lista_fasi: list[PianificazioneFasi]) -> bool:
     return True
 
 
-def validazione_capacita_infornate(
-    costante_infornate: int, panettoni_per_infornata: int, panettoni_previsti: int
-) -> bool:
+def ottimizzazione_infornata(
+    panettoni_previsti: int, panettoni_per_infornata: int, ottimizzazione: bool
+) -> int:
+    intero_infornate = panettoni_previsti // panettoni_per_infornata
+    scarto_infornate = panettoni_previsti % panettoni_per_infornata
+    if scarto_infornate and ottimizzazione:
+        intero_infornate += 1
+    return intero_infornate
+
+
+def calcolo_max_panettoni(
+    costante_infornate: int,
+    panettoni_per_infornata: int,
+    panettoni_previsti: int,
+    ottimizza_infornata: bool,
+) -> tuple[int, int, int, int]:
+    if costante_infornate <= 0:
+        raise ErroreCalcoloPianificazione(
+            "La costante infornate non è stata configurata correttamente"
+        )
+    if panettoni_per_infornata <= 0:
+        raise ErroreCalcoloPianificazione(
+            "Il numero di panettoni per infornata non sono stati configurati correttamente"
+        )
+    if panettoni_previsti < 0:
+        raise ErroreCalcoloPianificazione("Il numero di panettoni previsti è minore di ZERO")
     panettoni_massimi_infornata = costante_infornate * panettoni_per_infornata
     if panettoni_massimi_infornata >= panettoni_previsti:
-        return True
+        panettoni_residui = 0
+        if ottimizza_infornata:
+            numero_infornate_previste = ottimizzazione_infornata(
+                panettoni_previsti, panettoni_per_infornata, ottimizza_infornata
+            )
+            panettoni_previsti_infornata = panettoni_per_infornata * numero_infornate_previste
+            panettoni_surplus = panettoni_previsti_infornata - panettoni_previsti
+        else:
+            numero_infornate_previste = ottimizzazione_infornata(
+                panettoni_previsti, panettoni_per_infornata, ottimizza_infornata
+            )
+            panettoni_previsti_infornata = panettoni_previsti
+            panettoni_surplus = 0
+        return (
+            panettoni_previsti_infornata,
+            panettoni_residui,
+            panettoni_surplus,
+            numero_infornate_previste,
+        )
     else:
-        return False
+        panettoni_surplus = 0
+        numero_infornate_previste = ottimizzazione_infornata(
+            panettoni_previsti, panettoni_per_infornata, ottimizza_infornata
+        )
+        panettoni_residui = panettoni_previsti - panettoni_massimi_infornata
+        return (
+            panettoni_massimi_infornata,
+            panettoni_residui,
+            panettoni_surplus,
+            numero_infornate_previste,
+        )
 
 
 def validazione_conflitti_idlavorazione(lista_fasi: Sequence[PianificazioneFasi]) -> bool:
@@ -137,3 +190,80 @@ def validazione_conflitti_idlavorazione(lista_fasi: Sequence[PianificazioneFasi]
         if fase_esistente is not None:
             return False
     return True
+
+
+def calcola_quantita_residua_ordine(
+    qta_saldo_documento: int,
+    qta_gia_pianificata: int,
+) -> int:
+
+    return max(
+        0,
+        qta_saldo_documento - qta_gia_pianificata,
+    )
+
+
+def recupera_quantita_gia_pianificate(
+    ordini: Sequence[OrdiniCliente],
+) -> dict[tuple[int, int], int]:
+
+    # Chiavi composte degli ordini selezionati
+    chiavi_ordini = [(ordine.IdDocumento, ordine.IdRigaDoc) for ordine in ordini]
+
+    if not chiavi_ordini:
+        return {}
+
+    stmt = (
+        db.select(
+            PianificazioneOrdini.IdDocumento,
+            PianificazioneOrdini.IdRiga,
+            db.func.coalesce(
+                db.func.sum(PianificazioneOrdini.QtaPianificata),
+                0,
+            ).label("totale_pianificato"),
+        )
+        .where(
+            tuple_(
+                PianificazioneOrdini.IdDocumento,
+                PianificazioneOrdini.IdRiga,
+            ).in_(chiavi_ordini)
+        )
+        .group_by(
+            PianificazioneOrdini.IdDocumento,
+            PianificazioneOrdini.IdRiga,
+        )
+    )
+
+    righe = db.session.execute(stmt).all()
+
+    return {(id_documento, id_riga): totale for id_documento, id_riga, totale in righe}
+
+
+def distribuisci_quantita_ordini(
+    ordini_disponibili: Sequence[tuple[OrdiniCliente, int]],
+    capacita_assegnabile: int,
+) -> list[tuple[OrdiniCliente, int]]:
+
+    if capacita_assegnabile < 0:
+        raise ErroreCalcoloPianificazione("La capacità assegnabile non può essere negativa")
+
+    assegnazioni: list[tuple[OrdiniCliente, int]] = []
+    capacita_residua = capacita_assegnabile
+
+    for ordine, quantita_disponibile in ordini_disponibili:
+        if capacita_residua <= 0:
+            break
+
+        quantita_da_assegnare = min(
+            quantita_disponibile,
+            capacita_residua,
+        )
+
+        if quantita_da_assegnare <= 0:
+            continue
+
+        assegnazioni.append((ordine, quantita_da_assegnare))
+
+        capacita_residua -= quantita_da_assegnare
+
+    return assegnazioni

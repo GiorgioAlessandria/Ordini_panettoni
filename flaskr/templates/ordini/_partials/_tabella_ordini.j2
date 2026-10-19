@@ -1,0 +1,171 @@
+{# Frammento usato da entrambe le route; stato_tabella = Nuovo / In produzione. #}
+{% set selezione_attiva = (stato_tabella == 'Nuovo') %}
+{% set prezzature = ordini_cliente | map(attribute='Prezzatura') | unique | sort | list %}
+{% set pianificazioni = ordini_cliente | map(attribute='IdPianificazione') | reject('none') | unique | sort | list %}
+{% macro colonna(key, nome, tipo='text') %}
+    <th scope="col" aria-sort="none" data-sort-column="{{ key }}">
+        <button type="button" class="ordini-sort" data-sort-key="{{ key }}" data-sort-type="{{ tipo }}"
+                aria-label="Ordina per {{ nome }}">
+            {{ nome }} <span class="ordini-sort-indicator" aria-hidden="true">↕</span>
+        </button>
+    </th>
+{% endmacro %}
+
+<style>
+    .ordini-filtri { display: flex; align-items: end; flex-wrap: wrap; gap: .65rem; padding: .7rem .2rem .8rem; }
+    .ordini-filtro { min-width: 110px; flex: 1 1 125px; }
+    .ordini-filtro.ricerca { min-width: 190px; flex: 2 1 240px; }
+    .ordini-filtro label { display: block; font-size: .78rem; color: var(--bs-secondary-color, #64748b); margin-bottom: .25rem; font-weight: 600; }
+    .ordini-filtro .form-control, .ordini-filtro .form-select { min-width: 0; width: 100%; }
+    .ordini-filtri .ordini-reset { white-space: nowrap; }
+    .ordini-barra { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding: .15rem .2rem .55rem; font-size: .8rem; color: var(--bs-secondary-color, #64748b); }
+    .ordini-table-scroll { max-height: 320px; min-height: 130px; overflow: auto; border: 1px solid var(--bs-border-color, #d6dee7); border-radius: .55rem; scrollbar-gutter: stable; }
+    .ordini-table { min-width: 1120px; width: 100%; margin: 0; font-size: .86rem; }
+    .ordini-table thead th { position: sticky; top: 0; z-index: 2; background: var(--bs-tertiary-bg, #f1f5f9) !important; white-space: nowrap; padding: .45rem .5rem; box-shadow: inset 0 -1px 0 var(--bs-border-color, #d6dee7); }
+    .ordini-table tbody td { white-space: nowrap; padding: .5rem; vertical-align: middle; }
+    .ordini-table tbody tr[data-record] { cursor: pointer; }
+    .ordini-table tbody tr[data-record]:hover td { background: var(--bs-secondary-bg, #f6f8fa); }
+    .ordini-table tbody tr:focus-visible { outline: 2px solid var(--bs-primary, #0d6efd); outline-offset: -2px; }
+    .ordini-sort { background: none; border: 0; padding: .15rem 0; text-align: left; font-weight: 700; color: inherit; cursor: pointer; }
+    .ordini-sort:hover, .ordini-sort:focus-visible { color: var(--bs-primary, #0d6efd); text-decoration: underline; }
+    .ordini-sort-indicator { color: var(--bs-secondary-color, #64748b); font-size: .73rem; margin-left: .15rem; }
+    .ordini-sort[aria-pressed="true"] .ordini-sort-indicator { color: var(--bs-primary, #0d6efd); }
+    .ordini-table .col-numero { text-align: right; font-variant-numeric: tabular-nums; }
+    .ordini-table .col-centro { text-align: center; }
+    @media (max-width: 700px) { .ordini-table-scroll { max-height: 290px; } }
+</style>
+
+<form id="{{ 'form-ordini' if selezione_attiva else 'form-ordini-produzione' }}"
+      class="ordini-form" data-tipo-tabella="{{ stato_tabella }}">
+    <div class="ordini-filtri" role="group" aria-label="Filtri ordini {{ stato_tabella }}">
+        <div class="ordini-filtro ricerca">
+            <label for="filtro-ricerca-{{ 'nuovo' if selezione_attiva else 'produzione' }}">Ricerca</label>
+            <input id="filtro-ricerca-{{ 'nuovo' if selezione_attiva else 'produzione' }}"
+                   class="form-control form-control-sm" type="search" data-filter="ricerca"
+                   placeholder="Cliente, articolo, ordine..." autocomplete="off">
+        </div>
+        <div class="ordini-filtro">
+            <label for="filtro-prezzatura-{{ 'nuovo' if selezione_attiva else 'produzione' }}">Prezzatura</label>
+            <select id="filtro-prezzatura-{{ 'nuovo' if selezione_attiva else 'produzione' }}"
+                    class="form-select form-select-sm" data-filter="prezzatura">
+                <option value="">Tutte</option>
+                {% for valore in prezzature %}
+                    <option value="{{ valore }}">{{ valore }} g</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="ordini-filtro">
+            <label for="filtro-glassa-{{ 'nuovo' if selezione_attiva else 'produzione' }}">Glassa</label>
+            <select id="filtro-glassa-{{ 'nuovo' if selezione_attiva else 'produzione' }}"
+                    class="form-select form-select-sm" data-filter="glassa">
+                <option value="">Tutte</option>
+                <option value="Si">Sì</option>
+                <option value="No">No</option>
+            </select>
+        </div>
+        {% if not selezione_attiva %}
+            <div class="ordini-filtro">
+                <label for="filtro-piano">Pianificazione</label>
+                <select id="filtro-piano" class="form-select form-select-sm" data-filter="pianificazione">
+                    <option value="">Tutte</option>
+                    {% for piano in pianificazioni %}
+                        <option value="{{ piano }}">#{{ piano }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        {% endif %}
+        <div class="ordini-filtro">
+            <label for="filtro-dal-{{ 'nuovo' if selezione_attiva else 'produzione' }}">Consegna dal</label>
+            <input id="filtro-dal-{{ 'nuovo' if selezione_attiva else 'produzione' }}"
+                   class="form-control form-control-sm" type="date" data-filter="dal">
+        </div>
+        <div class="ordini-filtro">
+            <label for="filtro-al-{{ 'nuovo' if selezione_attiva else 'produzione' }}">Consegna al</label>
+            <input id="filtro-al-{{ 'nuovo' if selezione_attiva else 'produzione' }}"
+                   class="form-control form-control-sm" type="date" data-filter="al">
+        </div>
+        <button type="button" class="btn btn-outline-secondary btn-sm ordini-reset" data-reset-filters>
+            Azzera filtri
+        </button>
+    </div>
+
+    <div class="ordini-barra">
+        <span data-contatore-righe>{{ ordini_cliente|length }} ordini</span>
+        <span>Scorri nella tabella per vedere tutte le colonne e le righe.</span>
+    </div>
+
+    <div class="ordini-table-scroll" tabindex="0" aria-label="Tabella {{ stato_tabella }} a scorrimento">
+        <table class="table table-striped table-hover align-middle ordini-table">
+            <thead>
+                <tr>
+                    {% if selezione_attiva %}
+                        <th scope="col" class="col-centro">Seleziona</th>
+                    {% else %}
+                        {{ colonna('pianificazione', 'Pianificazione', 'number') }}
+                    {% endif %}
+                    {{ colonna('cliente', 'Cliente') }}
+                    {{ colonna('articolo', 'Codice panettone') }}
+                    {{ colonna('descrizione', 'Descrizione') }}
+                    {{ colonna('consegna', 'Consegna', 'date') }}
+                    {{ colonna('ordinata', 'Q.tà ordinata', 'number') }}
+                    {{ colonna('quantita', 'Q.tà residua' if selezione_attiva else 'Q.tà assegnata', 'number') }}
+                    {{ colonna('prezzatura', 'Prezzatura', 'number') }}
+                    {{ colonna('glassa', 'Glassa') }}
+                    {{ colonna('stato', 'Stato') }}
+                </tr>
+            </thead>
+            <tbody>
+                {% for ordine in ordini_cliente %}
+                    {% set consegna_iso = ordine.DataConsegna[6:10] ~ '-' ~ ordine.DataConsegna[3:5] ~ '-' ~ ordine.DataConsegna[0:2] %}
+                    <tr data-record
+                        data-original-index="{{ loop.index0 }}"
+                        data-id-documento="{{ ordine.IdDocumento }}"
+                        data-id-riga="{{ ordine.IdRigaDoc }}"
+                        data-id-pianificazione="{{ ordine.IdPianificazione if ordine.IdPianificazione is not none else '' }}"
+                        data-filter-text="{{ ordine.Cliente }} {{ ordine.CodArt }} {{ ordine.DesArt }} {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}"
+                        data-filter-prezzatura="{{ ordine.Prezzatura }}"
+                        data-filter-glassa="{{ ordine.Glassatura }}"
+                        data-filter-consegna="{{ consegna_iso }}"
+                        data-filter-pianificazione="{{ ordine.IdPianificazione if ordine.IdPianificazione is not none else '' }}"
+                        hx-get="{{ url_for('ordini_cliente.dettaglio_ordine', IdDocumento=ordine.IdDocumento, IdRigaDoc=ordine.IdRigaDoc) }}"
+                        hx-trigger="click"
+                        hx-target="#htmx-global"
+                        hx-swap="innerHTML"
+                        tabindex="0"
+                        aria-label="Dettaglio ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}">
+                        {% if selezione_attiva %}
+                            <td class="col-centro">
+                                <input type="checkbox" name="ordini_selezionati"
+                                       value="{{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}"
+                                       data-cod-art="{{ ordine.CodArt }}"
+                                       data-prezzatura="{{ ordine.Prezzatura }}"
+                                       hx-post="{{ url_for('ordini_cliente.riepilogo_selezione') }}"
+                                       hx-trigger="change"
+                                       hx-include="closest form"
+                                       hx-target="#riepilogo-ordini"
+                                       hx-swap="innerHTML"
+                                       onclick="event.stopPropagation()"
+                                       aria-label="Seleziona ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}">
+                            </td>
+                        {% else %}
+                            <td data-col="pianificazione" data-sort-value="{{ ordine.IdPianificazione }}" class="col-numero">
+                                #{{ ordine.IdPianificazione }}
+                            </td>
+                        {% endif %}
+                        <td data-col="cliente">{{ ordine.Cliente }}</td>
+                        <td data-col="articolo">{{ ordine.CodArt }}</td>
+                        <td data-col="descrizione">{{ ordine.DesArt }}</td>
+                        <td data-col="consegna" data-sort-value="{{ consegna_iso }}">{{ ordine.DataConsegna }}</td>
+                        <td data-col="ordinata" data-sort-value="{{ ordine.QTA_ORD }}" class="col-numero">{{ ordine.QTA_ORD }}</td>
+                        <td data-col="quantita" data-sort-value="{{ ordine.QTA_Saldo }}" class="col-numero fw-semibold">{{ ordine.QTA_Saldo }}</td>
+                        <td data-col="prezzatura" data-sort-value="{{ ordine.Prezzatura }}" class="col-numero">{{ ordine.Prezzatura }} g</td>
+                        <td data-col="glassa">{{ ordine.Glassatura }}</td>
+                        <td data-col="stato">{{ ordine.Stato }}</td>
+                    </tr>
+                {% else %}
+                    <tr data-no-data><td colspan="10" class="text-center py-4">Nessun ordine da visualizzare.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</form>

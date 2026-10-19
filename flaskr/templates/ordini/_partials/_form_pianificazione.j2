@@ -46,6 +46,9 @@
             <label><input type="radio"
                           name="blocco_inizio_produzione"
                           value="1">Pomeriggio</label>
+            <label><input type="checkbox"
+                          name="ottimizza_infornate"
+                          value="1">Ottimizza infornate</label>
             {% for ordine in ordini_selezionati %}
                 <input type="hidden"
                        name="ordini_selezionati"

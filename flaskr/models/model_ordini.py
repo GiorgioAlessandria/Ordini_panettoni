@@ -200,6 +200,7 @@ class PianificazioneProduzione(db.Model):
     StatoRigaOrdine: Mapped[str]
     PesoTotale: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     NumeroCotte: Mapped[int]
+    PanettoniPianificati: Mapped[int]
     CodArt: Mapped[str] = mapped_column(ForeignKey("articoli.CodArt"))
     BloccoIniziale: Mapped[str]
     IdRicetta: Mapped[int] = mapped_column(ForeignKey("tipologia_ricette.IdRicetta"))
@@ -218,6 +219,9 @@ class PianificazioneOrdini(db.Model):
     )
     IdDocumento: Mapped[int] = mapped_column(primary_key=True)
     IdRiga: Mapped[int] = mapped_column(primary_key=True)
+    QtaPianificata: Mapped[int]
+    Stato: Mapped[str] = mapped_column(server_default="In produzione")
+    DataChiusura: Mapped[datetime | None]
     __table_args__ = (
         ForeignKeyConstraint(
             ["IdDocumento", "IdRiga"],
@@ -226,6 +230,11 @@ class PianificazioneOrdini(db.Model):
                 "ordini_cliente_aperti.IdRigaDoc",
             ],
             name="fk_pianificazione_ordini_ordine",
+        ),
+        CheckConstraint("QtaPianificata > 0", name="ck_qta_pianificata_positiva"),
+        CheckConstraint(
+            "Stato IN ('In produzione', 'Chiuso', 'Annullato')",
+            name="ck_stato_pianificazione_ordini",
         ),
     )
 

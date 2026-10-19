@@ -5,14 +5,237 @@
 {% endblock %}
 
 {% block content %}
+<style>
+    .calendario-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    .calendario-header h1 {
+        margin: 0;
+        font-size: clamp(1.35rem, 2vw, 1.8rem);
+        font-weight: 700;
+    }
+    .calendario-nav {
+        display: inline-flex;
+        gap: .5rem;
+        align-items: center;
+        padding: .65rem 1rem;
+        border: 2px solid var(--bs-primary, #0d6efd);
+        border-radius: .7rem;
+        text-decoration: none;
+        font-weight: 700;
+        color: var(--bs-primary, #0d6efd);
+        background: var(--bs-body-bg, #fff);
+    }
+    .calendario-nav:hover,
+    .calendario-nav:focus-visible {
+        color: #fff;
+        background: var(--bs-primary, #0d6efd);
+    }
+    .calendario-legenda {
+        display: flex;
+        gap: .6rem 1.25rem;
+        flex-wrap: wrap;
+        align-items: center;
+        margin: 0 0 .85rem;
+        font-size: .88rem;
+        color: var(--bs-body-color, #334155);
+    }
+    .calendario-legenda-item {
+        display: inline-flex;
+        gap: .4rem;
+        align-items: center;
+    }
+    .calendario-legenda-colore {
+        display: inline-block;
+        height: 1rem;
+        width: 1rem;
+        border: 2px solid;
+        border-radius: .3rem;
+    }
+    .legenda-scadenza { background: #f1f5f9; border-color: #64748b; }
+    .legenda-produzione { background: #dbeafe; border-color: #2563eb; }
+    .calendario-nota {
+        font-size: .87rem;
+        color: var(--bs-secondary-color, #64748b);
+        margin: 0 0 .8rem;
+    }
+    .calendario-card {
+        max-width: 100%;
+        overflow-x: auto;
+        border: 1px solid var(--bs-border-color, #cbd5e1);
+        border-radius: .85rem;
+        background: var(--bs-body-bg, #fff);
+        padding: 1rem;
+    }
+    /* Sette giorni leggibili anche su schermi piccoli: barra orizzontale del contenitore. */
+    #calendar {
+        min-width: 1160px;
+        min-height: 440px;
+    }
+    #calendar .fc-scrollgrid {
+        border: 2px solid #94a3b8 !important;
+        border-radius: .3rem;
+        overflow: hidden;
+    }
+    #calendar .fc-scrollgrid td,
+    #calendar .fc-scrollgrid th {
+        border-color: #bac6d5 !important;
+    }
+    #calendar .fc-col-header-cell {
+        background: #eaf0f7;
+        border-bottom: 2px solid #94a3b8 !important;
+    }
+    #calendar .fc-col-header-cell-cushion {
+        padding: .8rem .25rem;
+        font-weight: 750;
+        color: #263648;
+        text-transform: capitalize;
+        text-decoration: none;
+    }
+    /* Giorni distinti, con cornice netta e altezza sufficiente per piu' schede. */
+    #calendar .fc-daygrid-day {
+        border-left: 2px solid #bac6d5 !important;
+        background: #fff;
+    }
+    #calendar .fc-daygrid-day-frame {
+        min-height: 250px;
+        padding: .45rem .4rem .7rem;
+    }
+    #calendar .fc-daygrid-day-number {
+        font-weight: 700;
+        text-decoration: none;
+        padding: .25rem .4rem;
+        color: #334155;
+    }
+    #calendar .fc-daygrid-day-events {
+        margin-top: .35rem;
+    }
+    #calendar .fc-daygrid-event-harness {
+        margin: 0 0 .4rem !important;
+    }
+    #calendar .fc-day-other {
+        background: #f8fafc;
+    }
+    #calendar .fc-day-today {
+        background: #fff7e6 !important;
+    }
+    /* Riquadro distinto per ciascun evento, comprese le scadenze a giornata intera. */
+    #calendar .fc-daygrid-event,
+    #calendar .fc-timegrid-event {
+        display: block;
+        padding: .15rem;
+        border: 2px solid #64748b !important;
+        border-radius: .55rem !important;
+        box-shadow: 0 2px 5px rgba(15, 23, 42, .10);
+        background: #f1f5f9 !important;
+        color: #243447 !important;
+        opacity: 1 !important;
+    }
+    #calendar .fc-event.evento-produzione {
+        border-color: #2563eb !important;
+        background: #dbeafe !important;
+        color: #123b73 !important;
+    }
+    #calendar .fc-event.evento-scadenza {
+        border-color: #64748b !important;
+        background: #f1f5f9 !important;
+        color: #243447 !important;
+    }
+    #calendar .fc-event-main {
+        color: inherit !important;
+        background: transparent !important;
+    }
+    #calendar .fc-event:focus-visible {
+        outline: 3px solid #f59e0b;
+        outline-offset: 2px;
+    }
+    #calendar .calendario-evento-contenuto {
+        display: flex;
+        flex-direction: column;
+        gap: .15rem;
+        padding: .35rem .4rem;
+        min-width: 0;
+    }
+    #calendar .calendario-evento-ora {
+        font-size: .74rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+    #calendar .calendario-evento-titolo {
+        font-size: .82rem;
+        line-height: 1.4;
+        font-weight: 650;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: normal;
+    }
+    #calendar .fc-timegrid-slot {
+        height: 3rem;
+        border-bottom: 1px solid #d1dbe6 !important;
+    }
+    #calendar .fc-timegrid-col {
+        border-right: 2px solid #bac6d5 !important;
+    }
+    #calendar .fc-timegrid-event {
+        min-height: 2.7rem;
+        margin: 0 2px 2px !important;
+    }
+    #calendar .fc-timegrid-event .calendario-evento-contenuto {
+        padding: .22rem .3rem;
+    }
+    #calendar .fc-toolbar {
+        gap: .6rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+    #calendar .fc-button {
+        border-radius: .5rem;
+        font-weight: 650;
+    }
+    @media (max-width: 740px) {
+        .calendario-card { padding: .55rem; }
+        #calendar { min-width: 1160px; }
+    }
+</style>
 
+<header class="calendario-header">
+    <h1>Calendario produzione e scadenze</h1>
+    <a class="calendario-nav" href="{{ url_for('ordini_cliente.ordini_cliente') }}">
+        <span aria-hidden="true">&#8592;</span> Torna agli ordini
+    </a>
+</header>
+
+<div class="calendario-legenda" aria-label="Legenda eventi">
+    <span class="calendario-legenda-item">
+        <span class="calendario-legenda-colore legenda-produzione" aria-hidden="true"></span>
+        Fasi di produzione
+    </span>
+    <span class="calendario-legenda-item">
+        <span class="calendario-legenda-colore legenda-scadenza" aria-hidden="true"></span>
+        Scadenze degli ordini
+    </span>
+</div>
+
+<p class="calendario-nota">
+    La vista iniziale mostra una scheda separata per ogni evento, anche quando gli orari coincidono.
+    Passa alla vista “Ore” per vedere gli orari di lavorazione. Sui display piccoli scorri orizzontalmente.
+</p>
+
+<div class="calendario-card" role="region" aria-label="Calendario settimanale con scorrimento orizzontale" tabindex="0">
     <div id="calendar"
-         data-events-url="{{ url_for("ordini_cliente.ordini_calendario_scadenze") }}"></div>
-
+         data-events-scadenze-url="{{ url_for('ordini_cliente.ordini_calendario_scadenze') }}"
+         data-events-pianificazione-url="{{ url_for('ordini_cliente.eventi_fase_calendario') }}">
+    </div>
+</div>
 {% endblock %}
+
 {% block scripts %}
     {{ super() }}
-
-    <script src={{ url_for('static', filename="js/calendario.js") }}></script>
-    <script src={{ url_for('static', filename="js/modal.js") }}></script>
+    <script src="{{ url_for('static', filename='js/calendario.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
 {% endblock %}
