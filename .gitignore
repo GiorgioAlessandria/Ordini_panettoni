@@ -3,3 +3,4 @@
 .sqlite
 /doc/
 /alembic.ini
+/flaskr/migrations/versions/

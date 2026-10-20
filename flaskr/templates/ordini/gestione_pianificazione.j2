@@ -45,11 +45,42 @@
     <section class="card border-danger h-100"><div class="card-body">
       <h2 class="h5 text-danger">Annulla pianificazione</h2>
       <p>Libera le impastatrici, restituisce lo stock prelevato e storna il surplus accreditato. Non cancella lo storico.</p>
-      {% if piano.QtaStockGenerata is none %}<div class="alert alert-warning">Piano storico: surplus non riconciliato. Annullamento non abilitato.</div>{% endif %}
+      {% set storico_bloccato = piano.QtaStockGenerata is none and surplus_teorico != 0 %}
+      {% if piano.QtaStockGenerata is none %}
+        {% if surplus_teorico == 0 %}
+          <div class="alert alert-info">Pianificazione storica senza surplus fisico: l'annullamento è consentito e non stornerà pezzi aggiuntivi.</div>
+        {% elif surplus_teorico is none %}
+          <div class="alert alert-danger">Dati quantitativi incompleti: il surplus teorico non è calcolabile. Annullamento bloccato.</div>
+        {% else %}
+          <div class="alert alert-warning">
+            <strong>Stock da riconciliare.</strong> Il surplus fisico teorico è di
+            <strong>{{ surplus_teorico }} pezzi</strong>, ma non sappiamo quanti siano stati
+            effettivamente accreditati nelle versioni precedenti. Il solo saldo attuale
+            dello stock non dimostra la provenienza dei pezzi.
+          </div>
+          {% if puo_riconciliare %}
+          <form method="post" action="{{ url_for('ordini_cliente.conferma_riconciliazione_stock', IdPianificazione=piano.IdPianificazione) }}" class="p-3 mb-3 border rounded bg-light">
+            <h3 class="h6">Riconciliazione manuale dello stock</h3>
+            <p class="small text-secondary">Riporta i pezzi che erano stati davvero accreditati alla creazione del piano (0 se nessuno). Questa operazione NON cambia la giacenza.</p>
+            <label for="pezzi_stock_accreditati" class="form-label">Pezzi effettivamente accreditati (da 0 a {{ surplus_teorico }})</label>
+            <input id="pezzi_stock_accreditati" name="pezzi_stock_accreditati" class="form-control mb-2" type="number" min="0" max="{{ surplus_teorico }}" step="1" required>
+            <label for="motivo_riconciliazione" class="form-label">Fonte della verifica / motivazione</label>
+            <textarea id="motivo_riconciliazione" name="motivo_riconciliazione" class="form-control mb-2" rows="2" minlength="10" required></textarea>
+            <label class="d-flex align-items-start gap-2 mb-2">
+              <input type="checkbox" name="conferma_verifica_stock" value="1" class="form-check-input mt-1" required>
+              <span class="small">Confermo che il numero inserito corrisponde ai movimenti realmente eseguiti, non soltanto al surplus teorico.</span>
+            </label>
+            <button class="btn btn-outline-primary" type="submit">Registra riconciliazione</button>
+          </form>
+          {% else %}
+            <div class="small text-secondary mb-3">Richiedi la riconciliazione a un operatore autorizzato prima di annullare.</div>
+          {% endif %}
+        {% endif %}
+      {% endif %}
       <form method="post" action="{{ url_for('ordini_cliente.conferma_annullamento_pianificazione', IdPianificazione=piano.IdPianificazione) }}" onsubmit="return confirm('Annullare la pianificazione #{{ piano.IdPianificazione }}? I movimenti di stock verranno stornati.')">
         <label for="motivo_annullamento" class="form-label">Motivo obbligatorio</label>
         <textarea class="form-control mb-2" id="motivo_annullamento" name="motivo_annullamento" rows="2" minlength="5" maxlength="500" required></textarea>
-        <button class="btn btn-danger" type="submit" {% if piano.QtaStockGenerata is none %}disabled{% endif %}>Annulla e ripristina</button>
+        <button class="btn btn-danger" type="submit" {% if storico_bloccato %}disabled{% endif %}>Annulla e ripristina</button>
       </form>
     </div></section>
   </div>

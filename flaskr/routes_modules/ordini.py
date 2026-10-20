@@ -526,7 +526,8 @@ def conferma_pianificazione():
 
 # --- Ciclo di vita della pianificazione ---
 from flaskr.service.ciclo_vita_pianificazione_service import (
-    ErroreCicloVita, chiudi_pianificazione, annulla_pianificazione
+    ErroreCicloVita, chiudi_pianificazione, annulla_pianificazione,
+    calcola_surplus_teorico_storico, riconcilia_stock_storico,
 )
 
 
@@ -561,9 +562,38 @@ def gestione_pianificazione(IdPianificazione: int):
         .where(PianificazioneOperazioni.IdPianificazione == IdPianificazione)
         .order_by(PianificazioneOperazioni.Id.desc())
     ).all()
+    # QtaStockGenerata=NULL e' previsto per i piani creati prima della migrazione.
+    surplus_teorico = calcola_surplus_teorico_storico(piano, [a for a, _ in assoc])
     return render_template("ordini/gestione_pianificazione.j2", piano=piano,
                            associazioni=assoc, registro=log,
+                           surplus_teorico=surplus_teorico,
+                           puo_riconciliare=g.user.username in current_app.config.get("STOCK_RECONCILIATION_USERS", ()),
                            totale_da_stock=sum(int(a.QtaDaStock or 0) for a, _ in assoc))
+
+
+@bp_ordini_cliente.post("/pianificazioni/<int:IdPianificazione>/riconcilia-stock")
+@login_required
+def conferma_riconciliazione_stock(IdPianificazione: int):
+    """Operazione amministrativa: nessun movimento di magazzino."""
+    # Disabilitata per default. Autorizzare esplicitamente gli utenti verificatori
+    # con app.config["STOCK_RECONCILIATION_USERS"] = ["username1", ...].
+    autorizzati = current_app.config.get("STOCK_RECONCILIATION_USERS", ())
+    if g.user.username not in autorizzati:
+        abort(403)
+    valore = (request.form.get("pezzi_stock_accreditati") or "").strip()
+    motivo = (request.form.get("motivo_riconciliazione") or "").strip()
+    conferma = request.form.get("conferma_verifica_stock") == "1"
+    try:
+        if not conferma:
+            raise ErroreCicloVita("Confermare di avere verificato i movimenti di stock")
+        if not valore.isdecimal():
+            raise ErroreCicloVita("Indicare un numero intero non negativo di pezzi accreditati")
+        riconcilia_stock_storico(IdPianificazione, g.user.username, int(valore), motivo)
+    except ErroreCicloVita as errore:
+        flash(str(errore), "danger")
+        return redirect(url_for("ordini_cliente.gestione_pianificazione", IdPianificazione=IdPianificazione), code=303)
+    flash(f"Stock del piano #{IdPianificazione} riconciliato. Puoi procedere all'annullamento.", "success")
+    return redirect(url_for("ordini_cliente.gestione_pianificazione", IdPianificazione=IdPianificazione), code=303)
 
 
 @bp_ordini_cliente.post("/pianificazioni/<int:IdPianificazione>/chiudi")

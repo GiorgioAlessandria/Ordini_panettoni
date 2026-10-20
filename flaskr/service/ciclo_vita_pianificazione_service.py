@@ -90,6 +90,83 @@ def _prepara(id_pianificazione: int) -> tuple[PianificazioneProduzione, list[Pia
     return piano, righe
 
 
+def calcola_surplus_teorico_storico(
+    piano: PianificazioneProduzione, righe: list[PianificazioneOrdini]
+) -> int | None:
+    """Surplus *fisico* massimo ricavabile dai dati, non prova di accredito.
+
+    Se il risultato e' 0, sicuramente non ci sono pezzi extra da stornare.
+    Se >0, non sappiamo se le vecchie versioni abbiano accreditato lo stock.
+    """
+    if piano.PanettoniPianificati is None or not righe:
+        return None
+    produzione_per_ordini = 0
+    for r in righe:
+        if r.QtaPianificata is None:
+            return None
+        qta = int(r.QtaPianificata)
+        da_stock = int(r.QtaDaStock or 0)
+        if qta <= 0 or da_stock < 0 or da_stock > qta:
+            return None
+        produzione_per_ordini += qta - da_stock
+    surplus = int(piano.PanettoniPianificati) - produzione_per_ordini
+    return surplus if surplus >= 0 else None
+
+
+def riconcilia_stock_storico(
+    id_pianificazione: int, operatore: str, pezzi_accreditati: int, motivo: str
+) -> None:
+    """Registra il dato CONTABILE verificato, senza toccare la giacenza.
+
+    Solo per pianificazioni legacy non riconciliate e ancora in produzione.
+    Valore 0 significa che non furono effettuati accrediti, anche se
+    la produzione avrebbe potuto creare surplus fisico.
+    """
+    motivo = motivo.strip()
+    if len(motivo) < 10:
+        raise ErroreCicloVita("Indicare come è stato verificato lo stock (almeno 10 caratteri)")
+    try:
+        piano, righe = _prepara(id_pianificazione)
+        if piano.QtaStockGenerata is not None:
+            raise ErroreCicloVita("Lo stock di questa pianificazione è già stato riconciliato")
+        massimo = calcola_surplus_teorico_storico(piano, righe)
+        if massimo is None:
+            raise ErroreCicloVita("Impossibile ricostruire le quantità del piano: verifica manuale necessaria")
+        if pezzi_accreditati < 0 or pezzi_accreditati > massimo:
+            raise ErroreCicloVita(
+                f"Quantità accreditata non valida: deve essere tra 0 e {massimo} pezzi"
+            )
+        aggiornamento = db.session.execute(
+            update(PianificazioneProduzione)
+            .where(
+                PianificazioneProduzione.IdPianificazione == id_pianificazione,
+                PianificazioneProduzione.StatoRigaOrdine == "In produzione",
+                PianificazioneProduzione.QtaStockGenerata.is_(None),
+            )
+            .values(QtaStockGenerata=pezzi_accreditati)
+        )
+        if aggiornamento.rowcount != 1:
+            raise ErroreCicloVita("Piano modificato da un altro operatore: ricarica la pagina")
+        adesso = datetime.now()
+        # Log append-only per audit; la riconciliazione NON cambia lo stato degli ordini.
+        for r in righe:
+            db.session.add(LogOperazioni(
+                IdDocumento=r.IdDocumento,
+                IdRigaDoc=r.IdRiga,
+                Stato=f"Riconciliazione stock piano {id_pianificazione}: "
+                      f"{pezzi_accreditati} pezzi accreditati - {motivo}",
+                Operatore=operatore,
+                synced_at=adesso,
+            ))
+        db.session.commit()
+    except ErroreCicloVita:
+        db.session.rollback()
+        raise
+    except SQLAlchemyError as err:
+        db.session.rollback()
+        raise ErroreCicloVita("Errore di salvataggio riconciliazione: nessuna modifica effettuata") from err
+
+
 def _scrivi_log(
     piano: PianificazioneProduzione,
     righe: list[PianificazioneOrdini],
@@ -162,12 +239,17 @@ def annulla_pianificazione(id_pianificazione: int, operatore: str, motivo: str) 
         raise ErroreCicloVita("Indicare un motivo di annullamento di almeno 5 caratteri")
     try:
         piano, righe = _prepara(id_pianificazione)
-        if piano.QtaStockGenerata is None:
-            raise ErroreCicloVita(
-                "Surplus storico sconosciuto: prima di annullare occorre riconciliare "
-                "QtaStockGenerata per questa pianificazione. Nessuna modifica eseguita."
-            )
         stock_usato = sum(int(r.QtaDaStock or 0) for r in righe)
+        if piano.QtaStockGenerata is None:
+            surplus_teorico = calcola_surplus_teorico_storico(piano, righe)
+            if surplus_teorico != 0:
+                raise ErroreCicloVita(
+                    "Surplus storico non riconciliato: verifica i pezzi accreditati "
+                    "nella sezione Riconciliazione stock prima di annullare."
+                )
+            # Nessun surplus fisico: azzeramento certo, senza stock stornato.
+            # Commit atomico insieme all'annullamento (se fallisce, torna NULL).
+            piano.QtaStockGenerata = 0
         stock_generato = int(piano.QtaStockGenerata)
         if stock_generato < 0:
             raise ErroreCicloVita("Valore di surplus non valido")

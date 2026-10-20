@@ -1,53 +1,78 @@
 {% extends "base.j2" %}
-
-{% block title %}Calendario produzione e scadenze{% endblock %}
-
 {% block head %}
     {{ super() }}
     {# Gli stili devono essere inseriti in head: FullCalendar 7 li richiede separati. #}
-    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/skeleton.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/classic/theme.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/classic/palette.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/calendario.css', v='20261019-5') }}">
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/skeleton.css') }}">
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/classic/theme.css') }}">
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/classic/palette.css') }}">
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/calendario.css', v='20261019-5') }}">
 {% endblock %}
 
 {% block content %}
-<section class="calendario-shell">
-    <header class="calendario-intestazione">
-        <div>
-            <h1>Calendario produzione e scadenze</h1>
-            <p>Settimana oraria: lavorazioni concomitanti affiancate; ogni fase mostra descrizione, quantità e tipologia.</p>
-        </div>
-        <a class="calendario-torna" href="{{ url_for('ordini_cliente.calendario_macchine') }}">Impiego impastatrici</a>
-        <a class="calendario-torna" href="{{ url_for('ordini_cliente.stock_articoli') }}">Stock panettoni</a>
-        <a class="calendario-torna" href="{{ url_for('ordini_cliente.ordini_cliente') }}">
-            &larr; Torna agli ordini
-        </a>
-    </header>
+    <section class="calendario-shell">
+        <header class="calendario-intestazione">
+            <div>
+                <h1>Calendario produzione e scadenze</h1>
+                <p>Settimana oraria: lavorazioni concomitanti affiancate; ogni fase mostra descrizione, quantità e tipologia.</p>
+            </div>
+            <a class="calendario-torna"
+               href="{{ url_for('ordini_cliente.calendario_macchine') }}">Impiego impastatrici</a>
+            <a class="calendario-torna"
+               href="{{ url_for('ordini_cliente.stock_articoli') }}">Stock panettoni</a>
+            <a class="calendario-torna"
+               href="{{ url_for('ordini_cliente.ordini_cliente') }}">
+                &larr; Torna agli ordini
+            </a>
+        </header>
 
-    <div class="calendario-legenda" aria-label="Legenda del calendario">
-        <span><i class="calendario-legenda-dot produzione" aria-hidden="true"></i> Produzioni · colore per pianificazione</span>
-        <span><i class="calendario-legenda-dot scadenza" aria-hidden="true"></i> Scadenze cliente · arancione</span>
-        <span class="calendario-legenda-tipi">Tipologia: <b>Impasto</b> · <b>Cottura</b> · <b>Altre lavorazioni</b></span>
-    </div>
+        <div class="calendario-legenda"
+             aria-label="Legenda del calendario">
+            <span><i class="calendario-legenda-dot produzione"
+                     aria-hidden="true"></i> Produzioni · colore per pianificazione</span>
+            <span><i class="calendario-legenda-dot scadenza"
+                     aria-hidden="true"></i> Scadenze cliente · arancione</span>
+            <span class="calendario-legenda-tipi">Tipologia: <b>Impasto</b> · <b>Cottura</b> · <b>Altre lavorazioni</b></span>
+        </div>
 
-    <div class="calendario-riquadro" role="region" aria-label="Calendario settimanale" tabindex="0">
-        <div id="calendar"
-             data-events-scadenze-url="{{ url_for('ordini_cliente.ordini_calendario_scadenze') }}"
-             data-events-pianificazione-url="{{ url_for('ordini_cliente.eventi_fase_calendario') }}">
+        <div class="calendario-riquadro"
+             role="region"
+             aria-label="Calendario settimanale"
+             tabindex="0">
+            <div id="calendar"
+                 data-events-scadenze-url="{{ url_for('ordini_cliente.ordini_calendario_scadenze') }}"
+                 data-events-pianificazione-url="{{ url_for('ordini_cliente.eventi_fase_calendario') }}">
+            </div>
+        </div>
+    </section>
+    <div class="modal fade"
+         id="modal-riepilogo-calendario"
+         tabindex="-1"
+         aria-labelledby="titolo-riepilogo-calendario"
+         aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title"
+                                              id="titolo-riepilogo-calendario">Riepilogo ordine / pianificazione</h5>
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Chiudi"></button>
+                </div>
+                <div class="modal-body"
+                     id="contenuto-riepilogo-calendario"><p>Caricamento...</p></div>
+                <div class="modal-footer">
+                    <button type="button"
+                            class="btn btn-outline-secondary"
+                            data-bs-dismiss="modal">Chiudi
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
-</section>
-<div class="modal fade" id="modal-riepilogo-calendario" tabindex="-1" aria-labelledby="titolo-riepilogo-calendario" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header"><h5 class="modal-title" id="titolo-riepilogo-calendario">Riepilogo ordine / pianificazione</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>
-      <div class="modal-body" id="contenuto-riepilogo-calendario"><p>Caricamento...</p></div>
-      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Chiudi</button></div>
-    </div>
-  </div>
-</div>
 
 {% endblock %}
 

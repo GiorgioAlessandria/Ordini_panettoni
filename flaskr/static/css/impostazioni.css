@@ -1,0 +1,38 @@
+/* Stili circoscritti alla pagina amministrativa; non modifica gli ordini. */
+body:has(.settings-wrapper) main.container { max-width: min(1800px, 98vw); width: 100%; }
+.settings-wrapper { --settings-border: #dce4ec; --settings-soft: #f5f8fc; min-width: 0; }
+.settings-top { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.settings-back { display: inline-flex; font-size: .9rem; text-decoration: none; }
+.settings-readonly-note { display: flex; flex-direction: column; max-width: 340px; gap: 2px; font-size: .78rem; padding: 11px 14px; background: var(--settings-soft); border: 1px solid var(--settings-border); border-radius: 10px; }
+.settings-layout { display: grid; grid-template-columns: minmax(220px, 270px) minmax(0, 1fr); align-items: start; gap: 16px; }
+.settings-sidebar { min-width: 0; }
+.settings-sidebar .card-body { padding: 12px; }
+.settings-group-title { font-size: .72rem; letter-spacing: .08em; color: #64748b; font-weight: 700; text-transform: uppercase; margin: 16px 10px 6px; }
+.settings-group-title:first-child { margin-top: 6px; }
+.settings-nav-link { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 8px; color: #354457; text-decoration: none; font-size: .87rem; gap: 9px; }
+.settings-nav-link:hover { background: #edf4fc; }
+.settings-nav-link.is-active { background: #e7f0ff; color: #0d58bd; font-weight: 700; }
+.settings-counter { padding: 2px 7px; border-radius: 999px; background: #edf0f4; font-size: .72rem; color: #475569; }
+.settings-main { min-width: 0; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, .8fr); align-items: start; gap: 16px; }
+.settings-panel { min-width: 0; border-color: var(--settings-border); box-shadow: 0 2px 10px rgba(15,23,42,.04); }
+.settings-panel-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: #fff; padding: 15px 17px; }
+.settings-search { display: flex; gap: 7px; }
+.settings-search input { min-width: 0; }
+.settings-results { display: flex; flex-direction: column; gap: 7px; }
+.settings-record { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--settings-border); border-radius: 9px; background: #fff; }
+.settings-record:hover { background: var(--settings-soft); }
+.settings-record-info { min-width: 0; flex: 1; }
+.settings-record-title { font-weight: 600; font-size: .85rem; overflow-wrap: anywhere; }
+.settings-record-details { display: flex; flex-wrap: wrap; gap: 3px 12px; color: #677489; font-size: .75rem; margin-top: 4px; }
+.settings-record-actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.settings-record-actions form { margin: 0; }
+.settings-record-actions .btn { white-space: nowrap; font-size: .73rem; padding: 5px 7px; }
+.settings-pagination { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.settings-empty { border: 1px dashed var(--settings-border); border-radius: 10px; padding: 28px; text-align: center; }
+.settings-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.settings-field { min-width: 0; }
+.settings-field .form-label { font-size: .85rem; margin-bottom: 5px; }
+.settings-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 17px; background: var(--settings-soft); }
+@media(max-width: 1500px){ .settings-main{grid-template-columns: minmax(0,1fr);} }
+@media(max-width: 900px){ .settings-layout{grid-template-columns: minmax(0,1fr);} .settings-sidebar .card-body{display:flex; flex-wrap:wrap;gap:4px;align-items:center;} .settings-group-title{width:100%;} .settings-nav-link{padding:8px 11px;} .settings-top{align-items:flex-start;flex-direction:column;} }
+@media(max-width: 600px){ .settings-form-grid{grid-template-columns: 1fr;} .settings-record{align-items:flex-start;flex-direction:column;} .settings-record-actions{width:100%;flex-wrap:wrap;} .settings-search{flex-wrap:wrap;} .settings-search input{width:100%;flex:auto;} .settings-pagination{flex-direction:column;align-items:stretch;} .settings-form-footer{flex-wrap:wrap;} }

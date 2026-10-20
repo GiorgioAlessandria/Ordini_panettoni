@@ -1,114 +1,257 @@
 {% extends "base.j2" %}
-
-{% block title %}
-    Ordini panettoni
-{% endblock %}
-
 {% block content %}
-<style>
-    .ordini-workspace { max-width: 100%; }
-    .ordini-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
-    .ordini-header h1 { margin: 0; font-size: 1.6rem; font-weight: 700; }
-    .ordini-header .descrizione { margin: .25rem 0 0; color: var(--bs-secondary-color, #64748b); font-size: .9rem; }
-    .ordini-nav { display: inline-flex; align-items: center; gap: .5rem; padding: .65rem 1rem; border: 2px solid var(--bs-primary, #0d6efd); border-radius: .75rem; background: var(--bs-body-bg, #fff); color: var(--bs-primary, #0d6efd); text-decoration: none; font-weight: 700; }
-    .ordini-nav:hover, .ordini-nav:focus-visible { background: var(--bs-primary, #0d6efd); color: #fff; }
-    /* Il layout esce dai limiti del container Bootstrap soltanto in questa pagina. */
-    main.container:has(.ordini-workspace) { max-width: min(1900px, 98vw); }
-    .ordini-panels { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.1rem; align-items: start; }
-    @media (min-width: 1200px) {
-        .ordini-panels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-    .ordini-panel { min-width: 0; border: 1px solid var(--bs-border-color, #d6dee7); border-radius: .9rem; background: var(--bs-body-bg, #fff); box-shadow: 0 2px 12px rgba(0,0,0,.045); }
-    .ordini-panel-header { display: flex; align-items: center; justify-content: space-between; gap: .8rem; flex-wrap: wrap; padding: 1rem 1.1rem .7rem; }
-    .ordini-panel-header h2 { margin: 0; font-size: 1.13rem; font-weight: 700; }
-    .ordini-meta { color: var(--bs-secondary-color, #64748b); font-size: .8rem; }
-    .ordini-panel-body { padding: 0 1rem 1rem; min-width: 0; }
-    .ordini-panel .ordini-table-scroll { max-height: min(54vh, 520px); }
-    .ordini-actions { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; padding-top: .75rem; }
-    .ordini-actions .btn { font-weight: 600; }
-    .ordini-sommario { max-width: 100%; }
-    .ordini-loading { padding: 1.2rem; color: var(--bs-secondary-color, #64748b); }
-    .htmx-indicator { display: none; }
-    .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline; }
-    @media (max-width: 600px) { .ordini-panel-body { padding: 0 .5rem .75rem; } .ordini-panel-header { padding: .8rem; } }
-</style>
+    <style>
+        .ordini-workspace {
+            max-width: 100%;
+        }
 
-<div class="ordini-workspace">
-    <header class="ordini-header">
-        <div>
-            <h1>Gestione ordini panettoni</h1>
-            <p class="descrizione">Disponibilità e lavorazioni sulla stessa pagina.</p>
+        .ordini-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: .6rem;
+        }
+
+        .ordini-header h1 {
+            margin: 0;
+            font-size: 1.6rem;
+            font-weight: 700;
+        }
+
+        .ordini-header .descrizione {
+            margin: .25rem 0 0;
+            color: var(--bs-secondary-color, #64748b);
+            font-size: .9rem;
+        }
+
+        .ordini-nav {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            padding: .65rem 1rem;
+            border: 2px solid var(--bs-primary, #0d6efd);
+            border-radius: .75rem;
+            background: var(--bs-body-bg, #fff);
+            color: var(--bs-primary, #0d6efd);
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        .ordini-nav:hover, .ordini-nav:focus-visible {
+            background: var(--bs-primary, #0d6efd);
+            color: #fff;
+        }
+
+        /* Il layout esce dai limiti del container Bootstrap soltanto in questa pagina. */
+        main.container:has(.ordini-workspace) {
+            max-width: min(1900px, 98vw);
+        }
+
+        .ordini-panels {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 1.1rem;
+            align-items: start;
+        }
+
+        @media (min-width: 1200px) {
+            .ordini-panels {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        .ordini-panel {
+            min-width: 0;
+            border: 1px solid var(--bs-border-color, #d6dee7);
+            border-radius: .9rem;
+            background: var(--bs-body-bg, #fff);
+            box-shadow: 0 2px 12px rgba(0, 0, 0, .045);
+        }
+
+        .ordini-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .8rem;
+            flex-wrap: wrap;
+            padding: 1rem 1.1rem .7rem;
+        }
+
+        .ordini-panel-header h2 {
+            margin: 0;
+            font-size: 1.13rem;
+            font-weight: 700;
+        }
+
+        .ordini-meta {
+            color: var(--bs-secondary-color, #64748b);
+            font-size: .8rem;
+        }
+
+        .ordini-panel-body {
+            padding: 0 1rem 1rem;
+            min-width: 0;
+        }
+
+        .ordini-panel .ordini-table-scroll {
+            max-height: none;
+        }
+
+        .ordini-actions {
+            display: flex;
+            align-items: center;
+            gap: .8rem;
+            flex-wrap: wrap;
+            padding-top: .75rem;
+        }
+
+        .ordini-actions .btn {
+            font-weight: 600;
+        }
+
+        .ordini-sommario {
+            max-width: 100%;
+        }
+
+        .ordini-loading {
+            padding: 1.2rem;
+            color: var(--bs-secondary-color, #64748b);
+        }
+
+        .htmx-indicator {
+            display: none;
+        }
+
+        .htmx-request .htmx-indicator, .htmx-request.htmx-indicator {
+            display: inline;
+        }
+
+        @media (max-width: 600px) {
+            .ordini-panel-body {
+                padding: 0 .5rem .75rem;
+            }
+
+            .ordini-panel-header {
+                padding: .8rem;
+            }
+        }
+    </style>
+
+    <div class="ordini-workspace">
+        <header class="ordini-header">
+            <div>
+                <h1>Gestione ordini panettoni</h1>
+                <p class="descrizione">Disponibilità e lavorazioni sulla stessa pagina.</p>
+            </div>
+            <a class="ordini-nav"
+               href="{{ url_for('ordini_cliente.calendario_macchine') }}">
+                <span aria-hidden="true">▤</span> Impiego impastatrici <span aria-hidden="true">↗</span>
+            </a>
+            <a class="ordini-nav"
+               href="{{ url_for('ordini_cliente.pianificazioni_chiuse') }}">Storico pianificazioni ↗</a>
+            <a class="ordini-nav"
+               href="{{ url_for('ordini_cliente.stock_articoli') }}">Stock panettoni
+                <span aria-hidden="true">↗</span></a>
+            <a class="ordini-nav"
+               href="{{ url_for('ordini_cliente.ordini_calendario') }}">
+                <span aria-hidden="true">▦</span> Vai al calendario <span aria-hidden="true">↗</span>
+            </a>
+            <a class="btn btn-outline-primary"
+               href="{{ url_for('ordini_cliente.impostazioni_index') }}">
+                Impostazioni
+            </a>
+        </header>
+
+        <div class="ordini-panel-switch"
+             role="group"
+             aria-label="Seleziona la tabella da visualizzare">
+            <button type="button"
+                    class="btn btn-primary btn-sm"
+                    data-panel-switch="nuovi"
+                    aria-pressed="true">Da produrre
+            </button>
+            <button type="button"
+                    class="btn btn-outline-primary btn-sm"
+                    data-panel-switch="produzione"
+                    aria-pressed="false">In produzione
+            </button>
         </div>
-        <a class="ordini-nav" href="{{ url_for('ordini_cliente.calendario_macchine') }}">
-            <span aria-hidden="true">▤</span> Impiego impastatrici <span aria-hidden="true">↗</span>
-        </a>
-        <a class="ordini-nav" href="{{ url_for('ordini_cliente.pianificazioni_chiuse') }}">Storico pianificazioni ↗</a>
-        <a class="ordini-nav" href="{{ url_for('ordini_cliente.stock_articoli') }}">Stock panettoni <span aria-hidden="true">↗</span></a>
-        <a class="ordini-nav" href="{{ url_for('ordini_cliente.ordini_calendario') }}">
-            <span aria-hidden="true">▦</span> Vai al calendario <span aria-hidden="true">↗</span>
-        </a>
-    </header>
 
-    <div class="ordini-panels">
-        <section class="ordini-panel" aria-labelledby="titolo-nuovi">
-            <div class="ordini-panel-header">
-                <h2 id="titolo-nuovi">Ordini da produrre</h2>
-                <span class="ordini-meta">Aggiornamento automatico ogni 30 secondi</span>
-            </div>
-            <div class="ordini-panel-body">
-                <div id="ordini_cliente_da_produrre"
-                     hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_da_produrre') }}"
-                     hx-trigger="load, every 30s, pianificazioneSalvata from:body, prioritaAggiornata from:body, pianificazioneChiusa from:body, pianificazioneAnnullata from:body"
-                     hx-swap="innerHTML"
-                     hx-sync="this:replace"
-                     aria-live="off">
-                    <p class="ordini-loading">Caricamento ordini da produrre...</p>
+        <div class="ordini-panels">
+            <section class="ordini-panel"
+                     data-panel="nuovi"
+                     aria-labelledby="titolo-nuovi">
+                <div class="ordini-panel-header">
+                    <h2 id="titolo-nuovi">Ordini da produrre</h2>
+                    <span class="ordini-meta">Aggiornamento automatico ogni 30 secondi</span>
                 </div>
-                <div class="ordini-actions">
-                    <button type="button" class="btn btn-primary"
-                            hx-post="{{ url_for('ordini_cliente.anteprima_pianificazione') }}"
-                            hx-include="#form-ordini"
-                            hx-target="#contenuto-pianificazione"
-                            hx-swap="innerHTML"
-                            data-bs-toggle="modal"
-                            data-bs-target="#modal-pianificazione">
-                        Pianifica ordini selezionati
-                    </button>
-                    <span class="ordini-meta">Seleziona soltanto gli ordini che desideri pianificare.</span>
-                </div>
-                <div id="riepilogo-ordini" class="ordini-sommario mt-2" aria-live="polite">
-                    Nessun ordine selezionato
-                </div>
-            </div>
-        </section>
+                <div class="ordini-panel-body">
+                    <div id="ordini_cliente_da_produrre"
+                         hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_da_produrre') }}"
+                         hx-trigger="load, every 30s, pianificazioneSalvata from:body, prioritaAggiornata from:body, pianificazioneChiusa from:body, pianificazioneAnnullata from:body"
+                         hx-swap="innerHTML"
+                         hx-sync="this:replace"
+                         aria-live="off">
+                        <p class="ordini-loading">Caricamento ordini da produrre...</p>
+                    </div>
+                    <div class="ordini-actions">
+                        <button type="button"
+                                class="btn btn-primary"
+                                hx-post="{{ url_for('ordini_cliente.anteprima_pianificazione') }}"
+                                hx-include="#form-ordini"
+                                hx-target="#contenuto-pianificazione"
+                                hx-swap="innerHTML"
+                                data-bs-toggle="modal"
+                                data-bs-target="#modal-pianificazione">
+                            Pianifica ordini selezionati
+                        </button>
 
-        <section class="ordini-panel" aria-labelledby="titolo-produzione">
-            <div class="ordini-panel-header">
-                <h2 id="titolo-produzione">Ordini in produzione</h2>
-                <span class="ordini-meta">Aggiornamento automatico ogni 30 secondi</span>
-            </div>
-            <div class="ordini-panel-body">
-                <div id="ordini_cliente_in_produzione"
-                     hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_in_produzione') }}"
-                     hx-trigger="load, every 30s, pianificazioneSalvata from:body, prioritaAggiornata from:body, pianificazioneChiusa from:body, pianificazioneAnnullata from:body"
-                     hx-swap="innerHTML"
-                     hx-sync="this:replace"
-                     aria-live="off">
-                    <p class="ordini-loading">Caricamento ordini in produzione...</p>
+                    </div>
+                    <div id="riepilogo-ordini"
+                         class="ordini-sommario mt-2"
+                         aria-live="polite">
+                        Nessun ordine selezionato
+                    </div>
                 </div>
-            </div>
-        </section>
+            </section>
+
+            <section class="ordini-panel"
+                     data-panel="produzione"
+                     aria-labelledby="titolo-produzione">
+                <div class="ordini-panel-header">
+                    <h2 id="titolo-produzione">Ordini in produzione</h2>
+                    <span class="ordini-meta">Aggiornamento automatico ogni 30 secondi</span>
+                </div>
+                <div class="ordini-panel-body">
+                    <div id="ordini_cliente_in_produzione"
+                         hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_in_produzione') }}"
+                         hx-trigger="load, every 30s, pianificazioneSalvata from:body, prioritaAggiornata from:body, pianificazioneChiusa from:body, pianificazioneAnnullata from:body"
+                         hx-swap="innerHTML"
+                         hx-sync="this:replace"
+                         aria-live="off">
+                        <p class="ordini-loading">Caricamento ordini in produzione...</p>
+                    </div>
+                </div>
+            </section>
+        </div>
     </div>
-</div>
 
-<div class="modal fade" id="modal-pianificazione" tabindex="-1" aria-label="Pianificazione produzione">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content" id="contenuto-pianificazione"></div>
+    <div class="modal fade"
+         id="modal-pianificazione"
+         tabindex="-1"
+         aria-label="Pianificazione produzione">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content"
+                 id="contenuto-pianificazione"></div>
+        </div>
     </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
     {{ super() }}
-    <script src="{{ url_for('static', filename='js/selezione_ordini.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/selezione_ordini.js', v='20261020-2') }}"></script>
+    <script src="{{ url_for('static', filename='js/responsive.js', v='20261020-2') }}"
+            defer></script>
 {% endblock %}

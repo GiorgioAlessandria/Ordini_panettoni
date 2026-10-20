@@ -3,24 +3,28 @@ import os
 from flask import Flask, redirect, url_for
 
 from flaskr import (
-    routes_auth,  # noqa: F401
-    routes_production,  # noqa: F401
+    routes_auth,
+    routes_production,
 )
 from flaskr.extensions import db, migrate
-from flaskr.routes_blueprint import bp_login, bp_ordini_cliente  # noqa: F401
+from flaskr.routes_blueprint import bp_login, bp_ordini_cliente
 from flaskr.routes_modules import (
-    calendario,  # noqa: F401
-    ordini,  # noqa: F401
+    calendario,
+    impostazioni,
+    ordini,
 )
 
 
 def create_app():
     app = Flask(__name__)
     os.makedirs(app.instance_path, exist_ok=True)
-    app.config.from_mapping(SECRET_KEY = 'development',
-                            SQLALCHEMY_DATABASE_URI = f"sqlite:///{os.path.join(app.instance_path, 'db_ordini.sqlite3')}",
-                            SQLALCHEMY_TRACK_MODIFICATIONS = False,
-                            FLASK_DEBUG = 1,)
+    app.config.from_mapping(
+        SECRET_KEY="development",
+        SQLALCHEMY_DATABASE_URI=f"sqlite:///{os.path.join(app.instance_path, 'db_ordini.sqlite3')}",
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        FLASK_DEBUG=1,
+    )
+    app.config["IMPOSTAZIONI_ADMIN_USERS"] = ["1"]
 
     db.init_app(app)
     migrate.init_app(app, db)
@@ -31,12 +35,11 @@ def create_app():
     app.register_blueprint(bp_login)
     app.register_blueprint(bp_ordini_cliente)
 
-
-    @app.route('/')
+    @app.route("/")
     def index():
-        return redirect(url_for('auth.login'))
-    return app
+        return redirect(url_for("auth.login"))
 
+    return app
 
 
 #   routes_blueprint.py
