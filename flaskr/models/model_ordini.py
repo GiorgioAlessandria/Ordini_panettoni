@@ -262,7 +262,6 @@ class PianificazioneFasi(db.Model):
     Blocco: Mapped[str]
     pianificazione: Mapped["PianificazioneProduzione"] = relationship(back_populates="fasi")
     __table_args__ = (
-        UniqueConstraint("IdLavorazione", "DataFase", "Blocco", name="uq_lavorazione_data_blocco"),
         UniqueConstraint(
             "IdPianificazione", "DataFase", "Blocco", name="uq_pianificazione_data_blocco"
         ),
@@ -270,4 +269,39 @@ class PianificazioneFasi(db.Model):
             "IdPianificazione", "IdRicettaFase", name="uq_pianificazione_ricetta_fase"
         ),
         CheckConstraint("Blocco IN ('M', 'P')", name="ck_pianificazione_fasi_blocco"),
+    )
+
+
+class PianificazioneImpastatriceFase(db.Model):
+    """Riserva una macchina in un singolo blocco della fase di impasto.
+
+    La UNIQUE impedisce, anche in caso di richieste concorrenti,
+    l'assegnazione della stessa macchina a due produzioni nel medesimo blocco.
+    """
+    __tablename__ = "pianificazione_impastatrice_fasi"
+    Id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    IdPianificazioneFase: Mapped[int] = mapped_column(
+        ForeignKey("pianificazione_fasi.IdPianificazioneFase"), nullable=False
+    )
+    IdImpastatrice: Mapped[int] = mapped_column(
+        ForeignKey("anagrafica_impastatrici.IdImpastatrice"), nullable=False
+    )
+    DataFase: Mapped[date] = mapped_column(nullable=False)
+    Blocco: Mapped[str] = mapped_column(nullable=False)
+    KgAssegnati: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)
+    __table_args__ = (
+        UniqueConstraint("IdImpastatrice", "DataFase", "Blocco", name="uq_impastatrice_data_blocco"),
+        CheckConstraint("Blocco IN ('M', 'P')", name="ck_impastatrice_fase_blocco"),
+        CheckConstraint("KgAssegnati >= 0", name="ck_impastatrice_kg_non_negativi"),
+    )
+
+
+class OrdiniPriorita(db.Model):
+    __tablename__ = "ordini_priorita"
+    IdDocumento: Mapped[int] = mapped_column(primary_key=True)
+    IdRigaDoc: Mapped[int] = mapped_column(primary_key=True)
+    Livello: Mapped[int] = mapped_column(nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("Livello BETWEEN 1 AND 3", name="ck_ordini_priorita_livello"),
     )

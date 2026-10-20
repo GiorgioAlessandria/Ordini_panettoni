@@ -12,12 +12,18 @@
     .ordini-header .descrizione { margin: .25rem 0 0; color: var(--bs-secondary-color, #64748b); font-size: .9rem; }
     .ordini-nav { display: inline-flex; align-items: center; gap: .5rem; padding: .65rem 1rem; border: 2px solid var(--bs-primary, #0d6efd); border-radius: .75rem; background: var(--bs-body-bg, #fff); color: var(--bs-primary, #0d6efd); text-decoration: none; font-weight: 700; }
     .ordini-nav:hover, .ordini-nav:focus-visible { background: var(--bs-primary, #0d6efd); color: #fff; }
-    .ordini-panels { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.1rem; }
+    /* Il layout esce dai limiti del container Bootstrap soltanto in questa pagina. */
+    main.container:has(.ordini-workspace) { max-width: min(1900px, 98vw); }
+    .ordini-panels { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.1rem; align-items: start; }
+    @media (min-width: 1200px) {
+        .ordini-panels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
     .ordini-panel { min-width: 0; border: 1px solid var(--bs-border-color, #d6dee7); border-radius: .9rem; background: var(--bs-body-bg, #fff); box-shadow: 0 2px 12px rgba(0,0,0,.045); }
     .ordini-panel-header { display: flex; align-items: center; justify-content: space-between; gap: .8rem; flex-wrap: wrap; padding: 1rem 1.1rem .7rem; }
     .ordini-panel-header h2 { margin: 0; font-size: 1.13rem; font-weight: 700; }
     .ordini-meta { color: var(--bs-secondary-color, #64748b); font-size: .8rem; }
     .ordini-panel-body { padding: 0 1rem 1rem; min-width: 0; }
+    .ordini-panel .ordini-table-scroll { max-height: min(54vh, 520px); }
     .ordini-actions { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; padding-top: .75rem; }
     .ordini-actions .btn { font-weight: 600; }
     .ordini-sommario { max-width: 100%; }
@@ -47,7 +53,7 @@
             <div class="ordini-panel-body">
                 <div id="ordini_cliente_da_produrre"
                      hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_da_produrre') }}"
-                     hx-trigger="load, every 30s, pianificazioneSalvata from:body"
+                     hx-trigger="load, every 30s, pianificazioneSalvata from:body, prioritaAggiornata from:body"
                      hx-swap="innerHTML"
                      hx-sync="this:replace"
                      aria-live="off">
@@ -79,7 +85,7 @@
             <div class="ordini-panel-body">
                 <div id="ordini_cliente_in_produzione"
                      hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_in_produzione') }}"
-                     hx-trigger="load, every 30s, pianificazioneSalvata from:body"
+                     hx-trigger="load, every 30s, pianificazioneSalvata from:body, prioritaAggiornata from:body"
                      hx-swap="innerHTML"
                      hx-sync="this:replace"
                      aria-live="off">

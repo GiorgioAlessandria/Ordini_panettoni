@@ -1,6 +1,4 @@
 from datetime import datetime
-from tempfile import template
-from typing import Sequence
 
 from flask import abort, jsonify, render_template, request, url_for
 from sqlalchemy.orm import joinedload
@@ -8,6 +6,7 @@ from sqlalchemy.orm import joinedload
 from flaskr.extensions import db
 from flaskr.models import OrdiniCliente
 from flaskr.models.model_ordini import (
+    AnagraficaArticoli,
     AnagraficaImpastatrici,
     PianificazioneFasi,
     PianificazioneOrdini,
@@ -55,10 +54,15 @@ def ordini_calendario_scadenze():
     json_ordini_data_scadenza = [
         {
             "id": f"{ordine.IdDocumento}-{ordine.IdRigaDoc}",
-            "title": ordine.Cliente.RagioneSociale,
+            "title": f"{ordine.Cliente.RagioneSociale} · {ordine.DesArt or 'Articolo senza descrizione'}",
             "start": ordine.DataConsegna.date().isoformat(),
             "allDay": True,
             "extendedProps": {
+                "tipo_evento": "scadenza",
+                "descrizione_articolo": ordine.DesArt or "Articolo senza descrizione",
+                "cod_art": ordine.CodArt,
+                "cliente": ordine.Cliente.RagioneSociale,
+                "quantita_residua": ordine.QTA_SALDO_DOC,
                 "detailUrl": url_for(
                     "ordini_cliente.dettaglio_ordine",
                     IdDocumento=ordine.IdDocumento,
@@ -75,85 +79,98 @@ def ordini_calendario_scadenze():
 @bp_ordini_cliente.get("/calendario/pianificazione/eventi")
 @login_required
 def eventi_fase_calendario():
-    data_inizio_visualizzata = datetime.fromisoformat(request.args["start"]).date()
-    data_fine_visualizzata = datetime.fromisoformat(request.args["end"]).date()
+    """Un evento per fase, aggregando una volta le quantita' degli ordini del piano."""
+    from collections import defaultdict
 
-    stmt_fasi_pianificate = db.select(PianificazioneFasi).where(
-        PianificazioneFasi.DataFase >= data_inizio_visualizzata,
-        PianificazioneFasi.DataFase < data_fine_visualizzata,
-    )
-    fasi_pianificate: Sequence[PianificazioneFasi] = db.session.scalars(stmt_fasi_pianificate).all()
-    list_eventi_calendario = []
-    for fase in fasi_pianificate:
-        stmt_pianificazione_produzione = db.select(PianificazioneProduzione).where(
-            PianificazioneProduzione.IdPianificazione == fase.IdPianificazione
-        )
-        pianificazione_produzione = db.session.execute(
-            stmt_pianificazione_produzione
-        ).scalar_one_or_none()
-        if not pianificazione_produzione:
-            raise ErrorePianificazioneCalendario(
-                "Non sono presenti pianificazioni riferite alla fase presente"
-            )
+    inizio = datetime.fromisoformat(request.args["start"]).date()
+    fine = datetime.fromisoformat(request.args["end"]).date()
 
-        stmt_tipologia_lavorazione = db.select(TipologieLavorazione).where(
-            TipologieLavorazione.IdLavorazione == fase.IdLavorazione
-        )
-        tipologia_lavorazione = db.session.scalars(stmt_tipologia_lavorazione).one_or_none()
-        if not tipologia_lavorazione:
-            raise ErrorePianificazioneCalendario(
-                "Non sono presenti tipologie lavorazioni riferite alla fase presente"
-            )
+    fasi = db.session.scalars(
+        db.select(PianificazioneFasi)
+        .where(PianificazioneFasi.DataFase >= inizio, PianificazioneFasi.DataFase < fine)
+        .order_by(PianificazioneFasi.DataFase, PianificazioneFasi.Blocco)
+    ).all()
+    if not fasi:
+        return jsonify([])
 
-        stmt_pianificazione_ordini = db.select(PianificazioneOrdini).where(
-            PianificazioneOrdini.IdPianificazione == pianificazione_produzione.IdPianificazione
+    ids_piani = {fase.IdPianificazione for fase in fasi}
+    ids_lavorazioni = {fase.IdLavorazione for fase in fasi}
+
+    # Recuperi in blocco: nessuna query per ogni ordine o ogni fase.
+    piani = {
+        p.IdPianificazione: p for p in db.session.scalars(
+            db.select(PianificazioneProduzione).where(
+                PianificazioneProduzione.IdPianificazione.in_(ids_piani)
+            )
+        ).all()
+    }
+    # Descrizione articolo, recuperata una volta per tutti i piani visualizzati.
+    codici_articolo = {p.CodArt for p in piani.values() if p.CodArt}
+    descrizioni_articoli = {}
+    if codici_articolo:
+        descrizioni_articoli = {
+            a.CodArt: a.DesArt
+            for a in db.session.scalars(
+                db.select(AnagraficaArticoli).where(AnagraficaArticoli.CodArt.in_(codici_articolo))
+            ).all()
+        }
+    lavorazioni = {
+        l.IdLavorazione: l for l in db.session.scalars(
+            db.select(TipologieLavorazione).where(
+                TipologieLavorazione.IdLavorazione.in_(ids_lavorazioni)
+            )
+        ).all()
+    }
+    associazioni = db.session.scalars(
+        db.select(PianificazioneOrdini).where(
+            PianificazioneOrdini.IdPianificazione.in_(ids_piani),
+            PianificazioneOrdini.Stato.in_(("In produzione", "Chiuso")),
         )
-        pianificazione_ordini = db.session.scalars(stmt_pianificazione_ordini).all()
-        if not pianificazione_ordini:
-            raise ErrorePianificazioneCalendario(
-                "Non sono presenti pianificazioni ordini legati alla pianificazione produzione"
-            )
-        list_ordini = []
-        for pianificazione_ordine in pianificazione_ordini:
-            stmt_ordini = db.select(OrdiniCliente).where(
-                OrdiniCliente.IdDocumento == pianificazione_ordine.IdDocumento,
-                OrdiniCliente.IdRigaDoc == pianificazione_ordine.IdRiga,
-            )
-            ordine = db.session.scalars(stmt_ordini).one_or_none()
-            if not ordine:
-                raise ErrorePianificazioneCalendario(
-                    "Non sono presenti ordini legati alla pianificazione produzione"
+    ).all()
+    associazioni_per_piano = defaultdict(list)
+    for a in associazioni:
+        associazioni_per_piano[a.IdPianificazione].append(a)
+
+    impastatrici_associate = db.session.scalars(
+        db.select(PianificazioneOrdiniImpastatrici).where(
+            PianificazioneOrdiniImpastatrici.IdPianificazione.in_(ids_piani)
+        )
+    ).all()
+    ids_impastatrici = {a.IdImpastatrice for a in impastatrici_associate}
+    nomi_impastatrici = {}
+    if ids_impastatrici:
+        nomi_impastatrici = {
+            i.IdImpastatrice: i.DescrizioneImpastatrice
+            for i in db.session.scalars(
+                db.select(AnagraficaImpastatrici).where(
+                    AnagraficaImpastatrici.IdImpastatrice.in_(ids_impastatrici)
                 )
-            list_ordini.append(ordine)
+            ).all()
+        }
+    impastatrici_per_piano = defaultdict(list)
+    for link in impastatrici_associate:
+        nome = nomi_impastatrici.get(link.IdImpastatrice)
+        if nome and nome not in impastatrici_per_piano[link.IdPianificazione]:
+            impastatrici_per_piano[link.IdPianificazione].append(nome)
 
-        stmt_pianificazione_impastatrice = db.select(PianificazioneOrdiniImpastatrici).where(
-            PianificazioneOrdiniImpastatrici.IdPianificazione
-            == pianificazione_produzione.IdPianificazione
-        )
-        pianificazioni_impastatrici = db.session.scalars(stmt_pianificazione_impastatrice).all()
-        if not pianificazioni_impastatrici:
+    eventi = []
+    for fase in fasi:
+        piano = piani.get(fase.IdPianificazione)
+        lavorazione = lavorazioni.get(fase.IdLavorazione)
+        if piano is None or lavorazione is None:
             raise ErrorePianificazioneCalendario(
-                "Non sono presenti pianificazione_impastatrici pianificate per la produzione"
+                f"Pianificazione o lavorazione inesistente per la fase {fase.IdPianificazioneFase}"
             )
-        list_impastatrici = []
-        for pianificazione_impastatrice in pianificazioni_impastatrici:
-            stmt_impastatrici = db.select(AnagraficaImpastatrici).where(
-                AnagraficaImpastatrici.IdImpastatrice == pianificazione_impastatrice.IdImpastatrice
-            )
-            impastatrici = db.session.scalars(stmt_impastatrici).all()
-            if not impastatrici:
-                raise ErrorePianificazioneCalendario(
-                    "Non sono presenti impastatrici pianificate per la produzione"
-                )
-            for impastatrice in impastatrici:
-                list_impastatrici.append(impastatrice.DescrizioneImpastatrice)
-
-        evento_fase = costruisci_evento_fase(
+        righe = associazioni_per_piano.get(fase.IdPianificazione, [])
+        if not righe:
+            continue  # Nessun ordine attivo/chiuso associato al programma.
+        evento = costruisci_evento_fase(
             fase=fase,
-            pianificazione=pianificazione_produzione,
-            lavorazione=tipologia_lavorazione,
-            ordini=list_ordini,
+            pianificazione=piano,
+            lavorazione=lavorazione,
+            associazioni=righe,
+            descrizione_articolo=descrizioni_articoli.get(piano.CodArt) or "Articolo senza descrizione",
         )
-        evento_fase["extendedProps"]["impastatrici"] = list_impastatrici
-        list_eventi_calendario.append(evento_fase)
-    return jsonify(list_eventi_calendario)
+        evento["extendedProps"]["impastatrici"] = impastatrici_per_piano[fase.IdPianificazione]
+        eventi.append(evento)
+    return jsonify(eventi)

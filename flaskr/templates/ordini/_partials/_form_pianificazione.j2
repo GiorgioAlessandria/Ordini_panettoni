@@ -1,70 +1,62 @@
 {% if error %}
-    <div class="modal-body">
-        <div class="alert alert-danger">
-            {{ error }}
-        </div>
+    <div class="modal-header">
+        <h5 class="modal-title">Pianificazione produzione</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
     </div>
+    <div class="modal-body"><div class="alert alert-danger" role="alert">{{ error }}</div></div>
 {% else %}
     <div class="modal-header">
-        <h5 class="modal-title">
-            Pianificazione produzione
-        </h5>
-        <button
-                type="button"
-                class="btn-close"
-                data-bs-dismiss="modal">
-
-        </button>
+        <h5 class="modal-title">Pianificazione produzione</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
     </div>
     <form id="form-pianificazione"
           hx-post="{{ url_for('ordini_cliente.conferma_pianificazione') }}"
           hx-target="#contenuto-pianificazione"
           hx-swap="innerHTML">
         <div class="modal-body">
-            <p>
-                Ordini selezionati:
-                {{ ordini_selezionati|length }}
-            </p>
-            {% for impastatrice in impastatrici %}
-                <label>
-                    <input
-                            type="checkbox"
-                            name="impastatrici_selezionate"
-                            value="{{ impastatrice.IdImpastatrice }}">
-                    {{ impastatrice.ModelloImpastatrice }}
-                    {{ impastatrice.DescrizioneImpastatrice }}
-                    {{ impastatrice.CapienzaImpastatrice }}
-                </label>
-            {% endfor %}
-            <p>Seleziona la data di inizio produzione</p>
-            <label><input type="date"
-                          name="data_inizio_produzione"></label>
-            <p>Seleziona il blocco iniziale di partenza</p>
-            <label><input type="radio"
-                          name="blocco_inizio_produzione"
-                          value="0">Mattina</label>
-            <label><input type="radio"
-                          name="blocco_inizio_produzione"
-                          value="1">Pomeriggio</label>
-            <label><input type="checkbox"
-                          name="ottimizza_infornate"
-                          value="1">Ottimizza infornate</label>
+            <div class="mb-4">
+                {% include "ordini/_partials/_riepilogo_contenuto.j2" %}
+            </div>
+            <fieldset class="mb-3">
+                <legend class="form-label fw-semibold">Impastatrici candidate</legend>
+                <p class="text-secondary small mb-2">
+                    Seleziona le macchine utilizzabili: il programma sceglie automaticamente
+                    la combinazione più adatta, distribuisce i kg effettivi e riserva solo
+                    le macchine necessarie. La disponibilità è controllata alla conferma
+                    sulla data e sul blocco della fase di impasto.
+                </p>
+                {% for impastatrice in impastatrici %}
+                    <label class="d-block mb-2">
+                        <input type="checkbox" class="form-check-input me-1"
+                               name="impastatrici_selezionate"
+                               value="{{ impastatrice.IdImpastatrice }}">
+                        {{ impastatrice.ModelloImpastatrice }} – {{ impastatrice.DescrizioneImpastatrice }}
+                        <span class="badge bg-secondary">{{ impastatrice.CapienzaImpastatrice }} {{ impastatrice.UdM }}</span>
+                    </label>
+                {% endfor %}
+            </fieldset>
+            <div class="mb-3">
+                <label class="form-label fw-semibold" for="data-inizio-produzione">Data inizio produzione</label>
+                <input class="form-control" type="date" id="data-inizio-produzione"
+                       name="data_inizio_produzione" required>
+            </div>
+            <fieldset class="mb-3">
+                <legend class="fs-6 fw-semibold">Blocco iniziale</legend>
+                <label class="me-3"><input type="radio" name="blocco_inizio_produzione" value="0" required> Mattina</label>
+                <label><input type="radio" name="blocco_inizio_produzione" value="1"> Pomeriggio</label>
+            </fieldset>
+            <label class="d-block mb-2">
+                <input type="checkbox" class="form-check-input me-1"
+                       name="ottimizza_infornate" value="1">
+                Ottimizza infornate (il peso del surplus deve comunque rientrare nelle macchine)
+            </label>
             {% for ordine in ordini_selezionati %}
-                <input type="hidden"
-                       name="ordini_selezionati"
-                       value="{{ ordine }}">
+                <input type="hidden" name="ordini_selezionati" value="{{ ordine }}">
             {% endfor %}
         </div>
         <div class="modal-footer">
-            <button type="button"
-                    class="btn-close"
-                    data-bs-dismiss="modal"
-            ></button>
-            <button type="submit"
-                    class="btn btn-primary">Conferma dati
-            </button>
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+            <button type="submit" class="btn btn-primary">Verifica e conferma pianificazione</button>
         </div>
     </form>
 {% endif %}
-
-

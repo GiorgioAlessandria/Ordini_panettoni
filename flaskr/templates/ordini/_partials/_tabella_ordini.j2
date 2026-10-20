@@ -20,6 +20,18 @@
     .ordini-filtri .ordini-reset { white-space: nowrap; }
     .ordini-barra { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding: .15rem .2rem .55rem; font-size: .8rem; color: var(--bs-secondary-color, #64748b); }
     .ordini-table-scroll { max-height: 320px; min-height: 130px; overflow: auto; border: 1px solid var(--bs-border-color, #d6dee7); border-radius: .55rem; scrollbar-gutter: stable; }
+    /* Righe con residuo inferiore alla quantità originariamente ordinata. */
+    .ordini-table tbody tr.ordini-riga-parziale > td {
+        background-color: #fff2c4 !important;
+        box-shadow: inset 0 1px 0 #f6de99;
+    }
+    .ordini-table tbody tr.ordini-riga-parziale:hover > td { background-color: #ffe6a1 !important; }
+    .ordini-priorita-select { min-width: 114px; font-weight: 600; }
+    .ordini-priorita-select[data-priority-level="1"] { color: #991b1b; background-color: #fee2e2; }
+    .ordini-priorita-select[data-priority-level="2"] { color: #92400e; background-color: #fef3c7; }
+    .ordini-priorita-select[data-priority-level="3"] { color: #155e75; background-color: #cffafe; }
+    .ordini-legenda { display: inline-flex; align-items: center; gap: .35rem; }
+    .ordini-legenda::before { content: ""; display: inline-block; width: .8rem; height: .8rem; background: #fff2c4; border: 1px solid #e1b54a; border-radius: .2rem; }
     .ordini-table { min-width: 1120px; width: 100%; margin: 0; font-size: .86rem; }
     .ordini-table thead th { position: sticky; top: 0; z-index: 2; background: var(--bs-tertiary-bg, #f1f5f9) !important; white-space: nowrap; padding: .45rem .5rem; box-shadow: inset 0 -1px 0 var(--bs-border-color, #d6dee7); }
     .ordini-table tbody td { white-space: nowrap; padding: .5rem; vertical-align: middle; }
@@ -31,7 +43,14 @@
     .ordini-sort-indicator { color: var(--bs-secondary-color, #64748b); font-size: .73rem; margin-left: .15rem; }
     .ordini-sort[aria-pressed="true"] .ordini-sort-indicator { color: var(--bs-primary, #0d6efd); }
     .ordini-table .col-numero { text-align: right; font-variant-numeric: tabular-nums; }
-    .ordini-table .col-centro { text-align: center; }
+.ordini-table .col-centro { text-align: center; }
+.ordini-table .piano-riepilogo { font-size: .76rem; color: #64748b; font-weight: 600; }
+.ordini-table .piano-dettagli { margin-top: .35rem; font-size: .8rem; }
+.ordini-table .piano-dettagli summary { cursor: pointer; color: #1d4ed8; font-weight: 650; }
+.ordini-table .piano-dettagli .piano-ordini-elenco { margin: .45rem 0 0; padding-left: 1rem; min-width: 340px; }
+.ordini-table .piano-dettagli li { margin: .4rem 0; line-height: 1.4; white-space: normal; }
+.ordini-table .piano-dettagli a { color: #1d4ed8; }
+.ordini-table .piano-plurale { display: block; max-width: 220px; white-space: normal; line-height: 1.3; }
     @media (max-width: 700px) { .ordini-table-scroll { max-height: 290px; } }
 </style>
 
@@ -63,7 +82,26 @@
                 <option value="No">No</option>
             </select>
         </div>
-        {% if not selezione_attiva %}
+        {% if selezione_attiva %}
+            <div class="ordini-filtro">
+                <label for="filtro-priorita">Priorità</label>
+                <select id="filtro-priorita" class="form-select form-select-sm" data-filter="priorita">
+                    <option value="">Tutte</option>
+                    <option value="1">P1 · Alta</option>
+                    <option value="2">P2 · Media</option>
+                    <option value="3">P3 · Bassa</option>
+                    <option value="none">Nessuna</option>
+                </select>
+            </div>
+            <div class="ordini-filtro">
+                <label for="filtro-parziale">Residuo</label>
+                <select id="filtro-parziale" class="form-select form-select-sm" data-filter="parziale">
+                    <option value="">Tutti</option>
+                    <option value="si">Parziali</option>
+                    <option value="no">Completi</option>
+                </select>
+            </div>
+        {% else %}
             <div class="ordini-filtro">
                 <label for="filtro-piano">Pianificazione</label>
                 <select id="filtro-piano" class="form-select form-select-sm" data-filter="pianificazione">
@@ -91,7 +129,11 @@
 
     <div class="ordini-barra">
         <span data-contatore-righe>{{ ordini_cliente|length }} ordini</span>
-        <span>Scorri nella tabella per vedere tutte le colonne e le righe.</span>
+        {% if selezione_attiva %}
+            <span class="ordini-legenda">Residuo inferiore all'ordinato</span>
+        {% else %}
+            <span>Scorri per visualizzare tutte le colonne.</span>
+        {% endif %}
     </div>
 
     <div class="ordini-table-scroll" tabindex="0" aria-label="Tabella {{ stato_tabella }} a scorrimento">
@@ -100,6 +142,7 @@
                 <tr>
                     {% if selezione_attiva %}
                         <th scope="col" class="col-centro">Seleziona</th>
+                        {{ colonna('priorita', 'Priorità', 'number') }}
                     {% else %}
                         {{ colonna('pianificazione', 'Pianificazione', 'number') }}
                     {% endif %}
@@ -107,7 +150,7 @@
                     {{ colonna('articolo', 'Codice panettone') }}
                     {{ colonna('descrizione', 'Descrizione') }}
                     {{ colonna('consegna', 'Consegna', 'date') }}
-                    {{ colonna('ordinata', 'Q.tà ordinata', 'number') }}
+                    {{ colonna('ordinata', 'Q.tà ordinata' if selezione_attiva else 'Tot. ordinato', 'number') }}
                     {{ colonna('quantita', 'Q.tà residua' if selezione_attiva else 'Q.tà assegnata', 'number') }}
                     {{ colonna('prezzatura', 'Prezzatura', 'number') }}
                     {{ colonna('glassa', 'Glassa') }}
@@ -118,21 +161,28 @@
                 {% for ordine in ordini_cliente %}
                     {% set consegna_iso = ordine.DataConsegna[6:10] ~ '-' ~ ordine.DataConsegna[3:5] ~ '-' ~ ordine.DataConsegna[0:2] %}
                     <tr data-record
+                        {% if selezione_attiva and ordine.ResiduoParziale %}class="ordini-riga-parziale"{% endif %}
                         data-original-index="{{ loop.index0 }}"
                         data-id-documento="{{ ordine.IdDocumento }}"
                         data-id-riga="{{ ordine.IdRigaDoc }}"
                         data-id-pianificazione="{{ ordine.IdPianificazione if ordine.IdPianificazione is not none else '' }}"
-                        data-filter-text="{{ ordine.Cliente }} {{ ordine.CodArt }} {{ ordine.DesArt }} {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}"
+                        data-filter-text="{{ ordine.Cliente }} {{ ordine.CodArt }} {{ ordine.DesArt }} {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }} {% if not selezione_attiva %}{% for voce in ordine.OrdiniDettaglio %}{{ voce.IdDocumento }}-{{ voce.IdRigaDoc }} {% endfor %}{% endif %}"
+                        data-filter-priorita="{{ ordine.Priorita if selezione_attiva and ordine.Priorita is not none else 'none' }}"
+                        data-filter-parziale="{{ 'si' if selezione_attiva and ordine.ResiduoParziale else 'no' }}"
                         data-filter-prezzatura="{{ ordine.Prezzatura }}"
                         data-filter-glassa="{{ ordine.Glassatura }}"
                         data-filter-consegna="{{ consegna_iso }}"
                         data-filter-pianificazione="{{ ordine.IdPianificazione if ordine.IdPianificazione is not none else '' }}"
+                        {% if selezione_attiva %}
                         hx-get="{{ url_for('ordini_cliente.dettaglio_ordine', IdDocumento=ordine.IdDocumento, IdRigaDoc=ordine.IdRigaDoc) }}"
                         hx-trigger="click"
                         hx-target="#htmx-global"
                         hx-swap="innerHTML"
                         tabindex="0"
-                        aria-label="Dettaglio ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}">
+                        aria-label="Dettaglio ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}"
+                        {% else %}
+                        aria-label="Pianificazione {{ ordine.IdPianificazione }} con {{ ordine.NumeroOrdini }} ordini"
+                        {% endif %}>
                         {% if selezione_attiva %}
                             <td class="col-centro">
                                 <input type="checkbox" name="ordini_selezionati"
@@ -147,15 +197,52 @@
                                        onclick="event.stopPropagation()"
                                        aria-label="Seleziona ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}">
                             </td>
+                            <td data-col="priorita"
+                                data-sort-value="{{ ordine.Priorita if ordine.Priorita is not none else 99 }}">
+                                <select name="priorita_{{ ordine.IdDocumento }}_{{ ordine.IdRigaDoc }}"
+                                        class="form-select form-select-sm ordini-priorita-select"
+                                        data-priorita-input
+                                        data-priority-level="{{ ordine.Priorita if ordine.Priorita is not none else '' }}"
+                                        data-prev-value="{{ ordine.Priorita if ordine.Priorita is not none else '' }}"
+                                        hx-post="{{ url_for('ordini_cliente.aggiorna_priorita_ordine', IdDocumento=ordine.IdDocumento, IdRigaDoc=ordine.IdRigaDoc) }}"
+                                        hx-trigger="change"
+                                        hx-params="priorita_{{ ordine.IdDocumento }}_{{ ordine.IdRigaDoc }}"
+                                        hx-swap="none"
+                                        onclick="event.stopPropagation()"
+                                        aria-label="Priorità ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}">
+                                    <option value="" {% if ordine.Priorita is none %}selected{% endif %}>Nessuna</option>
+                                    <option value="1" {% if ordine.Priorita == 1 %}selected{% endif %}>P1 · Alta</option>
+                                    <option value="2" {% if ordine.Priorita == 2 %}selected{% endif %}>P2 · Media</option>
+                                    <option value="3" {% if ordine.Priorita == 3 %}selected{% endif %}>P3 · Bassa</option>
+                                </select>
+                            </td>
                         {% else %}
                             <td data-col="pianificazione" data-sort-value="{{ ordine.IdPianificazione }}" class="col-numero">
-                                #{{ ordine.IdPianificazione }}
+                                <strong>#{{ ordine.IdPianificazione }}</strong>
+                                <div class="piano-riepilogo">{{ ordine.NumeroOrdini }} ordini</div>
+                                <details class="piano-dettagli" onclick="event.stopPropagation()">
+                                    <summary>Mostra ordini</summary>
+                                    <ul class="piano-ordini-elenco">
+                                        {% for voce in ordine.OrdiniDettaglio %}
+                                            <li>
+                                                <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                                                        hx-get="{{ url_for('ordini_cliente.dettaglio_ordine', IdDocumento=voce.IdDocumento, IdRigaDoc=voce.IdRigaDoc) }}"
+                                                        hx-target="#htmx-global" hx-swap="innerHTML"
+                                                        onclick="event.stopPropagation()">
+                                                    {{ voce.IdDocumento }}-{{ voce.IdRigaDoc }}
+                                                </button>
+                                                · {{ voce.Cliente }} · {{ voce.QtaPianificata }} pz
+                                                · {{ voce.DataConsegna }}
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </details>
                             </td>
                         {% endif %}
-                        <td data-col="cliente">{{ ordine.Cliente }}</td>
+                        <td data-col="cliente" title="{{ ordine.Cliente }}">{% if selezione_attiva %}{{ ordine.Cliente }}{% else %}<span class="piano-plurale">{{ ordine.Cliente }}</span>{% endif %}</td>
                         <td data-col="articolo">{{ ordine.CodArt }}</td>
-                        <td data-col="descrizione">{{ ordine.DesArt }}</td>
-                        <td data-col="consegna" data-sort-value="{{ consegna_iso }}">{{ ordine.DataConsegna }}</td>
+                        <td data-col="descrizione" title="{{ ordine.DesArt }}">{% if selezione_attiva %}{{ ordine.DesArt }}{% else %}<span class="piano-plurale">{{ ordine.DesArt }}</span>{% endif %}</td>
+                        <td data-col="consegna" data-sort-value="{{ consegna_iso }}" title="{% if selezione_attiva %}Consegna{% else %}Dalla prima all'ultima scadenza: {{ ordine.DataConsegna }} – {{ ordine.ConsegnaUltima }}{% endif %}">{{ ordine.DataConsegna }}{% if not selezione_attiva and ordine.ConsegnaUltima != ordine.DataConsegna %}<br><small>– {{ ordine.ConsegnaUltima }}</small>{% endif %}</td>
                         <td data-col="ordinata" data-sort-value="{{ ordine.QTA_ORD }}" class="col-numero">{{ ordine.QTA_ORD }}</td>
                         <td data-col="quantita" data-sort-value="{{ ordine.QTA_Saldo }}" class="col-numero fw-semibold">{{ ordine.QTA_Saldo }}</td>
                         <td data-col="prezzatura" data-sort-value="{{ ordine.Prezzatura }}" class="col-numero">{{ ordine.Prezzatura }} g</td>
@@ -163,7 +250,7 @@
                         <td data-col="stato">{{ ordine.Stato }}</td>
                     </tr>
                 {% else %}
-                    <tr data-no-data><td colspan="10" class="text-center py-4">Nessun ordine da visualizzare.</td></tr>
+                    <tr data-no-data><td colspan="{{ 11 if selezione_attiva else 10 }}" class="text-center py-4">Nessun ordine da visualizzare.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

@@ -1,13 +1,5 @@
 {% if errore %}
-    <h4>{{ errore }}</h4>
+    <div class="alert alert-warning mb-0" role="alert">{{ errore }}</div>
 {% else %}
-    <table>
-        <tbody>
-        <td><h5>N° ordini: {{ numero_ordini }} </h5></td>
-        <td><h5>Qta panettoni: {{ qta_panettoni }} </h5></td>
-        <td><h5>Peso impasto: {{ "%.2f"|format(peso_impasto) }} kg </h5></td>
-        <td><h5>N° cotte: {{ numero_cotte }} </h5></td>
-        <td><h5>Impasto di avanzo: {{ "%.2f"|format(panettoni_avanzo) }} </h5></td>
-        </tbody>
-    </table>
+    {% include "ordini/_partials/_riepilogo_contenuto.j2" %}
 {% endif %}

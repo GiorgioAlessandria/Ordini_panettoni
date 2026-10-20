@@ -87,6 +87,8 @@
                 (!filtri.prezzatura || riga.dataset.filterPrezzatura === filtri.prezzatura) &&
                 (!filtri.glassa || riga.dataset.filterGlassa === filtri.glassa) &&
                 (!filtri.pianificazione || riga.dataset.filterPianificazione === filtri.pianificazione) &&
+                (!filtri.priorita || riga.dataset.filterPriorita === filtri.priorita) &&
+                (!filtri.parziale || riga.dataset.filterParziale === filtri.parziale) &&
                 (!filtri.dal || riga.dataset.filterConsegna >= filtri.dal) &&
                 (!filtri.al || riga.dataset.filterConsegna <= filtri.al)
             );
@@ -108,7 +110,7 @@
             const avviso = document.createElement("tr");
             avviso.dataset.filtriVuoti = "";
             const td = document.createElement("td");
-            td.colSpan = 10;
+            td.colSpan = contenitore.id === "ordini_cliente_da_produrre" ? 11 : 10;
             td.className = "text-center py-4";
             td.textContent = "Nessun ordine corrisponde ai filtri impostati.";
             avviso.appendChild(td);
@@ -229,6 +231,10 @@
             else stato.selezionati.delete(elemento.value);
             aggiornaCompatibilita(contenitore);
             applicaFiltri(contenitore);
+        } else if (elemento.matches("[data-priorita-input]")) {
+            // Feedback visivo locale; l'evento HX-Trigger ricarica la tabella
+            // dopo che la modifica è stata effettivamente salvata sul server.
+            elemento.dataset.priorityLevel = elemento.value;
         } else if (elemento.matches("[data-filter]")) {
             statoDi(contenitore).filtri[elemento.dataset.filter] = elemento.value;
             applicaFiltri(contenitore);
@@ -260,6 +266,14 @@
             contenitore.querySelectorAll("[data-filter]").forEach((input) => { input.value = ""; });
             applicaFiltri(contenitore);
         }
+    });
+
+    document.body.addEventListener("htmx:responseError", (event) => {
+        const controllo = event.detail.elt;
+        if (!controllo?.matches?.("[data-priorita-input]")) return;
+        controllo.value = controllo.dataset.prevValue || "";
+        controllo.dataset.priorityLevel = controllo.value;
+        alert("Impossibile aggiornare la priorità. Verifica il server Flask.");
     });
 
     // Il backend invia HX-Trigger: pianificazioneSalvata solo dopo commit.

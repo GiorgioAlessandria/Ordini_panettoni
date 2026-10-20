@@ -15,7 +15,9 @@ from flaskr.models.model_ordini import (
     Costanti,
     LogOperazioni,
     OrdiniCliente,
+    OrdiniPriorita,
     PianificazioneFasi,
+    PianificazioneImpastatriceFase,
     PianificazioneOrdini,
     PianificazioneOrdiniImpastatrici,
     PianificazioneProduzione,
@@ -42,8 +44,13 @@ from flaskr.service.pianificazione_service import (
     recupera_quantita_gia_pianificate,
     recupero_fasi_per_ricetta,
     recupero_ricetta_articolo,
-    validazione_conflitti_idlavorazione,
     validazione_linearita_offset,
+)
+
+from flaskr.service.risorse_produzione_service import (
+    individua_fasi_risorse,
+    verifica_capacita_forno,
+    verifica_e_distribuisci_impasto,
 )
 
 
@@ -73,22 +80,60 @@ def tabella_ordini_cliente_in_produzione():
     )
 
 
+@bp_ordini_cliente.post("/ordine/<int:IdDocumento>/<int:IdRigaDoc>/priorita")
+@login_required
+def aggiorna_priorita_ordine(IdDocumento: int, IdRigaDoc: int):
+    """Aggiorna una priorità locale; non modifica mai la riga sincronizzata ERP."""
+    valore = request.form.get(f"priorita_{IdDocumento}_{IdRigaDoc}", "")
+    if valore not in ("", "1", "2", "3"):
+        return "Priorità non valida", 400
+
+    ordine = db.session.get(OrdiniCliente, (IdDocumento, IdRigaDoc))
+    if ordine is None:
+        abort(404)
+
+    # Le priorità riguardano esclusivamente gli ordini con residuo pianificabile.
+    impegnata = recupera_quantita_impegnate().get((IdDocumento, IdRigaDoc), 0)
+    if ordine.QTA_SALDO_DOC is None or ordine.QTA_SALDO_DOC - impegnata <= 0:
+        return "Ordine senza quantità disponibile", 409
+
+    try:
+        prioritario = db.session.get(OrdiniPriorita, (IdDocumento, IdRigaDoc))
+        if not valore:
+            if prioritario is not None:
+                db.session.delete(prioritario)
+        elif prioritario is None:
+            db.session.add(OrdiniPriorita(
+                IdDocumento=IdDocumento,
+                IdRigaDoc=IdRigaDoc,
+                Livello=int(valore),
+            ))
+        else:
+            prioritario.Livello = int(valore)
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("Errore nel salvataggio della priorità")
+        return "Impossibile salvare la priorità", 500
+
+    # Innesca il refresh del solo pannello 'Da produrre' senza sostituire la select.
+    return "", 204, {"HX-Trigger": "prioritaAggiornata"}
+
+
 @bp_ordini_cliente.route("/riepilogo_selezione", methods=["POST"])
 @login_required
 def riepilogo_selezione():
-    list_ordini_selezionati: list[str] = request.form.getlist("ordini_selezionati")
+    ids_selezionati = request.form.getlist("ordini_selezionati")
     try:
-        list_ordini_selezionati_obj = recupera_ordini_selezionati(list_ordini_selezionati)
-        risultato: dict[str, str] = calcolo_riepilogo_ordini(list_ordini_selezionati_obj)
+        ordini = recupera_ordini_selezionati(ids_selezionati)
+        riepilogo = calcolo_riepilogo_ordini(ordini)
     except ErroreCalcoloRiepilogo as errore:
-        return render_template("ordini/_partials/_riepilogo_ordini.j2", errore=str(errore))
+        return render_template(
+            "ordini/_partials/_riepilogo_ordini.j2", errore=str(errore)
+        )
+
     return render_template(
-        "ordini/_partials/_riepilogo_ordini.j2",
-        numero_ordini=risultato["numero_ordini"],
-        qta_panettoni=risultato["qta_panettoni"],
-        peso_impasto=risultato["peso_impasto"],
-        numero_cotte=risultato["numero_cotte"],
-        panettoni_avanzo=risultato["panettoni_avanzo"],
+        "ordini/_partials/_riepilogo_ordini.j2", riepilogo=riepilogo
     )
 
 
@@ -120,20 +165,27 @@ def dettaglio_ordine(IdDocumento: int, IdRigaDoc: int):
 @bp_ordini_cliente.post("/pianificazione/anteprima")
 @login_required
 def anteprima_pianificazione():
-    ordini_selezionati = request.form.getlist("ordini_selezionati")
-    if not ordini_selezionati:
-        return render_template(
-            "ordini/_partials/_form_pianificazione.j2", error="Nessun ordine selezionato"
-        )
-    stmt_anagrafica_impastatrici = db.select(AnagraficaImpastatrici).order_by(
+    ids_selezionati = request.form.getlist("ordini_selezionati")
+    template = "ordini/_partials/_form_pianificazione.j2"
+    if not ids_selezionati:
+        return render_template(template, error="Nessun ordine selezionato")
+
+    try:
+        ordini = recupera_ordini_selezionati(ids_selezionati)
+        riepilogo = calcolo_riepilogo_ordini(ordini)
+    except ErroreCalcoloRiepilogo as errore:
+        return render_template(template, error=str(errore))
+
+    stmt_impastatrici = db.select(AnagraficaImpastatrici).order_by(
         AnagraficaImpastatrici.IdImpastatrice
     )
-    impastatrici = db.session.scalars(stmt_anagrafica_impastatrici).all()
+    impastatrici = db.session.scalars(stmt_impastatrici).all()
     return render_template(
-        "ordini/_partials/_form_pianificazione.j2",
+        template,
         impastatrici=impastatrici,
-        ordini_selezionati=ordini_selezionati,
-        error="",
+        ordini_selezionati=ids_selezionati,
+        riepilogo=riepilogo,
+        error=None,
     )
 
 
@@ -174,6 +226,12 @@ def conferma_pianificazione():
         return render_template(template, error="ID impastatrice non valido")
 
     try:
+        # Serializza lettura della disponibilità e scrittura su SQLite.
+        # Il file SQLite risiede su un percorso di rete: verificare che il server
+        # supporti realmente i lock SQLite attraverso SMB.
+        if db.engine.dialect.name == "sqlite":
+            db.session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+
         # FASE 2 - Recupero impastatrici e ordini selezionati.
         stmt_impastatrici = db.select(AnagraficaImpastatrici).where(
             AnagraficaImpastatrici.IdImpastatrice.in_(ids_impastatrici)
@@ -224,14 +282,30 @@ def conferma_pianificazione():
             ordini_disponibili[0][0], risultato["tipologia_panettone"]
         )
         fasi_ricetta = recupero_fasi_per_ricetta(ricetta)
-        capacita_max_blocco = next(
-            (fase.CapacitaMax for fase in fasi_ricetta if fase.IdLavorazione == 2),
-            None,
-        )
+        # Individua la capacità di cottura dalla fase della ricetta, senza
+        # assumere che l'IdLavorazione sia sempre 2.
+        fasi_cottura = [
+            fase for fase in fasi_ricetta
+            if "forno" in str(fase.lavorazione.TipologiaLavorazione).casefold()
+            or "cott" in str(fase.lavorazione.DescrizioneLavorazione).casefold()
+            or "inforn" in str(fase.lavorazione.DescrizioneLavorazione).casefold()
+        ]
+        if len(fasi_cottura) != 1:
+            raise ErroreCalcoloPianificazione(
+                f"La ricetta richiede una fase di cottura, trovate {len(fasi_cottura)}"
+            )
+        capacita_max_blocco = fasi_cottura[0].CapacitaMax
         if capacita_max_blocco is None or capacita_max_blocco <= 0:
             raise ErroreCalcoloPianificazione("Capacità massima delle infornate non valida")
         if forno.Capienza is None or forno.Capienza <= 0:
             raise ErroreCalcoloPianificazione("Capienza del forno non valida")
+        massimo_panettoni_blocco = int(capacita_max_blocco) * int(forno.Capienza)
+        if panettoni_previsti > massimo_panettoni_blocco:
+            raise ErroreCalcoloPianificazione(
+                f"Sono richiesti {panettoni_previsti} panettoni, ma il forno permette "
+                f"al massimo {massimo_panettoni_blocco} pezzi in {capacita_max_blocco} cotte. "
+                "Riduci la selezione degli ordini."
+            )
 
         (
             panettoni_infornata,
@@ -296,9 +370,49 @@ def conferma_pianificazione():
         )
         if not validazione_linearita_offset(fasi):
             raise ErroreCalcoloPianificazione("Offset delle fasi non validi")
-        if not validazione_conflitti_idlavorazione(fasi):
-            raise ErroreCalcoloPianificazione("Conflitto con una lavorazione già pianificata")
+
+        # La concorrenza NON è più vietata per IdLavorazione.
+        # Verifica la disponibilità delle risorse sulle fasi effettive
+        # (che possono avere offset rispetto all'inizio della pianificazione).
+        (fase_impasto, lavoro_impasto), (fase_forno, lavoro_forno, ricetta_fase_forno) = (
+            individua_fasi_risorse(fasi)
+        )
+        assegnazioni_macchine, blocchi_impasto = verifica_e_distribuisci_impasto(
+            impastatrici=list_impastatrici,
+            peso_totale_grammi=peso_totale_pianificato,
+            fase=fase_impasto,
+            lavorazione=lavoro_impasto,
+        )
+        verifica_capacita_forno(
+            fase_forno=fase_forno,
+            lavorazione_forno=lavoro_forno,
+            ricetta_fase_forno=ricetta_fase_forno,
+            id_forno=forno.IdForno,
+            capienza_cotta=int(forno.Capienza),
+            numero_cotte=numero_cotte,
+            peso_totale_grammi=peso_totale_pianificato,
+            peso_unitario_grammi=peso_unitario,
+        )
+
         db.session.add_all(fasi)
+        db.session.flush()  # Servono gli ID delle fasi per le occupazioni.
+        for id_macchina, kg in assegnazioni_macchine.items():
+            # Mantiene l'associazione legacy utilizzata dal calendario.
+            db.session.add(PianificazioneOrdiniImpastatrici(
+                IdPianificazione=pianificazione.IdPianificazione,
+                IdImpastatrice=id_macchina,
+            ))
+            for giorno, blocco in blocchi_impasto:
+                db.session.add(PianificazioneImpastatriceFase(
+                    IdPianificazioneFase=fase_impasto.IdPianificazioneFase,
+                    IdImpastatrice=id_macchina,
+                    DataFase=giorno,
+                    Blocco=blocco,
+                    # Peso dell'intero impasto assegnato alla macchina;
+                    # se la fase dura più blocchi, ripetuto solo ai fini
+                    # informativi (NON sommare sulle righe temporali).
+                    KgAssegnati=kg,
+                ))
 
         ora_log = datetime.now()
         for ordine, quantita_assegnata in assegnazioni:
@@ -319,14 +433,6 @@ def conferma_pianificazione():
                     Stato="In produzione",
                     Operatore=g.user.username,
                     synced_at=ora_log,
-                )
-            )
-
-        for impastatrice in list_impastatrici:
-            db.session.add(
-                PianificazioneOrdiniImpastatrici(
-                    IdPianificazione=pianificazione.IdPianificazione,
-                    IdImpastatrice=impastatrice.IdImpastatrice,
                 )
             )
 
