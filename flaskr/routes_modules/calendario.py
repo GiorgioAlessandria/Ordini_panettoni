@@ -64,7 +64,7 @@ def ordini_calendario_scadenze():
                 "cliente": ordine.Cliente.RagioneSociale,
                 "quantita_residua": ordine.QTA_SALDO_DOC,
                 "detailUrl": url_for(
-                    "ordini_cliente.dettaglio_ordine",
+                    "ordini_cliente.calendario_riepilogo_ordine",
                     IdDocumento=ordine.IdDocumento,
                     IdRigaDoc=ordine.IdRigaDoc,
                 )
@@ -157,6 +157,8 @@ def eventi_fase_calendario():
     for fase in fasi:
         piano = piani.get(fase.IdPianificazione)
         lavorazione = lavorazioni.get(fase.IdLavorazione)
+        if piano is not None and piano.StatoRigaOrdine == "Annullato":
+            continue
         if piano is None or lavorazione is None:
             raise ErrorePianificazioneCalendario(
                 f"Pianificazione o lavorazione inesistente per la fase {fase.IdPianificazioneFase}"
@@ -172,5 +174,102 @@ def eventi_fase_calendario():
             descrizione_articolo=descrizioni_articoli.get(piano.CodArt) or "Articolo senza descrizione",
         )
         evento["extendedProps"]["impastatrici"] = impastatrici_per_piano[fase.IdPianificazione]
+        evento["extendedProps"]["detailUrl"] = url_for(
+            "ordini_cliente.calendario_riepilogo_piano", IdPianificazione=fase.IdPianificazione
+        )
         eventi.append(evento)
     return jsonify(eventi)
+
+
+# --- Calendario macchine (aggiungere una sola volta alla fine di calendario.py) ---
+@bp_ordini_cliente.get('/calendario/macchine')
+@login_required
+def calendario_macchine():
+    from datetime import date
+    from flaskr.service.calendario_macchine_service import riepilogo_settimana_macchine
+
+    valore = request.args.get('settimana', '')
+    try:
+        giorno = date.fromisoformat(valore) if valore else datetime.now().date()
+    except ValueError:
+        abort(400, description='La data indicata non è valida')
+    riepilogo = riepilogo_settimana_macchine(giorno)
+    return render_template('ordini/calendario_macchine.j2', riepilogo=riepilogo)
+
+
+@bp_ordini_cliente.get('/calendario/macchine/griglia')
+@login_required
+def calendario_macchine_griglia():
+    from datetime import date
+    from flaskr.service.calendario_macchine_service import riepilogo_settimana_macchine
+
+    valore = request.args.get('settimana', '')
+    try:
+        giorno = date.fromisoformat(valore) if valore else datetime.now().date()
+    except ValueError:
+        abort(400, description='La data indicata non è valida')
+    riepilogo = riepilogo_settimana_macchine(giorno)
+    return render_template('ordini/_partials/_griglia_macchine.j2', riepilogo=riepilogo)
+
+
+@bp_ordini_cliente.get("/calendario/ordine/<int:IdDocumento>/<int:IdRigaDoc>/riepilogo")
+@login_required
+def calendario_riepilogo_ordine(IdDocumento: int, IdRigaDoc: int):
+    """Riepilogo sintetico consultabile dagli eventi di scadenza."""
+    ordine = db.session.scalar(
+        db.select(OrdiniCliente)
+        .options(joinedload(OrdiniCliente.Cliente))
+        .where(OrdiniCliente.IdDocumento == IdDocumento, OrdiniCliente.IdRigaDoc == IdRigaDoc)
+    )
+    if ordine is None:
+        abort(404)
+    impegnata = db.session.scalar(
+        db.select(db.func.coalesce(db.func.sum(PianificazioneOrdini.QtaPianificata), 0))
+        .where(PianificazioneOrdini.IdDocumento == IdDocumento,
+               PianificazioneOrdini.IdRiga == IdRigaDoc,
+               PianificazioneOrdini.Stato.in_(("In produzione", "Chiuso")))
+    )
+    return render_template(
+        "ordini/_partials/_riepilogo_calendario_ordine.j2", ordine=ordine,
+        impegnata=int(impegnata or 0),
+        residua=max(0, int(ordine.QTA_SALDO_DOC or 0) - int(impegnata or 0)),
+    )
+
+
+@bp_ordini_cliente.get("/calendario/pianificazione/<int:IdPianificazione>/riepilogo")
+@login_required
+def calendario_riepilogo_piano(IdPianificazione: int):
+    """Elenco ordini, stock utilizzato, macchine e fasi per un piano."""
+    piano = db.session.get(PianificazioneProduzione, IdPianificazione)
+    if piano is None:
+        abort(404)
+    associazioni = db.session.execute(
+        db.select(PianificazioneOrdini, OrdiniCliente)
+        .join(OrdiniCliente,
+              (PianificazioneOrdini.IdDocumento == OrdiniCliente.IdDocumento) &
+              (PianificazioneOrdini.IdRiga == OrdiniCliente.IdRigaDoc))
+        .options(joinedload(OrdiniCliente.Cliente))
+        .where(PianificazioneOrdini.IdPianificazione == IdPianificazione)
+        .order_by(OrdiniCliente.DataConsegna)
+    ).all()
+    fasi = db.session.execute(
+        db.select(PianificazioneFasi, TipologieLavorazione)
+        .join(TipologieLavorazione,
+              TipologieLavorazione.IdLavorazione == PianificazioneFasi.IdLavorazione)
+        .where(PianificazioneFasi.IdPianificazione == IdPianificazione)
+        .order_by(PianificazioneFasi.OffsetBlocchi)
+    ).all()
+    macchine = db.session.execute(
+        db.select(AnagraficaImpastatrici)
+        .join(PianificazioneOrdiniImpastatrici,
+              PianificazioneOrdiniImpastatrici.IdImpastatrice == AnagraficaImpastatrici.IdImpastatrice)
+        .where(PianificazioneOrdiniImpastatrici.IdPianificazione == IdPianificazione)
+    ).scalars().all()
+    articolo = db.session.get(AnagraficaArticoli, piano.CodArt)
+    return render_template(
+        "ordini/_partials/_riepilogo_calendario_piano.j2",
+        piano=piano, associazioni=associazioni, fasi=fasi,
+        macchine=macchine, descrizione=articolo.DesArt if articolo else piano.CodArt,
+        totale_assegnato=sum(int(a.QtaPianificata or 0) for a, _ in associazioni),
+        totale_da_stock=sum(int(a.QtaDaStock or 0) for a, _ in associazioni),
+    )

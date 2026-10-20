@@ -39,6 +39,11 @@
             <h1>Gestione ordini panettoni</h1>
             <p class="descrizione">Disponibilità e lavorazioni sulla stessa pagina.</p>
         </div>
+        <a class="ordini-nav" href="{{ url_for('ordini_cliente.calendario_macchine') }}">
+            <span aria-hidden="true">▤</span> Impiego impastatrici <span aria-hidden="true">↗</span>
+        </a>
+        <a class="ordini-nav" href="{{ url_for('ordini_cliente.pianificazioni_chiuse') }}">Storico pianificazioni ↗</a>
+        <a class="ordini-nav" href="{{ url_for('ordini_cliente.stock_articoli') }}">Stock panettoni <span aria-hidden="true">↗</span></a>
         <a class="ordini-nav" href="{{ url_for('ordini_cliente.ordini_calendario') }}">
             <span aria-hidden="true">▦</span> Vai al calendario <span aria-hidden="true">↗</span>
         </a>
@@ -53,7 +58,7 @@
             <div class="ordini-panel-body">
                 <div id="ordini_cliente_da_produrre"
                      hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_da_produrre') }}"
-                     hx-trigger="load, every 30s, pianificazioneSalvata from:body, prioritaAggiornata from:body"
+                     hx-trigger="load, every 30s, pianificazioneSalvata from:body, prioritaAggiornata from:body, pianificazioneChiusa from:body, pianificazioneAnnullata from:body"
                      hx-swap="innerHTML"
                      hx-sync="this:replace"
                      aria-live="off">
@@ -85,7 +90,7 @@
             <div class="ordini-panel-body">
                 <div id="ordini_cliente_in_produzione"
                      hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_in_produzione') }}"
-                     hx-trigger="load, every 30s, pianificazioneSalvata from:body, prioritaAggiornata from:body"
+                     hx-trigger="load, every 30s, pianificazioneSalvata from:body, prioritaAggiornata from:body, pianificazioneChiusa from:body, pianificazioneAnnullata from:body"
                      hx-swap="innerHTML"
                      hx-sync="this:replace"
                      aria-live="off">
@@ -97,7 +102,7 @@
 </div>
 
 <div class="modal fade" id="modal-pianificazione" tabindex="-1" aria-label="Pianificazione produzione">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content" id="contenuto-pianificazione"></div>
     </div>
 </div>

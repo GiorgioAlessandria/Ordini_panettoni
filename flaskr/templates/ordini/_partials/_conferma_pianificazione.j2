@@ -1,30 +1,17 @@
 {% if error %}
-    <div class="modal-header">
-        <h5 class="modal-title">Errore pianificazione</h5>
-    </div>
-
-    <div class="modal-body">
-        <div class="alert alert-danger">
-            {{ error }}
-        </div>
-    </div>
+<div class="modal-header"><h5 class="modal-title">Pianificazione non salvata</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>
+<div class="modal-body"><div class="alert alert-danger mb-0" role="alert">{{ error }}</div></div>
+<div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Chiudi</button></div>
 {% else %}
-    <div class="modal-header">
-        <h5 class="modal-title">Pianificazione confermata</h5>
-    </div>
-
-    <div class="modal-body">
-        <div class="alert alert-success">
-            Pianificazione n. {{ id_pianificazione }}
-            salvata correttamente.
-        </div>
-    </div>
-
-    <div class="modal-footer">
-        <button type="button"
-                class="btn btn-secondary"
-                data-bs-dismiss="modal">
-            Chiudi
-        </button>
-    </div>
+<div class="modal-header"><h5 class="modal-title">Pianificazione creata</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>
+<div class="modal-body">
+    <div class="alert alert-success" role="status">Pianificazione <strong>#{{ id_pianificazione }}</strong> salvata correttamente.</div>
+    <p>Panettoni assegnati dagli stock esistenti: <strong>{{ qta_stock_utilizzata or 0 }}</strong>.</p>
+    {% if qta_stock_generata %}
+    <p class="mb-0">Ottimizzazione: <strong>{{ qta_stock_generata }} pezzi aggiuntivi</strong> registrati nello stock dell'articolo.</p>
+    {% else %}
+    <p class="mb-0 text-secondary">Nessun surplus aggiunto allo stock.</p>
+    {% endif %}
+</div>
+<div class="modal-footer"><button type="button" class="btn btn-primary" data-bs-dismiss="modal">Chiudi</button></div>
 {% endif %}

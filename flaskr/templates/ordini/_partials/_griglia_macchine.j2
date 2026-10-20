@@ -1,0 +1,125 @@
+<div class="cm-stat-grid" role="group" aria-label="Riepilogo della settimana">
+    <div class="cm-stat"><span>Impastatrici censite</span><strong>{{ riepilogo.numero_macchine }}</strong></div>
+    <div class="cm-stat"><span>Capacità nominale / blocco</span><strong>{{ '%.1f'|format(riepilogo.capacita_nominale) }} kg</strong></div>
+    <div class="cm-stat"><span>Blocchi-macchina occupati</span><strong>{{ riepilogo.blocchi_occupati }} / {{ riepilogo.totale_macchine_blocco }}</strong></div>
+    <div class="cm-stat"><span>Occupazione settimanale</span><strong>{{ riepilogo.occupazione_settimana }}%</strong></div>
+    <div class="cm-stat"><span>Saturazione media per blocco</span><strong>{% if riepilogo.saturazione_settimana is not none %}{{ riepilogo.saturazione_settimana }}%{% else %}N/D{% endif %}</strong></div>
+</div>
+
+<div class="cm-legend" aria-label="Legenda">
+    <span><i class="cm-indicator cm-indicator-free"></i> Macchina libera</span>
+    <span><i class="cm-indicator cm-indicator-used"></i> Macchina prenotata</span>
+    <span><i class="cm-indicator cm-indicator-legacy"></i> Occupazione storica, kg non disponibili</span>
+</div>
+
+{% if riepilogo.numero_macchine == 0 %}
+    <p class="cm-empty">Non ci sono impastatrici nell'anagrafica. Verificare la tabella <code>anagrafica_impastatrici</code>.</p>
+{% else %}
+    <div class="cm-scroll" role="region" aria-label="Calendario settimanale per blocchi" tabindex="0">
+        <table class="cm-calendar">
+            <thead>
+                <tr>
+                    <th scope="col" class="cm-slot-heading">Blocco</th>
+                    {% for giorno in riepilogo.giorni %}
+                    <th scope="col" class="cm-date-heading">
+                        <span class="cm-day-name">{{ ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'][loop.index0] }}</span>
+                        <span class="cm-day-date">{{ giorno.data.strftime('%d/%m') }}</span>
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for blocco_index in (0, 1) %}
+                <tr>
+                    <th scope="row" class="cm-slot-heading">
+                        <span class="cm-slot-name">{{ 'Mattina' if blocco_index == 0 else 'Pomeriggio' }}</span>
+                        <small>{{ 'M' if blocco_index == 0 else 'P' }}</small>
+                    </th>
+                    {% for giorno in riepilogo.giorni %}
+                        {% set slot = giorno.blocchi[blocco_index] %}
+                        <td class="cm-cell {% if slot.occupate == slot.numero_macchine %}cm-cell-full{% elif slot.occupate %}cm-cell-partial{% endif %}">
+                            <div class="cm-cell-summary">
+                                <strong>{{ slot.occupate }}/{{ slot.numero_macchine }} occupate</strong>
+                                <span>Impiego {{ slot.percentuale_occupazione }}%</span>
+                            </div>
+                            <div class="cm-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ slot.percentuale_occupazione }}" aria-label="Macchine prenotate">
+                                <span class="cm-progress-used" style="width: {{ slot.percentuale_occupazione }}%"></span>
+                            </div>
+                            <div class="cm-kg-summary">
+                                {% if slot.saturazione is not none %}
+                                    {{ '%.1f'|format(slot.kg_noti) }} / {{ '%.1f'|format(slot.capacita_totale) }} kg
+                                    <span>Saturazione {{ slot.saturazione }}%</span>
+                                {% else %}
+                                    <span>Carico kg N/D (dati storici)</span>
+                                {% endif %}
+                            </div>
+                            <div class="cm-machines">
+                            {% for m in slot.macchine %}
+                                <article class="cm-machine {% if m.legacy %}cm-machine-legacy{% elif m.occupata %}cm-machine-used{% else %}cm-machine-free{% endif %}"
+                                  {% if m.occupata %}role="button" tabindex="0" style="cursor:pointer"
+                                  data-riepilogo-url="{{ url_for('ordini_cliente.calendario_riepilogo_piano', IdPianificazione=m.piano) }}"
+                                  aria-label="Apri il riepilogo della pianificazione {{ m.piano }}"{% endif %}>
+                                    <div class="cm-machine-head">
+                                        <strong title="Impastatrice {{ m.id }}">{{ m.nome }}</strong>
+                                        <span>{{ '%.1f'|format(m.capacita_kg) }} kg</span>
+                                    </div>
+                                    {% if not m.occupata %}
+                                        <div class="cm-machine-status">Libera</div>
+                                    {% else %}
+                                        <button type="button" class="btn btn-link btn-sm fw-semibold p-0 cm-machine-plan"
+                                            data-riepilogo-url="{{ url_for('ordini_cliente.calendario_riepilogo_piano', IdPianificazione=m.piano) }}"
+                                            title="Apri riepilogo della pianificazione">Piano #{{ m.piano }} · Riepilogo</button>
+                                        <div class="cm-machine-article" title="{{ m.articolo }}">{{ m.articolo }}</div>
+                                        {% if m.legacy %}
+                                            <div class="cm-machine-status">Prenotata · kg N/D</div>
+                                        {% else %}
+                                            <div class="cm-machine-status">{{ '%.1f'|format(m.kg) }} kg assegnati · {{ m.saturazione }}%</div>
+                                            <div class="cm-progress cm-progress-small" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ m.saturazione }}" aria-label="Saturazione di {{ m.nome }}">
+                                                <span class="cm-progress-load" style="width: {{ [m.saturazione|float, 100]|min }}%"></span>
+                                            </div>
+                                        {% endif %}
+                                    {% endif %}
+                                </article>
+                            {% endfor %}
+                            </div>
+                        </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endif %}
+
+<section class="cm-machine-weekly" aria-label="Riepilogo settimanale per singola impastatrice">
+    <h3>Riepilogo per impastatrice</h3>
+    <div class="cm-weekly-scroll">
+        <table>
+            <thead><tr>
+                <th scope="col">Impastatrice</th>
+                <th scope="col">Capacità / blocco</th>
+                <th scope="col">Blocchi prenotati</th>
+                <th scope="col">Impiego</th>
+                <th scope="col">Saturazione media</th>
+            </tr></thead>
+            <tbody>
+                {% for m in riepilogo.statistiche_macchine %}
+                <tr>
+                    <th scope="row">{{ m.nome }}</th>
+                    <td>{{ '%.1f'|format(m.capacita_kg) }} kg</td>
+                    <td>{{ m.blocchi_occupati }} / {{ m.blocchi_totali }}</td>
+                    <td>
+                        <strong>{{ m.percentuale_occupazione }}%</strong>
+                        <div class="cm-progress cm-progress-table" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ m.percentuale_occupazione }}">
+                            <span class="cm-progress-used" style="width:{{ m.percentuale_occupazione }}%"></span>
+                        </div>
+                    </td>
+                    <td>{% if m.saturazione_media is not none %}{{ m.saturazione_media }}%{% else %}N/D (storico){% endif %}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5">Nessuna impastatrice configurata.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>

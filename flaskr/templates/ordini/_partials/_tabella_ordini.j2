@@ -155,6 +155,7 @@
                     {{ colonna('prezzatura', 'Prezzatura', 'number') }}
                     {{ colonna('glassa', 'Glassa') }}
                     {{ colonna('stato', 'Stato') }}
+                    {% if not selezione_attiva %}<th scope="col">Azioni</th>{% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -248,9 +249,16 @@
                         <td data-col="prezzatura" data-sort-value="{{ ordine.Prezzatura }}" class="col-numero">{{ ordine.Prezzatura }} g</td>
                         <td data-col="glassa">{{ ordine.Glassatura }}</td>
                         <td data-col="stato">{{ ordine.Stato }}</td>
+                        {% if not selezione_attiva %}
+                        <td>
+                            <a class="btn btn-outline-primary btn-sm"
+                               href="{{ url_for('ordini_cliente.gestione_pianificazione', IdPianificazione=ordine.IdPianificazione) }}"
+                               onclick="event.stopPropagation()">Gestisci / chiudi</a>
+                        </td>
+                        {% endif %}
                     </tr>
                 {% else %}
-                    <tr data-no-data><td colspan="{{ 11 if selezione_attiva else 10 }}" class="text-center py-4">Nessun ordine da visualizzare.</td></tr>
+                    <tr data-no-data><td colspan="{{ 11 if selezione_attiva else 11 }}" class="text-center py-4">Nessun ordine da visualizzare.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

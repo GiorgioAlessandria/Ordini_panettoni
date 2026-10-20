@@ -198,6 +198,13 @@ class PianificazioneProduzione(db.Model):
     IdForno: Mapped[int] = mapped_column(ForeignKey("anagrafica_forni.IdForno"))
     TipologiaPanettone: Mapped[str]
     StatoRigaOrdine: Mapped[str]
+    # NULL per pianificazioni antecedenti alla migrazione: il surplus storico va riconciliato.
+    QtaStockGenerata: Mapped[int | None] = mapped_column(nullable=True)
+    DataChiusura: Mapped[datetime | None] = mapped_column(nullable=True)
+    DataAnnullamento: Mapped[datetime | None] = mapped_column(nullable=True)
+    OperatoreChiusura: Mapped[str | None] = mapped_column(nullable=True)
+    OperatoreAnnullamento: Mapped[str | None] = mapped_column(nullable=True)
+    MotivoAnnullamento: Mapped[str | None] = mapped_column(nullable=True)
     PesoTotale: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     NumeroCotte: Mapped[int]
     PanettoniPianificati: Mapped[int]
@@ -208,6 +215,7 @@ class PianificazioneProduzione(db.Model):
         back_populates="pianificazione", order_by="PianificazioneFasi.OffsetBlocchi"
     )
     __table_args__ = (
+        CheckConstraint("QtaStockGenerata IS NULL OR QtaStockGenerata >= 0", name="ck_piano_stock_generato"),
         CheckConstraint("BloccoIniziale IN ('M', 'P')", name="ck_pianificazione_blocco_iniziale"),
     )
 
@@ -220,6 +228,7 @@ class PianificazioneOrdini(db.Model):
     IdDocumento: Mapped[int] = mapped_column(primary_key=True)
     IdRiga: Mapped[int] = mapped_column(primary_key=True)
     QtaPianificata: Mapped[int]
+    QtaDaStock: Mapped[int] = mapped_column(server_default="0", nullable=False)
     Stato: Mapped[str] = mapped_column(server_default="In produzione")
     DataChiusura: Mapped[datetime | None]
     __table_args__ = (
@@ -232,6 +241,7 @@ class PianificazioneOrdini(db.Model):
             name="fk_pianificazione_ordini_ordine",
         ),
         CheckConstraint("QtaPianificata > 0", name="ck_qta_pianificata_positiva"),
+        CheckConstraint("QtaDaStock >= 0 AND QtaDaStock <= QtaPianificata", name="ck_qta_da_stock_valida"),
         CheckConstraint(
             "Stato IN ('In produzione', 'Chiuso', 'Annullato')",
             name="ck_stato_pianificazione_ordini",
@@ -293,6 +303,24 @@ class PianificazioneImpastatriceFase(db.Model):
         UniqueConstraint("IdImpastatrice", "DataFase", "Blocco", name="uq_impastatrice_data_blocco"),
         CheckConstraint("Blocco IN ('M', 'P')", name="ck_impastatrice_fase_blocco"),
         CheckConstraint("KgAssegnati >= 0", name="ck_impastatrice_kg_non_negativi"),
+    )
+
+
+class PianificazioneOperazioni(db.Model):
+    """Registro immutabile degli eventi di chiusura/annullamento."""
+    __tablename__ = "pianificazione_operazioni"
+    Id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    IdPianificazione: Mapped[int] = mapped_column(
+        ForeignKey("pianificazione_produzione.IdPianificazione"), nullable=False
+    )
+    Azione: Mapped[str] = mapped_column(nullable=False)
+    Operatore: Mapped[str] = mapped_column(nullable=False)
+    DataOperazione: Mapped[datetime] = mapped_column(nullable=False)
+    Motivo: Mapped[str | None] = mapped_column(nullable=True)
+    StockRestituito: Mapped[int] = mapped_column(nullable=False, default=0)
+    StockStornato: Mapped[int] = mapped_column(nullable=False, default=0)
+    __table_args__ = (
+        CheckConstraint("Azione IN ('Chiuso','Annullato')", name="ck_piano_operazione_azione"),
     )
 
 

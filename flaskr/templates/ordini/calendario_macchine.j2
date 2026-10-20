@@ -1,0 +1,62 @@
+{% extends 'base.j2' %}
+
+{% block title %}<title>Calendario impiego impastatrici</title>{% endblock %}
+
+{% block head %}
+    {{ super() }}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/calendario_macchine.css', v='20261020-1') }}">
+{% endblock %}
+
+{% block content %}
+<div class="cm-workspace">
+    <header class="cm-header">
+        <div>
+            <h1>Calendario impiego impastatrici</h1>
+            <p>Disponibilità e carico pianificato delle macchine per giorno e blocco.</p>
+        </div>
+        <nav class="cm-links" aria-label="Navigazione pagine">
+            <a href="{{ url_for('ordini_cliente.ordini_calendario') }}">Calendario produzione</a>
+            <a href="{{ url_for('ordini_cliente.ordini_cliente') }}">Gestione ordini</a>
+            <a href="{{ url_for('ordini_cliente.stock_articoli') }}">Stock panettoni</a>
+        </nav>
+    </header>
+
+    <section class="cm-navigation" aria-label="Navigazione settimane">
+        <a class="cm-button" href="{{ url_for('ordini_cliente.calendario_macchine', settimana=riepilogo.precedente.isoformat()) }}" aria-label="Settimana precedente">&larr; Precedente</a>
+        <h2>{{ riepilogo.lunedi.strftime('%d/%m/%Y') }} – {{ riepilogo.fine.strftime('%d/%m/%Y') }}</h2>
+        <a class="cm-button" href="{{ url_for('ordini_cliente.calendario_macchine', settimana=riepilogo.successiva.isoformat()) }}" aria-label="Settimana successiva">Successiva &rarr;</a>
+        <a class="cm-button cm-today" href="{{ url_for('ordini_cliente.calendario_macchine') }}">Questa settimana</a>
+        <form class="cm-jump" action="{{ url_for('ordini_cliente.calendario_macchine') }}" method="get">
+            <label for="cm-week-date">Vai alla data</label>
+            <input id="cm-week-date" type="date" name="settimana" value="{{ riepilogo.lunedi.isoformat() }}" required>
+            <button type="submit">Vai</button>
+        </form>
+    </section>
+
+    <section aria-label="Occupazione settimanale"
+             id="cm-dati"
+             hx-get="{{ url_for('ordini_cliente.calendario_macchine_griglia', settimana=riepilogo.lunedi.isoformat()) }}"
+             hx-trigger="every 30s, pianificazioneSalvata from:body"
+             hx-swap="innerHTML"
+             hx-sync="this:replace">
+        {% include 'ordini/_partials/_griglia_macchine.j2' %}
+    </section>
+    <p class="cm-nota">Indicatori di <strong>impiego pianificato</strong>, non ore effettive di funzionamento. Una macchina prenotata non è riutilizzabile nello stesso blocco anche se il suo impasto non raggiunge la capienza massima. Le prenotazioni storiche senza kg sono indicate come “kg N/D”.</p>
+</div>
+<div class="modal fade" id="modal-riepilogo-calendario" tabindex="-1" aria-labelledby="titolo-riepilogo-calendario" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title" id="titolo-riepilogo-calendario">Riepilogo ordine / pianificazione</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>
+      <div class="modal-body" id="contenuto-riepilogo-calendario"><p>Caricamento...</p></div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Chiudi</button></div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <script src="{{ url_for('static', filename='js/riepilogo_calendari.js', v='20261020-2') }}"></script>
+{% endblock %}

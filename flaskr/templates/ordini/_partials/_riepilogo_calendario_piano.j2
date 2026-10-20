@@ -1,0 +1,14 @@
+<div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
+<div><span class="badge bg-primary">Produzione #{{ piano.IdPianificazione }}</span><h4 class="mt-2 mb-1">{{ descrizione }}</h4><p class="text-muted mb-0">{{ piano.CodArt }} · {{ piano.DataProduzione.strftime('%d/%m/%Y') }} · Blocco {{ piano.BloccoIniziale }}</p></div>
+<div class="text-end"><div><strong>{{ piano.PanettoniPianificati }}</strong> pezzi da produrre</div><div><strong>{{ piano.NumeroCotte }}</strong> cotte</div><div><strong>{{ '%.2f'|format(piano.PesoTotale|float / 1000) }}</strong> kg impasto</div></div>
+</div>
+<div class="row g-2 mb-3"><div class="col-sm-4"><div class="border rounded p-2">Ordini impegnati <strong>{{ totale_assegnato }}</strong></div></div><div class="col-sm-4"><div class="border rounded p-2">Prelievo stock <strong>{{ totale_da_stock }}</strong></div></div><div class="col-sm-4"><div class="border rounded p-2">Macchine <strong>{{ macchine|length }}</strong></div></div></div>
+<h6>Ordini associati</h6><div class="table-responsive" style="max-height:300px;overflow:auto"><table class="table table-sm table-bordered table-striped align-middle"><thead class="table-light"><tr><th>Ordine</th><th>Cliente</th><th>Consegna</th><th>Quantità impegnata</th><th>Da stock</th><th>Da produrre</th><th>Stato</th></tr></thead><tbody>
+{% for a, o in associazioni %}<tr><td>{{ a.IdDocumento }}-{{ a.IdRiga }}</td><td>{{ o.Cliente.RagioneSociale }}</td><td>{{ o.DataConsegna.strftime('%d/%m/%Y') }}</td><td>{{ a.QtaPianificata }}</td><td>{{ a.QtaDaStock or 0 }}</td><td>{{ a.QtaPianificata - (a.QtaDaStock or 0) }}</td><td>{{ a.Stato }}</td></tr>{% else %}<tr><td colspan="7">Nessun ordine associato.</td></tr>{% endfor %}</tbody></table></div>
+<h6 class="mt-3">Fasi della pianificazione</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Giorno</th><th>Blocco</th><th>Lavorazione</th></tr></thead><tbody>{% for fase, lavorazione in fasi %}<tr><td>{{ fase.DataFase.strftime('%d/%m/%Y') }}</td><td>{{ fase.Blocco }}</td><td>{{ lavorazione.DescrizioneLavorazione }}</td></tr>{% else %}<tr><td colspan="3">Nessuna fase.</td></tr>{% endfor %}</tbody></table></div>
+{% if macchine %}<p class="small text-muted mb-0"><strong>Impastatrici:</strong> {% for m in macchine %}{{ m.DescrizioneImpastatrice or m.ModelloImpastatrice }}{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+
+<div class="d-flex align-items-center gap-2 border-top mt-3 pt-3">
+  <span class="badge {{ 'bg-success' if piano.StatoRigaOrdine == 'Chiuso' else ('bg-secondary' if piano.StatoRigaOrdine == 'Annullato' else 'bg-primary') }}">{{ piano.StatoRigaOrdine }}</span>
+  <a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.gestione_pianificazione', IdPianificazione=piano.IdPianificazione) }}">Gestione e dettagli pianificazione</a>
+</div>

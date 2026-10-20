@@ -133,6 +133,7 @@
                     `Ordini: ${(p.ordini || []).join(', ')}`,
                     `Quantità assegnata: ${p.quantita_assegnata ?? 'N/D'}`,
                     `Produzione: ${p.panettoni_previsti ?? 'N/D'}`,
+                    `Da stock: ${p.quantita_da_stock ?? 0} pz`,
                     `Cotte: ${p.numero_cotte ?? 'N/D'}`,
                     `Peso: ${p.peso_totale_kg ?? 'N/D'} kg`,
                 );
@@ -144,9 +145,9 @@
         },
         eventClick(info) {
             const url = info.event.extendedProps.detailUrl;
-            if (url && window.htmx) {
+            if (url && window.apriRiepilogoCalendario) {
                 info.jsEvent.preventDefault();
-                window.htmx.ajax('GET', url, '#htmx-global');
+                window.apriRiepilogoCalendario(url);
             }
         },
         eventSourceFailure(error) { console.error('Errore caricamento eventi calendario', error); },

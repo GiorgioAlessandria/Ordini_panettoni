@@ -33,6 +33,9 @@ def costruisci_evento_fase(
     valide = [a for a in associazioni if a.Stato in ("In produzione", "Chiuso")]
     incomplete = any(a.QtaPianificata is None for a in valide)
     quantita_assegnata = sum(int(a.QtaPianificata) for a in valide if a.QtaPianificata is not None)
+    # I pezzi coperti da stock sono impegnati sull'ordine ma non prodotti nel piano.
+    quantita_da_stock = sum(int(a.QtaDaStock or 0) for a in valide)
+    quantita_da_produrre_ordine = quantita_assegnata - quantita_da_stock
 
     identificativi = [f"{a.IdDocumento}-{a.IdRiga}" for a in valide]
     orari = ORARI_BLOCCHI[fase.Blocco]
@@ -46,7 +49,7 @@ def costruisci_evento_fase(
         if peso_grammi is not None else None
     )
     surplus = (
-        max(0, int(panettoni_previsti) - quantita_assegnata)
+        max(0, int(panettoni_previsti) - quantita_da_produrre_ordine)
         if panettoni_previsti is not None and not incomplete else None
     )
 
@@ -70,6 +73,8 @@ def costruisci_evento_fase(
             "numero_ordini": len(valide),
             "ordini": identificativi,
             "quantita_assegnata": quantita_assegnata if not incomplete else None,
+            "quantita_da_stock": quantita_da_stock,
+            "quantita_da_produrre_ordini": quantita_da_produrre_ordine,
             "quantita_parziale_nota": quantita_assegnata,
             "panettoni_previsti": panettoni_previsti,
             "numero_cotte": pianificazione.NumeroCotte,
