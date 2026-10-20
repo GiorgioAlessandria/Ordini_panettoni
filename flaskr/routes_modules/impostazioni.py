@@ -11,6 +11,7 @@ from flask import (
 from sqlalchemy import String, cast, inspect, or_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
+from flaskr.accessi import ruolo_attuale
 from flaskr.extensions import db
 from flaskr.routes_auth import login_required
 from flaskr.routes_blueprint import bp_ordini_cliente
@@ -31,7 +32,7 @@ def solo_configuratori(funzione):
         autorizzati = current_app.config.get('IMPOSTAZIONI_ADMIN_USERS', ())
         if isinstance(autorizzati, str):
             autorizzati = [s.strip() for s in autorizzati.split(',') if s.strip()]
-        if not autorizzati or g.user.username not in autorizzati:
+        if ruolo_attuale() != "admin":
             abort(403, description='Non sei autorizzato a modificare le impostazioni.')
         return funzione(*args, **kwargs)
     return inner
@@ -95,8 +96,18 @@ def _render_pagina(slug, *, dati_form=None, errore=None, record_token=None):
     etichette_fk = {}
     for campo in spec.campi:
         if campo.tipo == 'fk':
-            opzioni[campo.nome] = opzioni_relazione(campo)
-            etichette_fk[campo.nome] = {str(k): v for k, v in opzioni[campo.nome]}
+            # Manteniamo le etichette complete per i collegamenti già mostrati
+            # nella lista. Filtriamo soltanto il menu di una nuova associazione.
+            opzioni_complete = opzioni_relazione(campo)
+            etichette_fk[campo.nome] = {str(k): v for k, v in opzioni_complete}
+            if (spec.slug == 'articoli-ricette'
+                    and campo.nome == 'CodArt'
+                    and record_modifica is None):
+                opzioni[campo.nome] = opzioni_relazione(
+                    campo, solo_articoli_senza_ricetta=True,
+                )
+            else:
+                opzioni[campo.nome] = opzioni_complete
 
     # I campi da PK composte sono selezionati solo in creazione. Per cambiare
     # un'associazione si elimina la precedente e se ne aggiunge una nuova.

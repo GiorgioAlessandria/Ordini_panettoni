@@ -146,6 +146,9 @@
                                             <option value="{{ id_opzione }}" {{ 'selected' if id_opzione|string == valore|string else '' }}>{{ descrizione }}</option>
                                         {% endfor %}
                                     </select>
+                                    {% if spec.slug == 'articoli-ricette' and campo.nome == 'CodArt' and not scelte %}
+                                        <div class="form-text text-warning">Non ci sono articoli ERP disponibili: risultano tutti già associati a una ricetta.</div>
+                                    {% endif %}
                                 {% elif campo.tipo == 'integer' %}
                                     <input class="form-control" id="conf-{{ campo.nome }}" type="number" name="{{ campo.nome }}" value="{{ valore }}"
                                            step="1" {% if campo.minimo is not none %}min="{{ campo.minimo }}"{% endif %}

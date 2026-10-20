@@ -181,11 +181,25 @@ def etichetta_riga(sezione: Sezione, record: Any) -> str:
     return ' · '.join(str(getattr(record, k) or '') for k in sezione.indice_label)
 
 
-def opzioni_relazione(campo: Campo) -> list[tuple[Any, str]]:
+def opzioni_relazione(
+    campo: Campo, *, solo_articoli_senza_ricetta: bool = False,
+) -> list[tuple[Any, str]]:
+    """Opzioni per una FK; su richiesta esclude gli articoli ERP già collegati.
+
+    La query filtrata serve soltanto per creare nuove associazioni. La lista
+    completa rimane disponibile per mostrare le etichette dei legami esistenti.
+    """
     target = campo.modello_riferito
     pk = inspect(target).primary_key[0]
     label_col = getattr(target, campo.attributo_label)
-    righe = db.session.scalars(select(target).order_by(label_col.asc())).all()
+    stmt = select(target)
+    if solo_articoli_senza_ricetta:
+        if target is not AnagraficaArticoli:
+            raise ValueError('Il filtro delle associazioni è riservato agli articoli ERP')
+        articoli_associati = select(TipRicetteAnagArticoli.CodArt)
+        stmt = stmt.where(~AnagraficaArticoli.CodArt.in_(articoli_associati))
+
+    righe = db.session.scalars(stmt.order_by(label_col.asc())).all()
     opzioni = []
     for r in righe:
         label = str(getattr(r, campo.attributo_label))

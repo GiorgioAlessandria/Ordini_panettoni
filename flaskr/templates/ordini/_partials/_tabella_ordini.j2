@@ -186,6 +186,7 @@
                         {% endif %}>
                         {% if selezione_attiva %}
                             <td class="col-centro">
+                                {% if puo_gestire_produzione %}
                                 <input type="checkbox" name="ordini_selezionati"
                                        value="{{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}"
                                        data-cod-art="{{ ordine.CodArt }}"
@@ -197,9 +198,11 @@
                                        hx-swap="innerHTML"
                                        onclick="event.stopPropagation()"
                                        aria-label="Seleziona ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}">
+                                {% else %}—{% endif %}
                             </td>
                             <td data-col="priorita"
                                 data-sort-value="{{ ordine.Priorita if ordine.Priorita is not none else 99 }}">
+                                {% if puo_gestire_produzione %}
                                 <select name="priorita_{{ ordine.IdDocumento }}_{{ ordine.IdRigaDoc }}"
                                         class="form-select form-select-sm ordini-priorita-select"
                                         data-priorita-input
@@ -216,6 +219,7 @@
                                     <option value="2" {% if ordine.Priorita == 2 %}selected{% endif %}>P2 · Media</option>
                                     <option value="3" {% if ordine.Priorita == 3 %}selected{% endif %}>P3 · Bassa</option>
                                 </select>
+                                {% else %}{{ 'P' ~ ordine.Priorita if ordine.Priorita is not none else 'Nessuna' }}{% endif %}
                             </td>
                         {% else %}
                             <td data-col="pianificazione" data-sort-value="{{ ordine.IdPianificazione }}" class="col-numero">
@@ -241,7 +245,10 @@
                             </td>
                         {% endif %}
                         <td data-col="cliente" title="{{ ordine.Cliente }}">{% if selezione_attiva %}{{ ordine.Cliente }}{% else %}<span class="piano-plurale">{{ ordine.Cliente }}</span>{% endif %}</td>
-                        <td data-col="articolo">{{ ordine.CodArt }}</td>
+                        <td data-col="articolo">{{ ordine.CodArt }}
+                          {% if selezione_attiva %}<a class="d-block small" href="{{ url_for('ordini_cliente.note_vendite_ordine', id_documento=ordine.IdDocumento, id_riga=ordine.IdRigaDoc) }}"
+                             onclick="event.stopPropagation()">Commenti vendite</a>{% endif %}
+                        </td>
                         <td data-col="descrizione" title="{{ ordine.DesArt }}">{% if selezione_attiva %}{{ ordine.DesArt }}{% else %}<span class="piano-plurale">{{ ordine.DesArt }}</span>{% endif %}</td>
                         <td data-col="consegna" data-sort-value="{{ consegna_iso }}" title="{% if selezione_attiva %}Consegna{% else %}Dalla prima all'ultima scadenza: {{ ordine.DataConsegna }} – {{ ordine.ConsegnaUltima }}{% endif %}">{{ ordine.DataConsegna }}{% if not selezione_attiva and ordine.ConsegnaUltima != ordine.DataConsegna %}<br><small>– {{ ordine.ConsegnaUltima }}</small>{% endif %}</td>
                         <td data-col="ordinata" data-sort-value="{{ ordine.QTA_ORD }}" class="col-numero">{{ ordine.QTA_ORD }}</td>
@@ -251,9 +258,9 @@
                         <td data-col="stato">{{ ordine.Stato }}</td>
                         {% if not selezione_attiva %}
                         <td>
-                            <a class="btn btn-outline-primary btn-sm"
+                            {% if puo_gestire_produzione %}<a class="btn btn-outline-primary btn-sm"
                                href="{{ url_for('ordini_cliente.gestione_pianificazione', IdPianificazione=ordine.IdPianificazione) }}"
-                               onclick="event.stopPropagation()">Gestisci / chiudi</a>
+                               onclick="event.stopPropagation()">Gestisci / chiudi</a>{% else %}<span class="text-secondary">Sola lettura</span>{% endif %}
                         </td>
                         {% endif %}
                     </tr>

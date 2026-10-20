@@ -7,10 +7,13 @@ from flaskr import (
     routes_production,
 )
 from flaskr.extensions import db, migrate
+from flaskr.models import model_accessi  # importa i modelli per SQLAlchemy/Alembic
 from flaskr.routes_blueprint import bp_login, bp_ordini_cliente
 from flaskr.routes_modules import (
+    accessi_utenti,
     calendario,
     impostazioni,
+    note_vendite,
     ordini,
 )
 
@@ -24,7 +27,7 @@ def create_app():
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         FLASK_DEBUG=1,
     )
-    app.config["IMPOSTAZIONI_ADMIN_USERS"] = ["1"]
+    app.config["IMPOSTAZIONI_ADMIN_USERS"] = ["admin"]
 
     db.init_app(app)
     migrate.init_app(app, db)
@@ -34,6 +37,9 @@ def create_app():
 
     app.register_blueprint(bp_login)
     app.register_blueprint(bp_ordini_cliente)
+    from flaskr.accessi import init_accessi
+
+    init_accessi(app)
 
     @app.route("/")
     def index():

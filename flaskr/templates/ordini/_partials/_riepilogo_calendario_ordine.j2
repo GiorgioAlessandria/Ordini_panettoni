@@ -6,3 +6,5 @@
 <dt class="col-sm-4">Già impegnata</dt><dd class="col-sm-8">{{ impegnata }}</dd>
 <dt class="col-sm-4">Ancora da assegnare</dt><dd class="col-sm-8 fw-bold">{{ residua }}</dd></dl>
 {% if ordine.NotaInterna %}<div class="alert alert-light border"><strong>Note:</strong> {{ ordine.NotaInterna }}</div>{% endif %}
+
+<a class="btn btn-outline-primary" href="{{ url_for('ordini_cliente.note_vendite_ordine', id_documento=ordine.IdDocumento, id_riga=ordine.IdRigaDoc) }}">Apri commenti vendite</a>
