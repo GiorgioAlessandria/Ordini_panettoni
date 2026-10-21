@@ -40,6 +40,7 @@
                     <button type="button" class="btn btn-primary"
                             hx-post="{{ url_for('ordini_cliente.anteprima_pianificazione') }}"
                             hx-include="#form-ordini"
+                            hx-params="ordini_selezionati"
                             hx-target="#contenuto-pianificazione"
                             hx-swap="innerHTML"
                             data-bs-toggle="modal"
@@ -75,22 +76,7 @@
         </section>
     </div>
 
-    {# Pannello persistente: rimane visibile anche durante gli swap HTMX delle tabelle. #}
-    <section class="pan-commenti-panel pan-panel" id="pan-commenti-panel" aria-labelledby="pan-commenti-titolo">
-        <div class="pan-panel-header pan-commenti-header">
-            <div>
-                <h2 id="pan-commenti-titolo">Commenti vendite per ordine</h2>
-                <small class="text-secondary" id="pan-commenti-ordine-label">Seleziona un ordine nelle tabelle per leggere i commenti.</small>
-            </div>
-            <div class="pan-commenti-picker" id="pan-commenti-picker" hidden>
-                <label class="form-label small mb-0" for="pan-commenti-ordine-scelta">Ordine del piano</label>
-                <select id="pan-commenti-ordine-scelta" class="form-select form-select-sm" aria-label="Scegli ordine del piano"></select>
-            </div>
-        </div>
-        <div id="pan-commenti-contenuto" class="pan-commenti-body pan-panel-body" aria-live="polite">
-            <p class="text-secondary mb-0">I commenti dell'ordine selezionato saranno mostrati qui, senza aprire altre pagine.</p>
-        </div>
-    </section>
+
 </div>
 
 {% if puo_gestire_produzione %}
@@ -104,8 +90,7 @@
 
 {% block scripts %}
     {{ super() }}
-    <script src="{{ url_for('static', filename='js/selezione_ordini.js', v='20261021-5') }}"></script>
-    <script src="{{ url_for('static', filename='js/responsive.js', v='20261021-5') }}" defer></script>
-    <script src="{{ url_for('static', filename='js/commenti_ordini.js', v='20261021-5') }}"
-            data-url-template="{{ url_for('ordini_cliente.note_vendite_pannello', id_documento=0, id_riga=0) }}" defer></script>
+    <script src="{{ url_for('static', filename='js/selezione_ordini.js', v='20261021-6') }}"></script>
+    <script src="{{ url_for('static', filename='js/responsive.js', v='20261021-6') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/commenti_inline.js', v='20261021-6') }}" defer></script>
 {% endblock %}

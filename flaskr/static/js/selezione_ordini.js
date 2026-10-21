@@ -113,7 +113,7 @@
             const avviso = document.createElement("tr");
             avviso.dataset.filtriVuoti = "";
             const td = document.createElement("td");
-            td.colSpan = contenitore.id === "ordini_cliente_da_produrre" ? 11 : 11;
+            td.colSpan = 12;
             td.className = "text-center py-3";
             td.textContent = "Nessun ordine corrisponde ai filtri impostati.";
             avviso.appendChild(td);

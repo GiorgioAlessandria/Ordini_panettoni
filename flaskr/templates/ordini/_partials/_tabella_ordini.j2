@@ -2,6 +2,8 @@
 {% set selezione_attiva = (stato_tabella == 'Nuovo') %}
 {% set prezzature = ordini_cliente | map(attribute='Prezzatura') | unique | sort | list %}
 {% set pianificazioni = ordini_cliente | map(attribute='IdPianificazione') | reject('none') | unique | sort | list %}
+{# Un'unica query per recuperare i commenti di tutti gli ordini presenti in tabella. #}
+{% set note_per_ordine = note_vendite_per_righe(ordini_cliente, selezione_attiva) %}
 {% macro colonna(key, nome, tipo='text') %}
     <th scope="col" aria-sort="none" data-sort-column="{{ key }}">
         <button type="button" class="ordini-sort" data-sort-key="{{ key }}" data-sort-type="{{ tipo }}"
@@ -11,7 +13,7 @@
     </th>
 {% endmacro %}
 
-<form id="{{ 'form-ordini' if selezione_attiva else 'form-ordini-produzione' }}"
+<div id="{{ 'form-ordini' if selezione_attiva else 'form-ordini-produzione' }}"
       class="ordini-form pan-orders-form" data-tipo-tabella="{{ stato_tabella }}">
     <div class="ordini-filtri pan-toolbar" role="group" aria-label="Filtri ordini {{ stato_tabella }}">
         <div class="ordini-filtro ricerca">
@@ -112,6 +114,7 @@
                     {{ colonna('prezzatura', 'Prezzatura', 'number') }}
                     {{ colonna('glassa', 'Glassa') }}
                     {{ colonna('stato', 'Stato') }}
+                    <th scope="col" class="pan-note-col-heading">Commenti vendite</th>
                     {% if not selezione_attiva %}<th scope="col">Azioni</th>{% endif %}
                 </tr>
             </thead>
@@ -151,7 +154,7 @@
                                        data-prezzatura="{{ ordine.Prezzatura }}"
                                        hx-post="{{ url_for('ordini_cliente.riepilogo_selezione') }}"
                                        hx-trigger="change"
-                                       hx-include="closest form"
+                                       hx-include="closest .ordini-form" hx-params="ordini_selezionati"
                                        hx-target="#riepilogo-ordini"
                                        hx-swap="innerHTML"
                                        onclick="event.stopPropagation()"
@@ -204,11 +207,6 @@
                         {% endif %}
                         <td data-col="cliente" title="{{ ordine.Cliente }}">
                             {% if selezione_attiva %}{{ ordine.Cliente }}{% else %}<span class="piano-plurale">{{ ordine.Cliente }}</span>{% endif %}
-                            <button type="button" class="btn btn-outline-secondary btn-sm pan-commenti-select mt-1"
-                                    data-commenti-seleziona onclick="event.stopPropagation()"
-                                    aria-label="Visualizza i commenti {% if selezione_attiva %}dell'ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}{% else %}degli ordini della pianificazione {{ ordine.IdPianificazione }}{% endif %}">
-                                Commenti
-                            </button>
                         </td>
                         <td data-col="articolo">{{ ordine.CodArt }}
                         </td>
@@ -219,6 +217,26 @@
                         <td data-col="prezzatura" data-sort-value="{{ ordine.Prezzatura }}" class="col-numero">{{ ordine.Prezzatura }} g</td>
                         <td data-col="glassa">{{ ordine.Glassatura }}</td>
                         <td data-col="stato">{{ ordine.Stato }}</td>
+                        <td data-col="commenti" class="pan-note-cell" onclick="event.stopPropagation()">
+                            {% if selezione_attiva %}
+                                {% with id_documento=ordine.IdDocumento, id_riga=ordine.IdRigaDoc, note=note_per_ordine.get((ordine.IdDocumento, ordine.IdRigaDoc), []) %}
+                                    {% include 'ordini/_partials/_note_vendite_cella.j2' %}
+                                {% endwith %}
+                            {% else %}
+                                <div class="pan-notes-group">
+                                {% for voce in ordine.OrdiniDettaglio %}
+                                    <div class="pan-notes-group-item">
+                                        <span class="pan-note-order-label">Ordine {{ voce.IdDocumento }}-{{ voce.IdRigaDoc }}</span>
+                                        {% with id_documento=voce.IdDocumento, id_riga=voce.IdRigaDoc, note=note_per_ordine.get((voce.IdDocumento, voce.IdRigaDoc), []) %}
+                                            {% include 'ordini/_partials/_note_vendite_cella.j2' %}
+                                        {% endwith %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-secondary small">Nessun ordine associato.</span>
+                                {% endfor %}
+                                </div>
+                            {% endif %}
+                        </td>
                         {% if not selezione_attiva %}
                         <td>
                             {% if puo_gestire_produzione %}<a class="btn btn-outline-primary btn-sm"
@@ -228,9 +246,9 @@
                         {% endif %}
                     </tr>
                 {% else %}
-                    <tr data-no-data><td colspan="{{ 11 if selezione_attiva else 11 }}" class="text-center py-4">Nessun ordine da visualizzare.</td></tr>
+                    <tr data-no-data><td colspan="12" class="text-center py-4">Nessun ordine da visualizzare.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-</form>
+</div>

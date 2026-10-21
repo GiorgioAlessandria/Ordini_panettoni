@@ -1,0 +1,52 @@
+{# Widget per un singolo ordine. Usato nella tabella e come risposta HTMX ai salvataggi.
+   Nessun <form>: la tabella ha già un form esterno per la selezione degli ordini. #}
+<div class="pan-note-inline" data-pan-note-order="{{ id_documento }}:{{ id_riga }}"
+     onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">
+    <div class="pan-note-history" aria-label="Commenti ordine {{ id_documento }}-{{ id_riga }}">
+        {% for nota in note %}
+            <div class="pan-note-entry">
+                <div class="pan-note-meta">
+                    <strong>{{ nota.AutoreNome }}</strong>
+                    <time>{{ nota.CreatoIl.strftime('%d/%m/%Y %H:%M') }}</time>
+                    {% if nota.ModificatoIl %}<span>· modificato</span>{% endif %}
+                </div>
+                {% if ruolo_corrente == 'admin' or (ruolo_corrente == 'utente_vendite' and nota.AutoreId == g.user.id) %}
+                    <div class="pan-note-edit">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
+                        <input type="hidden" name="vista_note" value="riga">
+                        <textarea name="testo" class="form-control form-control-sm"
+                                  data-pan-note-draft="modifica:{{ nota.Id }}"
+                                  rows="2" maxlength="2000" required
+                                  aria-label="Modifica commento di {{ nota.AutoreNome }}">{{ nota.Testo }}</textarea>
+                        <button type="button" class="btn btn-outline-primary btn-sm"
+                                hx-post="{{ url_for('ordini_cliente.modifica_nota_vendite', nota_id=nota.Id) }}"
+                                hx-include="closest .pan-note-edit"
+                                hx-target="closest .pan-note-inline" hx-swap="outerHTML"
+                                hx-disabled-elt="this">Salva modifica</button>
+                    </div>
+                {% else %}
+                    <div class="pan-note-readonly">{{ nota.Testo }}</div>
+                {% endif %}
+            </div>
+        {% else %}
+            <span class="pan-note-empty">Nessun commento presente.</span>
+        {% endfor %}
+    </div>
+    {% if puo_scrivere_note_vendite %}
+        <div class="pan-note-new">
+            <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
+            <input type="hidden" name="vista_note" value="riga">
+            <textarea name="testo" class="form-control form-control-sm"
+                      data-pan-note-draft="nuovo:{{ id_documento }}:{{ id_riga }}"
+                      rows="2" maxlength="2000" required
+                      placeholder="Scrivi un commento per questo ordine…"
+                      aria-label="Nuovo commento ordine {{ id_documento }}-{{ id_riga }}"></textarea>
+            <button type="button" class="btn btn-primary btn-sm"
+                    hx-post="{{ url_for('ordini_cliente.aggiungi_nota_vendite', id_documento=id_documento, id_riga=id_riga) }}"
+                    hx-include="closest .pan-note-new"
+                    hx-target="closest .pan-note-inline" hx-swap="outerHTML"
+                    hx-disabled-elt="this">Aggiungi commento</button>
+        </div>
+    {% endif %}
+    <div class="pan-note-feedback" role="status" aria-live="polite"></div>
+</div>
