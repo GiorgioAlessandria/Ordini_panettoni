@@ -4,3 +4,9 @@
 /doc/
 /alembic.ini
 /flaskr/migrations/versions/
+/flaskr/migrations/
+/requirements-old.txt
+/schema.sql
+/schema_sql.sql
+/schema_sql-sql
+/uv.lock

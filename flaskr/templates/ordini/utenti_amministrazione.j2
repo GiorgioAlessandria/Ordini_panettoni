@@ -11,7 +11,7 @@
         <form action="{{ url_for('ordini_cliente.admin_crea_utente') }}" method="post" class="row g-3">
             <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
             <div class="col-md-4"><label class="form-label">Username</label><input name="username" class="form-control" required maxlength="120"></div>
-            <div class="col-md-4"><label class="form-label">Password (min. 10 caratteri)</label><input name="password" type="password" minlength="10" class="form-control" autocomplete="new-password" required></div>
+            <div class="col-md-4"><label class="form-label">Password (min. {{ min_password_length }} caratteri)</label><input name="password" type="password" minlength="{{ min_password_length }}" class="form-control" autocomplete="new-password" required></div>
             <div class="col-md-3"><label class="form-label">Ruolo</label><select name="ruolo" class="form-select">{% for ruolo in ruoli_validi %}<option value="{{ ruolo }}">{{ ruolo }}</option>{% endfor %}</select></div>
             <div class="col-md-1 d-flex align-items-end"><button class="btn btn-primary w-100" type="submit">Crea</button></div>
         </form>
@@ -19,7 +19,7 @@
     <div class="card p-3">
         <h2 class="h5">Account esistenti</h2>
         <div class="table-responsive"><table class="table table-striped align-middle">
-            <thead><tr><th>Utente</th><th>Ruolo corrente</th><th>Modifica ruolo</th><th>Reset password</th></tr></thead>
+            <thead><tr><th>Utente</th><th>Ruolo corrente</th><th>Modifica ruolo</th><th>Reset password</th><th>Elimina</th></tr></thead>
             <tbody>{% for utente in utenti %}
                 <tr><td>{{ utente.username }}</td><td>{{ ruoli.get(utente.id, 'Senza ruolo') }}</td>
                     <td><form method="post" action="{{ url_for('ordini_cliente.admin_cambia_ruolo', user_id=utente.id) }}" class="d-flex gap-2">
@@ -28,9 +28,27 @@
                         <button class="btn btn-outline-primary btn-sm" type="submit">Salva</button></form></td>
                     <td><form method="post" action="{{ url_for('ordini_cliente.admin_cambia_password', user_id=utente.id) }}" class="d-flex gap-2">
                         <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
-                        <input type="password" name="password" class="form-control form-control-sm" aria-label="Nuova password {{ utente.username }}" placeholder="Nuova password" minlength="10" required>
+                        <input type="password" name="password" class="form-control form-control-sm" aria-label="Nuova password {{ utente.username }}" placeholder="Nuova password" minlength="{{ min_password_length }}" required>
                         <button class="btn btn-outline-secondary btn-sm" type="submit">Aggiorna</button></form></td>
-                </tr>{% else %}<tr><td colspan="4">Nessun account</td></tr>{% endfor %}</tbody>
+                    <td>
+                        {% set ruolo_utente = ruoli.get(utente.id) %}
+                        {% if utente.id == utente_corrente_id %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm" disabled
+                                    title="Non puoi eliminare l'account con cui sei collegato">Account corrente</button>
+                        {% elif ruolo_utente == 'admin' and numero_admin <= 1 %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm" disabled
+                                    title="Deve essere sempre presente almeno un amministratore">Ultimo admin</button>
+                        {% else %}
+                            <form method="post"
+                                  action="{{ url_for('ordini_cliente.admin_elimina_utente', user_id=utente.id) }}"
+                                  onsubmit="return confirm('Eliminare definitivamente questo account? I commenti storici saranno conservati.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
+                                <button type="submit" class="btn btn-outline-danger btn-sm"
+                                        aria-label="Elimina utente {{ utente.username }}">Elimina</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>{% else %}<tr><td colspan="5">Nessun account</td></tr>{% endfor %}</tbody>
         </table></div>
     </div>
 </div>

@@ -8,6 +8,8 @@ from flaskr.extensions import db
 from flaskr.models.model_auth import User
 from flaskr.models.model_accessi import RuoloUtente, RUOLI
 
+MIN_PASSWORD_LENGTH = 5
+
 RUOLI_GESTIONALI = frozenset(("admin", "utente_produzione"))
 
 # Endpoints di sola consultazione concessi a vendite. L'elenco e' chiuso per sicurezza:
@@ -112,8 +114,8 @@ def init_accessi(app):
         if db.session.scalar(select(RuoloUtente).where(RuoloUtente.Ruolo == "admin")):
             raise click.ClickException("Un admin esiste gia': usa /ordini/utenti.")
         username = username.strip()
-        if not username or len(password) < 10:
-            raise click.ClickException("Username e password di almeno 10 caratteri richiesti.")
+        if not username or len(password) < MIN_PASSWORD_LENGTH:
+            raise click.ClickException(f"Username e password di almeno {MIN_PASSWORD_LENGTH} caratteri richiesti.")
         utente = db.session.scalar(select(User).where(User.username == username))
         if utente is None:
             utente = User(username=username, password=generate_password_hash(password))
