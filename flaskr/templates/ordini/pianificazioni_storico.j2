@@ -4,7 +4,6 @@
 <div class="pan-page pan-history-page">
 <header class="pan-page-header">
   <div><h1 class="h3 mb-1">Storico pianificazioni</h1><p class="text-secondary mb-0">Pianificazioni completate o annullate, fuori dalla produzione attiva.</p></div>
-  <a class="btn btn-outline-primary" href="{{ url_for('ordini_cliente.ordini_cliente') }}">Torna alla produzione</a>
 </header>
 {% for stato, titolo in [('Chiuso', 'Pianificazioni completate'), ('Annullato', 'Pianificazioni annullate')] %}
 <section class="pan-panel mb-3">

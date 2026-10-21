@@ -4,7 +4,6 @@
 <div class="pan-page pan-stock-page">
   <header class="pan-page-header">
     <div><h1 class="h3 mb-1">Stock disponibile</h1><p class="text-muted mb-0">Giacenze registrate per articolo; aggiornamento automatico ogni 30 secondi.</p></div>
-    <div class="d-flex gap-2"><a class="btn btn-outline-primary" href="{{ url_for('ordini_cliente.ordini_cliente') }}">Ordini</a><a class="btn btn-outline-primary" href="{{ url_for('ordini_cliente.ordini_calendario') }}">Calendario</a></div>
   </header>
   <div class="alert alert-warning small">Le quantità includono anche i surplus accreditati quando si conferma una pianificazione, prima della produzione fisica. Non equivalgono necessariamente a disponibilità fisicamente verificata.</div>
   <section class="pan-panel pan-panel-body pan-data-slot" id="stock-tabella" hx-get="{{ url_for('ordini_cliente.stock_articoli_tabella') }}" hx-trigger="load, every 30s, pianificazioneSalvata from:body, stockAggiornato from:body" hx-swap="innerHTML"><p>Caricamento stock...</p></section>

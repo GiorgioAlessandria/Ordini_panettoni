@@ -13,22 +13,6 @@
             <h1>Gestione ordini panettoni</h1>
             <p class="descrizione">Disponibilità e lavorazioni sulla stessa pagina.</p>
         </div>
-        <nav class="pan-page-actions" aria-label="Azioni gestione ordini">
-        {% if puo_gestire_produzione %}
-        <a class="ordini-nav" href="{{ url_for('ordini_cliente.calendario_macchine') }}">
-            <span aria-hidden="true">▤</span> Impiego impastatrici <span aria-hidden="true">↗</span>
-        </a>
-        <a class="ordini-nav" href="{{ url_for('ordini_cliente.pianificazioni_chiuse') }}">Storico pianificazioni ↗</a>
-        <a class="ordini-nav" href="{{ url_for('ordini_cliente.stock_articoli') }}">Stock panettoni <span aria-hidden="true">↗</span></a>
-        {% endif %}
-        <a class="ordini-nav" href="{{ url_for('ordini_cliente.ordini_calendario') }}">
-            <span aria-hidden="true">▦</span> Vai al calendario <span aria-hidden="true">↗</span>
-        </a>
-        {% if ruolo_corrente == 'admin' %}
-        <a class="ordini-nav" href="{{ url_for('ordini_cliente.admin_utenti') }}">Utenti e ruoli</a>
-        <a class="ordini-nav" href="{{ url_for('ordini_cliente.impostazioni_index') }}">Impostazioni</a>
-        {% endif %}
-        </nav>
     </header>
 
     <div class="ordini-panel-switch" role="group" aria-label="Seleziona la tabella da visualizzare">

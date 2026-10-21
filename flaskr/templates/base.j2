@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/skeleton.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/forma/theme.css') }}">
     {# Tema ricavato dal gestionale Vendite, isolato sul nuovo applicativo. #}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/tema_panettoni.css', v='20261021-2') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tema_panettoni.css', v='20261021-4') }}">
     {% block head %}{% endblock %}
 </head>
 <body class="pan-app-body">
@@ -20,7 +20,7 @@
 <header class="pan-app-header" role="banner">
     <div class="pan-app-header-inner">
         <div class="pan-header-menu">
-            <button class="btn btn-light pan-menu-button" type="button" data-bs-toggle="offcanvas" data-bs-target="#pan-navigation" aria-controls="pan-navigation" aria-label="Apri menu di navigazione">
+            <button class="btn btn-light pan-menu-button" type="button" data-bs-toggle="offcanvas" data-bs-target="#pan-navigation" aria-controls="pan-navigation" aria-label="Apri menu di navigazione" title="Apri menu di navigazione">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
             </button>
         </div>
@@ -43,40 +43,33 @@
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Chiudi"></button>
     </div>
     <div class="offcanvas-body">
+        {% set pan_current_endpoint = request.endpoint|default('', true) %}
+        {% set pan_is_orders = pan_current_endpoint in ('ordini_cliente.ordini_cliente', 'ordini_cliente.note_vendite_ordine', 'ordini_cliente.gestione_pianificazione') %}
+        {% set pan_is_calendar = pan_current_endpoint == 'ordini_cliente.ordini_calendario' %}
+        {% set pan_is_machines = pan_current_endpoint == 'ordini_cliente.calendario_macchine' %}
+        {% set pan_is_stock = pan_current_endpoint == 'ordini_cliente.stock_articoli' %}
+        {% set pan_is_history = pan_current_endpoint == 'ordini_cliente.pianificazioni_chiuse' %}
+        {% set pan_is_settings = pan_current_endpoint in ('ordini_cliente.impostazioni_index', 'ordini_cliente.impostazioni_pagina') %}
+        {% set pan_is_users = pan_current_endpoint == 'ordini_cliente.admin_utenti' %}
         <div class="pan-nav-caption">Consultazione</div>
-        <a class="pan-nav-item" href="{{ url_for('ordini_cliente.ordini_cliente') }}">Gestione ordini</a>
-        <a class="pan-nav-item" href="{{ url_for('ordini_cliente.ordini_calendario') }}">Calendario produzione</a>
+        <a class="pan-nav-item{{ ' is-active' if pan_is_orders else '' }}" href="{{ url_for('ordini_cliente.ordini_cliente') }}" {% if pan_is_orders %}aria-current="page"{% endif %}>Gestione ordini</a>
+        <a class="pan-nav-item{{ ' is-active' if pan_is_calendar else '' }}" href="{{ url_for('ordini_cliente.ordini_calendario') }}" {% if pan_is_calendar %}aria-current="page"{% endif %}>Calendario produzione</a>
         {% if pan_can_produce %}
         <div class="pan-nav-caption mt-3">Produzione</div>
-        <a class="pan-nav-item" href="{{ url_for('ordini_cliente.calendario_macchine') }}">Impiego impastatrici</a>
-        <a class="pan-nav-item" href="{{ url_for('ordini_cliente.stock_articoli') }}">Stock panettoni</a>
-        <a class="pan-nav-item" href="{{ url_for('ordini_cliente.pianificazioni_chiuse') }}">Storico pianificazioni</a>
+        <a class="pan-nav-item{{ ' is-active' if pan_is_machines else '' }}" href="{{ url_for('ordini_cliente.calendario_macchine') }}" {% if pan_is_machines %}aria-current="page"{% endif %}>Impiego impastatrici</a>
+        <a class="pan-nav-item{{ ' is-active' if pan_is_stock else '' }}" href="{{ url_for('ordini_cliente.stock_articoli') }}" {% if pan_is_stock %}aria-current="page"{% endif %}>Stock panettoni</a>
+        <a class="pan-nav-item{{ ' is-active' if pan_is_history else '' }}" href="{{ url_for('ordini_cliente.pianificazioni_chiuse') }}" {% if pan_is_history %}aria-current="page"{% endif %}>Storico pianificazioni</a>
         {% endif %}
         {% if pan_role == 'admin' %}
         <div class="pan-nav-caption mt-3">Amministrazione</div>
-        <a class="pan-nav-item" href="{{ url_for('ordini_cliente.impostazioni_index') }}">Impostazioni</a>
-        <a class="pan-nav-item" href="{{ url_for('ordini_cliente.admin_utenti') }}">Utenti e ruoli</a>
+        <a class="pan-nav-item{{ ' is-active' if pan_is_settings else '' }}" href="{{ url_for('ordini_cliente.impostazioni_index') }}" {% if pan_is_settings %}aria-current="page"{% endif %}>Impostazioni</a>
+        <a class="pan-nav-item{{ ' is-active' if pan_is_users else '' }}" href="{{ url_for('ordini_cliente.admin_utenti') }}" {% if pan_is_users %}aria-current="page"{% endif %}>Utenti e ruoli</a>
         {% endif %}
     </div>
 </nav>
 {% endif %}
 <main class="container-fluid pan-main">
-{% if pan_logged_in %}
-<nav class="nav nav-tabs pan-tabs pan-app-tabs" aria-label="Sezioni applicazione">
-    <a class="nav-link {{ 'active' if request.endpoint == 'ordini_cliente.ordini_cliente' else '' }}" href="{{ url_for('ordini_cliente.ordini_cliente') }}" {% if request.endpoint == 'ordini_cliente.ordini_cliente' %}aria-current="page"{% endif %}>Ordini</a>
-    <a class="nav-link {{ 'active' if request.endpoint == 'ordini_cliente.ordini_calendario' else '' }}" href="{{ url_for('ordini_cliente.ordini_calendario') }}" {% if request.endpoint == 'ordini_cliente.ordini_calendario' %}aria-current="page"{% endif %}>Calendario produzione</a>
-    {% if pan_can_produce %}
-    <a class="nav-link {{ 'active' if request.endpoint == 'ordini_cliente.calendario_macchine' else '' }}" href="{{ url_for('ordini_cliente.calendario_macchine') }}" {% if request.endpoint == 'ordini_cliente.calendario_macchine' %}aria-current="page"{% endif %}>Impiego macchine</a>
-    <a class="nav-link {{ 'active' if request.endpoint == 'ordini_cliente.stock_articoli' else '' }}" href="{{ url_for('ordini_cliente.stock_articoli') }}" {% if request.endpoint == 'ordini_cliente.stock_articoli' %}aria-current="page"{% endif %}>Stock</a>
-    <a class="nav-link {{ 'active' if request.endpoint == 'ordini_cliente.pianificazioni_chiuse' else '' }}" href="{{ url_for('ordini_cliente.pianificazioni_chiuse') }}" {% if request.endpoint == 'ordini_cliente.pianificazioni_chiuse' %}aria-current="page"{% endif %}>Storico</a>
-    {% endif %}
-    {% if pan_role == 'admin' %}
-    <a class="nav-link {{ 'active' if request.endpoint == 'ordini_cliente.impostazioni_pagina' or request.endpoint == 'ordini_cliente.impostazioni_index' else '' }}" href="{{ url_for('ordini_cliente.impostazioni_index') }}">Impostazioni</a>
-    <a class="nav-link {{ 'active' if request.endpoint == 'ordini_cliente.admin_utenti' else '' }}" href="{{ url_for('ordini_cliente.admin_utenti') }}">Utenti</a>
-    {% endif %}
-</nav>
-{% endif %}
-    {% with messages = get_flashed_messages(with_categories=true) %}
+{% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             <div class="pan-flash-region" aria-live="polite">
             {% for category, message in messages %}

@@ -5,7 +5,6 @@
     <header class="pan-page-header">
         <div><h1 class="h4">Commenti ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}</h1>
         <p class="text-secondary mb-0">{{ ordine.DesArt }} · {{ ordine.CodArt }}</p></div>
-        <a href="{{ url_for('ordini_cliente.ordini_cliente') }}" class="btn btn-outline-secondary">Torna agli ordini</a>
     </header>
     {% if puo_scrivere_note_vendite %}
     <section class="card pan-panel p-3 mb-3"><h2 class="h6">Nuovo commento delle vendite</h2>

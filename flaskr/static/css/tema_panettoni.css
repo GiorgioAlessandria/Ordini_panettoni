@@ -30,7 +30,7 @@
 .pan-nav-caption { color:var(--pan-muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.07em; font-weight:700; margin-bottom:.35rem; }
 .pan-nav-item { display:block; padding: .66rem .8rem; border-radius:.3rem; text-decoration:none; font-weight:500; color:var(--pan-text); }
 .pan-nav-item:hover, .pan-nav-item:focus-visible { background: #e8f1ff; color:var(--pan-primary); }
-.pan-main.container-fluid { max-width:none; width:100%; min-width:0; padding: .9rem clamp(.65rem, 1.5vw, 1.5rem) 1.5rem; }
+.pan-main.container-fluid { max-width:none; width:100%; min-width:0; padding: .55rem clamp(.65rem, 1.5vw, 1.5rem) 1.25rem; }
 .pan-page { min-width:0; width:100%; max-width:none; }
 .pan-page :is(.row, .col, .tab-content, .tab-pane) { min-width:0; }
 .pan-page-header { display:flex; align-items:center; justify-content:space-between; gap: .75rem 1.4rem; flex-wrap:wrap; margin-bottom:.75rem; }
@@ -39,9 +39,6 @@
 .pan-page-actions { display:flex; align-items:center; flex-wrap:wrap; gap:.4rem; }
 .pan-page-actions .btn { font-weight: 500; }
 .pan-section-title { font-size: 1rem; font-weight: 700; margin:0; }
-.pan-tabs { display:flex; flex-wrap:nowrap; overflow:visible; border-bottom:1px solid var(--pan-border); margin: .35rem 0 0; gap:.15rem; }
-.pan-tabs .nav-link { font-weight:600; font-size:.9rem; color:#546171; border-radius:.4rem .4rem 0 0; padding: .55rem .9rem; }
-.pan-tabs .nav-link.active { color:var(--pan-primary); background:#fff; border-color: var(--pan-border) var(--pan-border) #fff; }
 .pan-panel, .pan-page .pan-panel { min-width:0; background:#fff; border:1px solid var(--pan-border); border-radius:.4rem; box-shadow:var(--pan-shadow); }
 .pan-panel-body { padding: .85rem 1rem; min-width:0; }
 .pan-panel-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem 1rem; padding:.7rem 1rem; background:#fff; border-bottom:1px solid var(--pan-border); border-radius:.4rem .4rem 0 0; }
@@ -132,7 +129,7 @@
   .pan-header-identity { flex-wrap:wrap; gap:.1rem .35rem; line-height:1.15; font-size:.87rem; }
   .pan-brand-text { display:none; }
   .pan-brand-symbol { width:35px; height:35px; }
-  .pan-main.container-fluid { padding:.65rem .55rem 1rem; }
+  .pan-main.container-fluid { padding:.4rem .55rem 1rem; }
   .pan-page-header { align-items:flex-start; }
   .pan-panel-header, .pan-panel-body { padding:.7rem; }
   .pan-kpi-grid { gap:.4rem; }
@@ -154,8 +151,6 @@
 }
 
 /* Schede di navigazione principali: visualizzate sopra il pannello, come in Vendite. */
-.pan-app-tabs { margin:0 0 .8rem; }
-.pan-app-tabs .nav-link { white-space:normal; }
 /* Paginazione ordini: nessuna barra di scorrimento interna per i dati visibili.
    Mantiene selezione, filtri e numero di righe gestiti dagli script già in uso. */
 @media screen and (min-width: 768px) {
@@ -189,7 +184,6 @@
   .pan-orders-page[data-pannello-attivo="produzione"] .ordini-panel[data-panel="nuovi"] { display:none; }
 }
 @media (max-width:767.98px) {
-  .pan-app-tabs { display:none; }  /* Offcanvas è la navigazione mobile. */
   .pan-orders-page .ordini-panel[data-panel="produzione"] { display:none; }
   .pan-orders-page[data-pannello-attivo="produzione"] .ordini-panel[data-panel="produzione"] { display:flex; }
   .pan-orders-page[data-pannello-attivo="produzione"] .ordini-panel[data-panel="nuovi"] { display:none; }
@@ -373,8 +367,6 @@
 }
 
 /* Rifinitura CSS 20261021-3: tokens unificati e regole anti-conflitto. */
-.pan-app-tabs { flex-wrap:wrap; gap:.12rem .2rem; }
-.pan-app-tabs .nav-link { white-space:normal; min-width:0; }
 .pan-app-body .pan-main, .pan-app-body .pan-page { min-width:0; }
 .pan-orders-page .ordini-table-scroll { overflow:hidden!important; max-height:none!important; }
 .pan-orders-page .ordini-table { min-width:0!important; width:100%; table-layout:fixed; }
@@ -393,3 +385,18 @@
   body.pan-app-body:has(.pan-orders-page) > .pan-main { overflow:visible; }
   .pan-orders-page .ordini-table-scroll { overflow:hidden!important; }
 }
+
+/* Navigazione unica: Offcanvas laterale, indipendente dalle pagine. */
+.pan-offcanvas { --bs-offcanvas-width: min(310px, 90vw); }
+.pan-offcanvas .offcanvas-body { padding: .85rem; }
+.pan-offcanvas .pan-nav-caption { margin: .35rem .7rem .25rem; }
+.pan-offcanvas .pan-nav-item { border-left: 3px solid transparent; padding: .6rem .75rem; }
+.pan-offcanvas .pan-nav-item.is-active,
+.pan-offcanvas .pan-nav-item[aria-current="page"] {
+  border-left-color: var(--pan-primary);
+  background: #e8f1ff;
+  color: #084298;
+  font-weight: 700;
+}
+.pan-menu-button:focus-visible { outline: 3px solid var(--pan-primary); outline-offset: 2px; }
+/* Le azioni sulla pagina restano contestuali; i link globali vivono solo nel menu. */

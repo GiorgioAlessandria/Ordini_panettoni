@@ -9,8 +9,6 @@ body.pan-app-body .pan-main { min-width:0; width:100%; max-width:100%; padding-i
 body.pan-app-body .pan-main > :is(div,section,article) { min-width:0; }
 body.pan-app-body .pan-main .row > [class*="col-"] { min-width:0; }
 body.pan-app-body :is(img,video,iframe,canvas) { max-width:100%; }
-body.pan-app-body .pan-app-tabs { flex-wrap:wrap; }
-body.pan-app-body .pan-app-tabs .nav-link { min-width:0; white-space:normal; }
 /* Filtri: la larghezza segue il singolo pannello e non il viewport. */
 .pan-orders-page .ordini-panel { container-type:inline-size; }
 .pan-orders-page .ordini-filtri { display:flex; flex-wrap:wrap; align-items:flex-end; gap:.35rem; }

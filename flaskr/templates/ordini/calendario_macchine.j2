@@ -4,7 +4,7 @@
 
 {% block head %}
     {{ super() }}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/calendario_macchine.css', v='20261020-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/calendario_macchine.css', v='20261021-3') }}">
 {% endblock %}
 
 {% block content %}
@@ -15,11 +15,6 @@
             <h1>Calendario impiego impastatrici</h1>
             <p>Disponibilità e carico pianificato delle macchine per giorno e blocco.</p>
         </div>
-        <nav class="cm-links pan-page-actions" aria-label="Navigazione pagine">
-            <a href="{{ url_for('ordini_cliente.ordini_calendario') }}">Calendario produzione</a>
-            <a href="{{ url_for('ordini_cliente.ordini_cliente') }}">Gestione ordini</a>
-            <a href="{{ url_for('ordini_cliente.stock_articoli') }}">Stock panettoni</a>
-        </nav>
     </header>
 
     <section class="cm-navigation pan-panel" aria-label="Navigazione settimane">
