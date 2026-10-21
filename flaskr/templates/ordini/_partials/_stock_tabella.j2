@@ -1,5 +1,5 @@
-<div class="table-responsive border rounded-3" style="max-height:70vh;overflow:auto">
-<table class="table table-striped table-hover table-bordered align-middle mb-0">
-<thead class="table-light" style="position:sticky;top:0;z-index:1"><tr><th scope="col">Codice articolo</th><th scope="col">Descrizione articolo</th><th scope="col" class="text-end">Quantità a stock</th></tr></thead>
-<tbody>{% for r in righe %}<tr><td>{{ r.CodArt }}</td><td>{{ r.DesArt or 'Descrizione non disponibile' }}</td><td class="text-end fw-semibold">{{ r.Quantita }}</td></tr>{% else %}<tr><td colspan="3" class="text-center text-muted py-4">Nessun articolo presente a stock.</td></tr>{% endfor %}</tbody>
+<div class="pan-table-wrap pan-stock-table-wrap border rounded-3">
+<table class="table table-striped table-hover align-middle mb-0 pan-table pan-responsive-records">
+<thead class="table-light"><tr><th scope="col">Codice articolo</th><th scope="col">Descrizione articolo</th><th scope="col" class="text-end">Quantità a stock</th></tr></thead>
+<tbody>{% for r in righe %}<tr><td data-label="Codice articolo">{{ r.CodArt }}</td><td data-label="Descrizione articolo">{{ r.DesArt or 'Descrizione non disponibile' }}</td><td data-label="Quantità a stock" class="text-end fw-semibold">{{ r.Quantita }}</td></tr>{% else %}<tr><td colspan="3" class="text-center text-muted py-4">Nessun articolo presente a stock.</td></tr>{% endfor %}</tbody>
 </table></div>

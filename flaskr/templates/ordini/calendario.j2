@@ -12,17 +12,20 @@
 {% endblock %}
 
 {% block content %}
+<div class="pan-page pan-calendar-page">
 <section class="calendario-shell">
-    <header class="calendario-intestazione">
+    <header class="calendario-intestazione pan-page-header">
         <div>
             <h1>Calendario produzione e scadenze</h1>
             <p>Settimana oraria: lavorazioni concomitanti affiancate; ogni fase mostra descrizione, quantità e tipologia.</p>
         </div>
+        <nav class="pan-page-actions" aria-label="Pagine collegate">
         {% if puo_gestire_produzione %}<a class="calendario-torna" href="{{ url_for('ordini_cliente.calendario_macchine') }}">Impiego impastatrici</a>{% endif %}
         {% if puo_gestire_produzione %}<a class="calendario-torna" href="{{ url_for('ordini_cliente.stock_articoli') }}">Stock panettoni</a>{% endif %}
         <a class="calendario-torna" href="{{ url_for('ordini_cliente.ordini_cliente') }}">
             &larr; Torna agli ordini
         </a>
+        </nav>
     </header>
 
     <div class="calendario-legenda" aria-label="Legenda del calendario">
@@ -31,7 +34,7 @@
         <span class="calendario-legenda-tipi">Tipologia: <b>Impasto</b> · <b>Cottura</b> · <b>Altre lavorazioni</b></span>
     </div>
 
-    <div class="calendario-riquadro" role="region" aria-label="Calendario settimanale" tabindex="0">
+    <div class="calendario-riquadro pan-panel" role="region" aria-label="Calendario settimanale" tabindex="0">
         <div id="calendar"
              data-events-scadenze-url="{{ url_for('ordini_cliente.ordini_calendario_scadenze') }}"
              data-events-pianificazione-url="{{ url_for('ordini_cliente.eventi_fase_calendario') }}">
@@ -49,6 +52,7 @@
   </div>
 </div>
 
+</div>
 {% endblock %}
 
 {% block scripts %}

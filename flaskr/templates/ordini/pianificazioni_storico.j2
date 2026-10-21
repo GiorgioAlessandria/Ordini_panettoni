@@ -1,23 +1,25 @@
 {% extends "base.j2" %}
 {% block title %}Storico pianificazioni{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+<div class="pan-page pan-history-page">
+<header class="pan-page-header">
   <div><h1 class="h3 mb-1">Storico pianificazioni</h1><p class="text-secondary mb-0">Pianificazioni completate o annullate, fuori dalla produzione attiva.</p></div>
   <a class="btn btn-outline-primary" href="{{ url_for('ordini_cliente.ordini_cliente') }}">Torna alla produzione</a>
-</div>
+</header>
 {% for stato, titolo in [('Chiuso', 'Pianificazioni completate'), ('Annullato', 'Pianificazioni annullate')] %}
-<section class="mb-4">
-<h2 class="h5">{{ titolo }}</h2>
-<div class="table-responsive border rounded" style="max-height:420px;overflow:auto">
-<table class="table table-striped table-hover align-middle mb-0">
-  <thead class="table-light" style="position:sticky;top:0"><tr><th>Piano</th><th>Data produzione</th><th>Articolo</th><th>Cotte</th><th>Panettoni previsti</th><th>Peso</th><th>Stato</th><th>Dettaglio</th></tr></thead>
+<section class="pan-panel mb-3">
+<div class="pan-panel-header"><h2 class="pan-section-title">{{ titolo }}</h2></div>
+<div class="table-responsive">
+<table class="table table-striped table-hover align-middle mb-0 pan-table">
+  <thead><tr><th>Piano</th><th>Data produzione</th><th>Articolo</th><th>Cotte</th><th>Panettoni previsti</th><th>Peso</th><th>Stato</th><th>Dettaglio</th></tr></thead>
   <tbody>
   {% for p in piani if p.StatoRigaOrdine == stato %}
-    <tr><td>#{{ p.IdPianificazione }}</td><td>{{ p.DataProduzione.strftime('%d/%m/%Y') }}</td><td>{{ p.CodArt }}</td><td>{{ p.NumeroCotte }}</td><td>{{ p.PanettoniPianificati }}</td><td>{{ '%.2f'|format(p.PesoTotale|float / 1000) }} kg</td><td>{{ p.StatoRigaOrdine }}</td><td><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('ordini_cliente.gestione_pianificazione', IdPianificazione=p.IdPianificazione) }}">Apri</a></td></tr>
+    <tr class="{{ 'pan-row-closed' if stato == 'Chiuso' else 'pan-row-cancelled' }}"><td data-label="Piano">#{{ p.IdPianificazione }}</td><td data-label="Data produzione">{{ p.DataProduzione.strftime('%d/%m/%Y') }}</td><td data-label="Articolo">{{ p.CodArt }}</td><td data-label="Cotte">{{ p.NumeroCotte }}</td><td data-label="Pezzi previsti">{{ p.PanettoniPianificati }}</td><td data-label="Peso">{{ '%.2f'|format(p.PesoTotale|float / 1000) }} kg</td><td data-label="Stato">{{ p.StatoRigaOrdine }}</td><td data-label="Dettaglio"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('ordini_cliente.gestione_pianificazione', IdPianificazione=p.IdPianificazione) }}">Apri</a></td></tr>
   {% else %}<tr><td colspan="8" class="text-muted text-center py-3">Nessuna pianificazione</td></tr>
   {% endfor %}
   </tbody>
 </table></div>
 </section>
 {% endfor %}
+</div>
 {% endblock %}

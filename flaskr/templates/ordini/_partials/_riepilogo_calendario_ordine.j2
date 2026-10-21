@@ -1,10 +1,19 @@
-<div class="mb-3"><span class="badge bg-warning text-dark">Scadenza ordine cliente</span><h4 class="mt-2 mb-1">{{ ordine.DesArt or ordine.CodArt }}</h4><p class="text-muted mb-0">{{ ordine.CodArt }} · Ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}</p></div>
-<dl class="row mb-3"><dt class="col-sm-4">Cliente</dt><dd class="col-sm-8">{{ ordine.Cliente.RagioneSociale }}</dd>
-<dt class="col-sm-4">Consegna</dt><dd class="col-sm-8">{{ ordine.DataConsegna.strftime('%d/%m/%Y') }}</dd>
-<dt class="col-sm-4">Quantità ordinata</dt><dd class="col-sm-8">{{ ordine.QTA_ORD }}</dd>
-<dt class="col-sm-4">Saldo ERP</dt><dd class="col-sm-8">{{ ordine.QTA_SALDO_DOC }}</dd>
-<dt class="col-sm-4">Già impegnata</dt><dd class="col-sm-8">{{ impegnata }}</dd>
-<dt class="col-sm-4">Ancora da assegnare</dt><dd class="col-sm-8 fw-bold">{{ residua }}</dd></dl>
-{% if ordine.NotaInterna %}<div class="alert alert-light border"><strong>Note:</strong> {{ ordine.NotaInterna }}</div>{% endif %}
-
-<a class="btn btn-outline-primary" href="{{ url_for('ordini_cliente.note_vendite_ordine', id_documento=ordine.IdDocumento, id_riga=ordine.IdRigaDoc) }}">Apri commenti vendite</a>
+<div class="pan-calendar-order-summary">
+  <div class="pan-page-header mb-3">
+    <div>
+      <span class="badge bg-warning text-dark mb-2">Scadenza ordine cliente</span>
+      <h4 class="h5 mb-1">{{ ordine.DesArt or ordine.CodArt }}</h4>
+      <p class="pan-meta mb-0">{{ ordine.CodArt }} · Ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}</p>
+    </div>
+  </div>
+  <dl class="pan-detail-grid pan-calendar-order-details mb-3">
+    <div><dt>Cliente</dt><dd>{{ ordine.Cliente.RagioneSociale }}</dd></div>
+    <div><dt>Consegna</dt><dd>{{ ordine.DataConsegna.strftime('%d/%m/%Y') }}</dd></div>
+    <div><dt>Quantità ordinata</dt><dd>{{ ordine.QTA_ORD }}</dd></div>
+    <div><dt>Saldo ERP</dt><dd>{{ ordine.QTA_SALDO_DOC }}</dd></div>
+    <div><dt>Già impegnata</dt><dd>{{ impegnata }}</dd></div>
+    <div><dt>Ancora da assegnare</dt><dd><strong>{{ residua }}</strong></dd></div>
+  </dl>
+  {% if ordine.NotaInterna %}<div class="alert alert-light border"><strong>Note:</strong> {{ ordine.NotaInterna }}</div>{% endif %}
+  <a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.note_vendite_ordine', id_documento=ordine.IdDocumento, id_riga=ordine.IdRigaDoc) }}">Apri commenti vendite</a>
+</div>

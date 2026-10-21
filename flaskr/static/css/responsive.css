@@ -1,313 +1,70 @@
-/*
- * Responsive app shell – Ordini panettoni (2026-10-20)
- * Caricare DOPO {% block head %} nel <head> di base.j2.
- * Nessuna modifica a dati, HTMX, FullCalendar o route.
+/* Ordini Panettoni - compatibilita' responsive con tema_panettoni.css.
+ * Questo foglio e' OPZIONALE. Se presente, caricarlo DOPO il tema comune.
+ * Non reintroduce .ordini-tutte-colonne, body overflow:hidden globali,
+ * larghezze minime fisse di FullCalendar o scorrimenti nelle tabelle ordini.
  */
-:root { --app-gutter: clamp(12px, 1.4vw, 30px); }
-html { max-width: 100%; }
-body { max-width: 100%; overflow-x: clip; }
-body > main.container,
-body > main.container-fluid {
-    width: 100% !important;
-    max-width: none !important;
-    min-width: 0;
-    padding-left: var(--app-gutter) !important;
-    padding-right: var(--app-gutter) !important;
-}
-body > main > :is(div, section, article) { min-width: 0; }
-main .row > [class*="col-"] { min-width: 0; }
-img, video, iframe, canvas { max-width: 100%; }
-.table-responsive { max-width: 100%; min-width: 0; overflow-x: auto; }
-.table-responsive > table { margin-bottom: 0; }
-
-/* Testata e navigazione ordini: più spazio per i dati, nessun pulsante tagliato. */
-body .ordini-workspace { width: 100%; max-width: 100%; min-width: 0; }
-body .ordini-header {
-    display: flex;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-    align-items: center;
-    column-gap: clamp(8px, 1vw, 18px);
-    row-gap: 10px;
-}
-body .ordini-header > :first-child { flex: 1 1 240px; min-width: min(220px, 100%); }
-body .ordini-nav { min-height: 42px; text-align: center; justify-content: center; white-space: normal; max-width: 100%; }
-body .ordini-panels { gap: clamp(10px, 1vw, 20px); min-width: 0; }
-body .ordini-panel {
-    min-width: 0;
-    max-width: 100%;
-    container-type: inline-size;
-}
-body .ordini-panel-body { min-width: 0; }
-body .ordini-panel-header { gap: .5rem; }
-body .ordini-meta { white-space: normal; }
-body .ordini-layout-toggle { font-size: .77rem; white-space: nowrap; }
-body .ordini-actions { gap: .5rem; }
-
-/* Filtri organizzati rispetto allo spazio del singolo pannello, non al monitor. */
-body .ordini-panel .ordini-filtri {
-    display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-    align-items: end;
-    gap: .5rem;
-}
-body .ordini-panel .ordini-filtri > .ordini-filtro {
-    min-width: 0;
-    grid-column: span 2;
-}
-body .ordini-panel .ordini-filtri > .ordini-filtro.ricerca { min-width: 0; grid-column: span 4; }
-body .ordini-panel .ordini-filtri > .ordini-reset { grid-column: span 2; justify-self: stretch; min-width: 0; }
-body .ordini-panel .ordini-filtro label { overflow-wrap: anywhere; }
-body .ordini-panel .ordini-filtro .form-control,
-body .ordini-panel .ordini-filtro .form-select { min-width: 0; max-width: 100%; }
-body .ordini-panel .ordini-barra { flex-wrap: wrap; }
-body .ordini-panel .ordini-table-scroll {
-    max-height: clamp(270px, 57dvh, 740px);
-    min-height: 160px;
-    max-width: 100%;
-    overflow: auto;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
-}
-body .ordini-panel .ordini-table {
-    width: 100%;
-    min-width: 0;
-    table-layout: auto;
-    font-size: clamp(.76rem, .72rem + .13vw, .88rem);
-}
-body .ordini-panel .ordini-table th,
-body .ordini-panel .ordini-table td { padding: .42rem .4rem; }
-body .ordini-panel .ordini-table thead th { white-space: normal; vertical-align: middle; }
-body .ordini-panel .ordini-table tbody td {
-    white-space: normal;
-    overflow-wrap: anywhere;
-    vertical-align: middle;
-}
-body .ordini-panel .ordini-sort { white-space: normal; line-height: 1.25; overflow-wrap: anywhere; }
-body .ordini-panel .ordini-priorita-select { min-width: 98px; max-width: 138px; width: 100%; }
-body .ordini-panel .ordini-table td[data-col="quantita"],
-body .ordini-panel .ordini-table td[data-col="ordinata"] { white-space: nowrap; }
-body .ordini-panel .ordini-table .piano-plurale { max-width: 100%; }
-body .ordini-panel .ordini-table td > .btn { white-space: normal; }
-
-/* Modal e form: footer sempre raggiungibile anche su schermi bassi. */
+:root { --app-gutter: clamp(.5rem, 1.3vw, 1.5rem); }
+body.pan-app-body { min-width:0; max-width:100%; }
+body.pan-app-body .pan-main { min-width:0; width:100%; max-width:100%; padding-inline:var(--app-gutter); }
+body.pan-app-body .pan-main > :is(div,section,article) { min-width:0; }
+body.pan-app-body .pan-main .row > [class*="col-"] { min-width:0; }
+body.pan-app-body :is(img,video,iframe,canvas) { max-width:100%; }
+body.pan-app-body .pan-app-tabs { flex-wrap:wrap; }
+body.pan-app-body .pan-app-tabs .nav-link { min-width:0; white-space:normal; }
+/* Filtri: la larghezza segue il singolo pannello e non il viewport. */
+.pan-orders-page .ordini-panel { container-type:inline-size; }
+.pan-orders-page .ordini-filtri { display:flex; flex-wrap:wrap; align-items:flex-end; gap:.35rem; }
+.pan-orders-page .ordini-filtro { min-width:0; flex:1 1 7rem; }
+.pan-orders-page .ordini-filtro.ricerca { flex:2 1 11rem; }
+.pan-orders-page .ordini-filtro :is(.form-control,.form-select) { width:100%; min-width:0; }
+.pan-orders-page .ordini-table-scroll { width:100%; min-width:0; overflow:hidden; }
+.pan-orders-page .ordini-table { width:100%; min-width:0!important; max-width:100%; table-layout:fixed; }
+.pan-orders-page .ordini-table :is(th,td) { min-width:0; overflow-wrap:anywhere; }
+.pan-orders-page .ordini-table :is(.form-select,.btn) { max-width:100%; }
+.pan-orders-page .ordini-layout-toggle { display:none!important; }
+/* La paginazione esistente controlla il numero di righe visualizzate. */
+.pan-orders-page .ordini-paginazione { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:.4rem; }
+.pan-orders-page .ordini-paginazione[hidden] { display:none!important; }
+/* Calendari: nessun min-width rigido o centratura con translateX. */
+.pan-calendar-page .calendario-shell,
+.pan-machines-page .cm-workspace { position:static; left:auto; transform:none; width:100%; min-width:0; max-width:100%; }
+.pan-calendar-page .calendario-riquadro,
+.pan-machines-page .cm-scroll { width:100%; min-width:0; max-width:100%; }
+.pan-calendar-page #calendar,
+.pan-machines-page .cm-calendar { min-width:0; max-width:100%; width:100%; }
+.pan-calendar-page #calendar .fc-toolbar { flex-wrap:wrap; }
+/* Pagina impostazioni: non restringere il form con un vecchio main.container. */
+.pan-settings-page .settings-layout, .pan-settings-page .settings-main { min-width:0; }
+/* Le modali grandi hanno un solo livello di scorrimento verticale (il body).
+ * Non usare overflow:hidden sul contenuto completo: si perderebbero campi. */
 #modal-pianificazione .modal-dialog,
-#modal-riepilogo-calendario .modal-dialog,
-.modal-dialog.modal-xl {
-    width: calc(100% - 24px);
-    max-width: min(1450px, calc(100vw - 24px));
-    margin: 12px auto;
+#modal-riepilogo-calendario .modal-dialog {
+  width:calc(100% - 1rem); max-width:min(1350px,calc(100vw - 1rem));
+  margin:.5rem auto;
 }
 #modal-pianificazione .modal-content,
-#modal-riepilogo-calendario .modal-content { max-height: calc(100dvh - 24px); }
-#form-pianificazione { min-height: 0; }
-#form-pianificazione > .modal-body { overflow: auto; min-height: 0; }
-#form-pianificazione > .modal-footer { flex-shrink: 0; }
-#form-pianificazione .pianificazione-pannello { min-width: 0; }
-#form-pianificazione .pianificazione-riepilogo .table-responsive { max-width: 100%; overflow-x: auto; }
-
-/* Calendario principale: sfrutta tutta la larghezza utile. La griglia a 7 giorni
- * scorre nel proprio riquadro SOLO quando il monitor è troppo stretto. */
-body .calendario-shell,
-body .cm-workspace {
-    width: 100%;
-    max-width: none;
-    min-width: 0;
-    left: auto;
-    transform: none;
-    position: relative;
+#modal-riepilogo-calendario .modal-content { max-height:calc(100dvh - 1rem); }
+#form-pianificazione { min-height:0; }
+#form-pianificazione > .modal-body { overflow-y:auto; overflow-x:hidden; min-height:0; }
+#form-pianificazione .pianificazione-pannello { min-width:0; }
+#form-pianificazione .pianificazione-riepilogo .table-responsive { max-height:none!important; overflow:visible; }
+@media(max-width:1199.98px) {
+  .pan-orders-page .ordini-panels { grid-template-columns:minmax(0,1fr); }
+  .pan-orders-page .ordini-panel-switch { display:flex; }
 }
-body .calendario-riquadro { max-width: 100%; min-width: 0; overflow-x: auto; }
-body .calendario-riquadro #calendar { width: 100%; min-width: 0; }
-body #calendar .fc-header-toolbar,
-body #calendar .fc-toolbar { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
-body #calendar .fc-toolbar-chunk { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; }
-body #calendar .fc-toolbar-title { font-size: clamp(1.1rem, 1.4vw, 1.5rem); }
-body #calendar .fc-button { font-size: clamp(.76rem, .85vw, .9rem); }
-body #calendar .fc-event-title,
-body #calendar .cal-event-title { overflow-wrap: anywhere; }
-
-/* Griglia macchina a 7 giorni: leggibile e contenuta, senza allargare la pagina. */
-body .cm-scroll,
-body .cm-weekly-scroll { max-width: 100%; min-width: 0; overflow-x: auto; overscroll-behavior: contain; }
-body .cm-calendar { width: 100%; min-width: 1200px; }
-body .cm-stat-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-body .cm-navigation { gap: .5rem; }
-body .cm-navigation h2 { min-width: min(210px, 100%); }
-body .cm-machine-weekly { min-width: 0; }
-
-@container (max-width: 1000px) {
-    .ordini-filtri { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
-    .ordini-filtri > .ordini-filtro { grid-column: span 1 !important; }
-    .ordini-filtri > .ordini-filtro.ricerca { grid-column: span 2 !important; }
-    .ordini-filtri > .ordini-reset { grid-column: span 1 !important; }
-
-    /* Vista compatta: la tabella mantiene filtri, ordinamento e dettagli.
-       I campi non visibili possono essere riaperti con "Tutte le colonne". */
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini .ordini-table th:nth-child(7),
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini .ordini-table td[data-col="ordinata"],
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini .ordini-table th:nth-child(9),
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini .ordini-table td[data-col="prezzatura"],
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini .ordini-table th:nth-child(10),
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini .ordini-table td[data-col="glassa"],
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini .ordini-table th:nth-child(11),
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini .ordini-table td[data-col="stato"],
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini-produzione .ordini-table th:nth-child(6),
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini-produzione .ordini-table td[data-col="ordinata"],
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini-produzione .ordini-table th:nth-child(8),
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini-produzione .ordini-table td[data-col="prezzatura"],
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini-produzione .ordini-table th:nth-child(9),
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini-produzione .ordini-table td[data-col="glassa"],
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini-produzione .ordini-table th:nth-child(10),
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini-produzione .ordini-table td[data-col="stato"] {
-        display: none;
-    }
+@media(max-width:767.98px) {
+  :root { --app-gutter:.55rem; }
+  .pan-orders-page .ordini-panel-body { padding-inline:.5rem; }
+  .pan-orders-page .ordini-filtro { flex-basis:calc(50% - .3rem); }
+  .pan-orders-page .ordini-filtro.ricerca { flex-basis:100%; }
+  .pan-calendar-page .calendario-legenda { gap:.25rem .6rem; }
+  .pan-machines-page .cm-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #modal-pianificazione .modal-dialog,
+  #modal-riepilogo-calendario .modal-dialog { width:calc(100% - .6rem); max-width:calc(100vw - .6rem); margin:.3rem auto; }
+  #modal-pianificazione .modal-content,
+  #modal-riepilogo-calendario .modal-content { max-height:calc(100dvh - .6rem); }
 }
-@container (max-width: 790px) {
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini .ordini-table th:nth-child(4),
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini .ordini-table td[data-col="articolo"],
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini-produzione .ordini-table th:nth-child(3),
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini-produzione .ordini-table td[data-col="articolo"] {
-        display: none;
-    }
-}
-@container (max-width: 600px) {
-    .ordini-filtri { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-    .ordini-filtri > .ordini-filtro.ricerca,
-    .ordini-filtri > .ordini-reset { grid-column: span 2 !important; }
-    .ordini-filtri > .ordini-filtro { grid-column: span 1 !important; }
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini .ordini-table th:nth-child(6),
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini .ordini-table td[data-col="consegna"],
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini-produzione .ordini-table th:nth-child(5),
-    .ordini-panel:not(.ordini-tutte-colonne) #form-ordini-produzione .ordini-table td[data-col="consegna"] {
-        display: none;
-    }
-    .ordini-panel .ordini-table { font-size: .78rem; }
-    .ordini-panel .ordini-table th, .ordini-panel .ordini-table td { padding: .3rem .25rem; }
-}
-@container (max-width: 330px) {
-    .ordini-filtri { grid-template-columns: minmax(0,1fr) !important; }
-    .ordini-filtri > .ordini-filtro,
-    .ordini-filtri > .ordini-filtro.ricerca,
-    .ordini-filtri > .ordini-reset { grid-column: 1 / -1 !important; }
-}
-/* L'operatore può sempre ripristinare l'intera tabella con scorrimento interno. */
-body .ordini-panel.ordini-tutte-colonne .ordini-table {
-    min-width: 1120px;
-    table-layout: auto;
-}
-body .ordini-panel.ordini-tutte-colonne .ordini-table th,
-body .ordini-panel.ordini-tutte-colonne .ordini-table td { display: table-cell !important; }
-body .ordini-panel.ordini-tutte-colonne .ordini-table tbody td { white-space: nowrap; }
-
-@media (max-width: 1500px) {
-    body .ordini-header > :first-child { flex-basis: 100%; }
-    body .cm-stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-@media (max-width: 1199.98px) {
-    body .ordini-panels { grid-template-columns: minmax(0,1fr); }
-    body .ordini-panel .ordini-table-scroll { max-height: min(46dvh, 530px); }
-}
-@media (max-width: 900px) {
-    body .calendario-riquadro #calendar { min-width: 880px; }
-    body .calendario-intestazione { align-items: flex-start; }
-    body .cm-calendar { min-width: 1120px; }
-    body .cm-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 700px) {
-    :root { --app-gutter: 10px; }
-    body > main.container,
-    body > main.container-fluid { padding-top: .75rem !important; }
-    body .ordini-header { gap: .5rem; }
-    body .ordini-header > :first-child { flex-basis: 100%; }
-    body .ordini-nav { flex: 1 1 calc(50% - .5rem); font-size: .82rem; padding: .6rem; }
-    body .ordini-panel-header { align-items: flex-start; }
-    body .ordini-panel-body { padding: 0 .6rem .8rem; }
-    body .ordini-panel .ordini-table-scroll { max-height: min(45dvh, 410px); }
-    body .cm-stat-grid { gap: .5rem; }
-    body .cm-stat { padding: .7rem; }
-    body .cm-header h1 { font-size: 1.3rem; }
-    body .cm-navigation h2 { flex-basis: 100%; text-align: left; }
-    #modal-pianificazione .modal-dialog,
-    #modal-riepilogo-calendario .modal-dialog,
-    .modal-dialog.modal-xl { width: calc(100% - 12px); max-width: calc(100vw - 12px); margin: 6px auto; }
-    #modal-pianificazione .modal-content,
-    #modal-riepilogo-calendario .modal-content { max-height: calc(100dvh - 12px); }
-    #form-pianificazione .pianificazione-pannello { padding: .75rem; }
-}
-
-
-/* No-scroll workspace: pagination instead of inner scrollbars. */
-body:has(.ordini-workspace) { overflow: hidden; height: 100dvh; }
-body > main.container:has(.ordini-workspace),
-body > main.container-fluid:has(.ordini-workspace) {
-    height: 100dvh; max-height: 100dvh; box-sizing: border-box;
-    padding-top: 8px !important; padding-bottom: 8px !important;
-    display: flex; flex-direction: column; overflow: hidden;
-}
-body .ordini-workspace { height: 100%; min-height: 0; display: flex; flex-direction: column; }
-body .ordini-header { flex: 0 0 auto; gap: .45rem; margin-bottom: .5rem; }
-body .ordini-header h1 { font-size: 1.25rem; }
-body .ordini-header .descrizione { margin-top: .1rem; }
-body .ordini-nav { min-height: 34px; padding: .3rem .5rem; font-size: .79rem; border-width: 1px; }
-body .ordini-panel-switch { display: none; flex: 0 0 auto; gap: .5rem; margin-bottom: .5rem; }
-body .ordini-panels { flex: 1 1 auto; min-height: 0; align-items: stretch; grid-template-rows: minmax(0,1fr); }
-body .ordini-panel { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-body .ordini-panel-header { flex: 0 0 auto; padding: .5rem .7rem .25rem; }
-body .ordini-panel-header h2 { font-size: 1rem; }
-body .ordini-panel-body { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; padding: 0 .6rem .4rem; }
-body #ordini_cliente_da_produrre,
-body #ordini_cliente_in_produzione { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-body .ordini-form { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
-body .ordini-panel .ordini-filtri { flex: 0 0 auto; gap: .25rem .4rem; padding: .25rem .05rem .35rem; }
-body .ordini-panel .ordini-filtro label { font-size: .7rem; margin-bottom: .08rem; }
-body .ordini-panel .ordini-barra { flex: 0 0 auto; padding-bottom: .25rem; font-size: .74rem; }
-body .ordini-panel .ordini-table-scroll {
-    flex: 1 1 auto; height: auto; min-height: 0 !important;
-    max-height: none !important; overflow: hidden !important;
-    scrollbar-gutter: auto; border-radius: .45rem;
-}
-body .ordini-panel .ordini-table { width: 100%; min-width: 0 !important; table-layout: fixed; }
-body .ordini-panel .ordini-table th,
-body .ordini-panel .ordini-table td { padding: .28rem .22rem; font-size: .75rem; }
-body .ordini-panel .ordini-table td { overflow: hidden; text-overflow: ellipsis; }
-body .ordini-panel .ordini-table td[data-col="cliente"],
-body .ordini-panel .ordini-table td[data-col="descrizione"],
-body .ordini-panel .ordini-table td[data-col="articolo"] { white-space: nowrap; }
-body .ordini-panel .ordini-table td[data-col="cliente"] *,
-body .ordini-panel .ordini-table td[data-col="descrizione"] * { white-space: nowrap; }
-body .ordini-panel .ordini-priorita-select { min-width: 0; max-width: 100%; padding: .2rem .1rem; font-size: .74rem; }
-body .ordini-paginazione {
-    flex: 0 0 auto; display: flex; justify-content: center; align-items: center;
-    gap: .75rem; padding: .35rem .2rem .2rem;
-}
-body .ordini-paginazione[hidden] { display: none !important; }
-body .ordini-paginazione .btn { white-space: nowrap; padding: .16rem .55rem; }
-body .ordini-pagina-testo { min-width: 55px; text-align: center; font-size: .81rem; font-weight: 650; font-variant-numeric: tabular-nums; }
-body .ordini-actions { flex: 0 0 auto; padding-top: .3rem; }
-body .ordini-actions .btn { padding: .3rem .6rem; font-size: .8rem; }
-/* Keep the summary accessible without forcing the table to scroll. */
-body .ordini-sommario { flex: 0 0 auto; font-size: .82rem; }
-/* Hide old full-column feature which deliberately created horizontal overflow. */
-body .ordini-layout-toggle { display: none !important; }
-@media (max-width: 1199.98px) {
-    body .ordini-panel-switch { display: flex; }
-    body .ordini-panels { grid-template-columns: minmax(0, 1fr) !important; }
-    body .ordini-panel[data-panel="produzione"] { display: none; }
-    body .ordini-workspace[data-pannello-attivo="produzione"] .ordini-panel[data-panel="produzione"] { display: flex; }
-    body .ordini-workspace[data-pannello-attivo="produzione"] .ordini-panel[data-panel="nuovi"] { display: none; }
-}
-@media (max-height: 720px) {
-    body .ordini-meta { font-size: .67rem; }
-    body .ordini-header .descrizione { display: none; }
-    body .ordini-panel-header { padding: .25rem .5rem; }
-    body .ordini-panel .ordini-filtri { gap: .12rem .3rem; padding: .12rem 0 .2rem; }
-    body .ordini-panel .ordini-table th, body .ordini-panel .ordini-table td { padding: .18rem .16rem; }
-}
-/* On touch-sized screens use one section, compact navigation and adaptive columns. */
-@media (max-width: 700px) {
-    body .ordini-header { flex-wrap: wrap; }
-    body .ordini-nav { flex: 1 1 calc(50% - 6px); min-height: 32px; }
-    body .ordini-panel .ordini-filtri { gap: .14rem; }
-    body .ordini-panel .ordini-table { font-size: .7rem; }
+@media(max-width:450px) {
+  .pan-orders-page .ordini-filtro { flex-basis:100%; }
+  .pan-orders-page .ordini-panel .ordini-table :is(th,td) { font-size:.7rem; padding:.25rem .17rem; }
 }

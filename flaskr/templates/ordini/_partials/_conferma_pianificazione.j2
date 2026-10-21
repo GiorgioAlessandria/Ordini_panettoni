@@ -1,14 +1,14 @@
 {% if error %}
-<div class="modal-header"><h5 class="modal-title">Pianificazione non salvata</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>
+<div class="modal-header pan-modal-header"><h5 class="modal-title">Pianificazione non salvata</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>
 <div class="modal-body"><div class="alert alert-danger mb-0" role="alert">{{ error }}</div></div>
 <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Chiudi</button></div>
 {% else %}
-<div class="modal-header"><h5 class="modal-title">Pianificazione creata</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>
-<div class="modal-body">
+<div class="modal-header pan-modal-header"><h5 class="modal-title">Pianificazione creata</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>
+<div class="modal-body pan-confirmation-body">
     <div class="alert alert-success" role="status">Pianificazione <strong>#{{ id_pianificazione }}</strong> salvata correttamente.</div>
-    <p>Panettoni assegnati dagli stock esistenti: <strong>{{ qta_stock_utilizzata or 0 }}</strong>.</p>
+    <div class="pan-kpi mb-2"><span class="pan-kpi-label">Panettoni prelevati dallo stock esistente</span><strong class="pan-kpi-value">{{ qta_stock_utilizzata or 0 }}</strong></div>
     {% if qta_stock_generata %}
-    <p class="mb-0">Ottimizzazione: <strong>{{ qta_stock_generata }} pezzi aggiuntivi</strong> registrati nello stock dell'articolo.</p>
+    <div class="pan-kpi"><span class="pan-kpi-label">Surplus registrato nello stock</span><strong class="pan-kpi-value">{{ qta_stock_generata }} pezzi</strong></div>
     {% else %}
     <p class="mb-0 text-secondary">Nessun surplus aggiunto allo stock.</p>
     {% endif %}

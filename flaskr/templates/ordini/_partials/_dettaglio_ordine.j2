@@ -1,40 +1,25 @@
 {% if errore %}
-<h4>{{ errore }}</h4>
+<div class="alert alert-danger mb-0" role="alert">{{ errore }}</div>
 {% else %}
-    <div class="modal fade"
-         id="ordineModal"
-         tabindex="-1"
-         aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-
-            <div class="modal-content">
-
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        Dettaglio ordine
-                    </h5>
-
-                    <button type="button"
-                            class="btn-close"
-                            data-bs-dismiss="modal">
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <h5>{{ ordine.Cliente.RagioneSociale }}</h5>
-                    <p>
-                        Articolo:
-                        {{ ordine.CodArt }} - {{ ordine.DesArt }}
-                    </p>
-                    <p>
-                        Quantità ordinata:
-                        {{ ordine.QTA_ORD }}
-                    </p>
-                    <p>
-                        Consegna:
-                        {{ ordine.DataConsegna.strftime("%d-%m-%Y") }}
-                    </p>
-                </div>
+<div class="modal fade pan-detail-order-modal" id="ordineModal" tabindex="-1" aria-hidden="true" aria-labelledby="ordineModalTitle">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header pan-modal-header">
+                <h5 class="modal-title" id="ordineModalTitle">Dettaglio ordine</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
             </div>
+            <div class="modal-body">
+                <h6 class="pan-section-title mb-1">{{ ordine.Cliente.RagioneSociale }}</h6>
+                <p class="pan-meta mb-3">Ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}</p>
+                <dl class="pan-detail-grid mb-0">
+                    <div><dt>Codice articolo</dt><dd>{{ ordine.CodArt }}</dd></div>
+                    <div><dt>Descrizione</dt><dd>{{ ordine.DesArt }}</dd></div>
+                    <div><dt>Quantità ordinata</dt><dd>{{ ordine.QTA_ORD }}</dd></div>
+                    <div><dt>Consegna</dt><dd>{{ ordine.DataConsegna.strftime('%d-%m-%Y') }}</dd></div>
+                </dl>
+            </div>
+            <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Chiudi</button></div>
         </div>
     </div>
+</div>
 {% endif %}

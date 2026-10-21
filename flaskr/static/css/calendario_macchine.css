@@ -1,87 +1,136 @@
-/* Calendario impastatrici autonomo: non modifica lo stile generale o FullCalendar. */
+/* Calendario impastatrici: tema operativo condiviso, senza larghezze minime globali.
+ * Tutte le informazioni e gli elementi cliccabili originali sono conservati.
+ */
 .cm-workspace, .cm-workspace * { box-sizing: border-box; }
 .cm-workspace {
-    width: min(1920px, calc(100vw - 30px));
-    max-width: none;
-    position: relative;
-    left: 50%;
-    transform: translateX(-50%);
-    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-    color: #27364c;
-    padding: 8px 0 36px;
+  width: 100%; max-width: none; min-width: 0;
+  position: static; left: auto; transform: none; margin: 0;
+  padding: .3rem 0 1rem; color: var(--pan-text, #212529);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
-.cm-header { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.cm-header h1 { margin: 0; font-size: clamp(1.4rem,2vw,1.95rem); font-weight: 750; }
-.cm-header p { margin: 5px 0 0; color: #64748b; }
-.cm-links { display:flex; flex-wrap:wrap; gap:8px; }
+.cm-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.6rem 1rem; margin-bottom:.7rem; }
+.cm-header h1 { margin:0; font-size:clamp(1.2rem,1.7vw,1.6rem); font-weight:700; }
+.cm-header p { margin:.2rem 0 0; color:var(--pan-muted,#6c757d); font-size:.84rem; }
+.cm-links { display:flex; flex-wrap:wrap; gap:.35rem; }
 .cm-links a, .cm-button, .cm-jump button {
-    display:inline-flex; align-items:center; justify-content:center; padding:8px 12px;
-    background:white; border:1px solid #9fb4ce; color:#204d85;
-    border-radius:8px; font-size:.9rem; font-weight:650; text-decoration:none;
-    min-height:38px;
+  display:inline-flex; justify-content:center; align-items:center; min-height:34px;
+  padding:.35rem .65rem; border:1px solid var(--pan-primary,#0d6efd);
+  border-radius:.35rem; background:#fff; color:var(--pan-primary,#0d6efd);
+  text-decoration:none; font-size:.81rem; font-weight:600;
 }
-.cm-links a:hover, .cm-button:hover, .cm-jump button:hover { background:#eaf2fe; color:#173d73; }
-.cm-links a:focus-visible, .cm-button:focus-visible, .cm-jump button:focus-visible { outline:3px solid #f59e0b; outline-offset:2px; }
-.cm-navigation { display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin: 12px 0 16px; }
-.cm-navigation h2 { flex:1; min-width:210px; font-size:1.1rem; font-weight:750; text-align:center; margin:0; }
-.cm-today { border-color:#2563eb; }
-.cm-jump { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.cm-jump label { font-size:.8rem; font-weight:600; color:#52647d; }
-.cm-jump input { border:1px solid #a9bdd7; border-radius:7px; padding:6px 8px; }
+.cm-links a:hover, .cm-button:hover, .cm-jump button:hover { background:var(--pan-primary,#0d6efd); color:#fff; }
+.cm-links a:focus-visible, .cm-button:focus-visible, .cm-jump button:focus-visible,
+.cm-machine:focus-visible { outline:2px solid #f59e0b; outline-offset:2px; }
+.cm-navigation {
+  display:flex; align-items:center; gap:.4rem .6rem; flex-wrap:wrap;
+  margin:.5rem 0 .7rem; padding:.65rem .8rem;
+  background:#fff; border:1px solid var(--pan-border,#dee2e6);
+  border-radius:.4rem; box-shadow:var(--pan-shadow,0 2px 7px rgba(20,35,55,.065));
+}
+.cm-navigation h2 { flex:1 1 13rem; margin:0; font-size:1rem; font-weight:700; text-align:center; }
+.cm-today { border-color:var(--pan-primary,#0d6efd); }
+.cm-jump { display:flex; flex-wrap:wrap; align-items:center; gap:.35rem; }
+.cm-jump label { color:var(--pan-muted,#6c757d); font-size:.76rem; font-weight:600; }
+.cm-jump input { border:1px solid var(--pan-border,#dee2e6); border-radius:.35rem; padding:.3rem .45rem; max-width:100%; }
 .cm-jump button { cursor:pointer; }
-.cm-stat-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin:10px 0; }
-.cm-stat { background:#fff; border:1px solid #d2dce8; border-radius:11px; padding:12px 14px; box-shadow:0 1px 4px #1d355710; }
-.cm-stat span { display:block; color:#61728a; font-size:.76rem; margin-bottom:7px; }
-.cm-stat strong { font-size:clamp(1rem,1.5vw,1.25rem); line-height:1.15; font-weight:800; }
-.cm-legend { display:flex; flex-wrap:wrap; gap:16px; color:#5e708a; font-size:.84rem; margin:14px 0; }
-.cm-legend span { display:inline-flex; align-items:center; gap:6px; }
-.cm-indicator { display:inline-block; width:11px; height:11px; border-radius:3px; border:1px solid; }
-.cm-indicator-free { background:#f1f5f9; border-color:#9bafc9; }
+.cm-stat-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:.55rem; margin:.6rem 0; }
+.cm-stat { min-width:0; background:#fff; border:1px solid var(--pan-border,#dee2e6); border-radius:.4rem; padding:.65rem .8rem; box-shadow:var(--pan-shadow,0 2px 7px rgba(20,35,55,.065)); }
+.cm-stat span { display:block; margin-bottom:.2rem; color:var(--pan-muted,#6c757d); font-size:.74rem; }
+.cm-stat strong { display:block; font-size:clamp(1rem,1.4vw,1.3rem); line-height:1.2; font-weight:700; overflow-wrap:anywhere; }
+.cm-legend { display:flex; flex-wrap:wrap; gap:.4rem 1rem; padding:.5rem .7rem; margin:.6rem 0; font-size:.8rem; color:#526174; background:#fff; border:1px solid var(--pan-border,#dee2e6); border-radius:.35rem; }
+.cm-legend span { display:inline-flex; align-items:center; gap:.35rem; }
+.cm-indicator { display:inline-block; width:.7rem; height:.7rem; border:1px solid; border-radius:.2rem; flex:0 0 auto; }
+.cm-indicator-free { background:#f1f5f9; border-color:#94a3b8; }
 .cm-indicator-used { background:#dbeafe; border-color:#2563eb; }
 .cm-indicator-legacy { background:#fff4dc; border-color:#c98a29; }
-.cm-scroll { max-width:100%; overflow:auto; border:1px solid #a9bad1; border-radius:12px; background:#fff; box-shadow:0 3px 16px #1d355713; }
-.cm-scroll:focus-visible { outline:3px solid #f59e0b; }
-.cm-calendar { width:100%; min-width:1480px; table-layout:fixed; border-collapse:separate; border-spacing:0; font-size:.85rem; }
-.cm-calendar th, .cm-calendar td { border-right:1px solid #cbd6e5; border-bottom:1px solid #cbd6e5; vertical-align:top; }
-.cm-date-heading { background:#e8eef7; padding:10px 5px; text-align:center; }
-.cm-day-name { display:block; font-size:.9rem; font-weight:780; }
-.cm-day-date { color:#5b6c84; font-size:.81rem; }
-.cm-slot-heading { width:105px; position:sticky; left:0; z-index:2; background:#edf3fa; padding:12px 7px; box-shadow:1px 0 0 #cbd6e5; text-align:center; }
-.cm-calendar thead .cm-slot-heading { z-index:3; }
-.cm-slot-name { display:block; font-weight:800; }
-.cm-slot-heading small { display:block; color:#64748b; margin-top:5px; }
-.cm-cell { width:calc((100% - 105px)/7); padding:9px 8px 12px; background:#fff; }
-.cm-cell-partial { background:#fbfdff; }
-.cm-cell-full { background:#f3f7fe; }
-.cm-cell-summary { display:flex; flex-wrap:wrap; gap:2px 10px; justify-content:space-between; font-size:.75rem; margin-bottom:6px; }
-.cm-cell-summary strong { font-weight:800; }
-.cm-cell-summary span { color:#5c6e86; }
-.cm-progress { background:#e7eef7; height:9px; border-radius:5px; overflow:hidden; width:100%; }
+.cm-scroll { min-width:0; max-width:100%; overflow:visible; background:#fff; border:1px solid var(--pan-border,#dee2e6); border-radius:.4rem; box-shadow:var(--pan-shadow,0 2px 7px rgba(20,35,55,.065)); }
+.cm-calendar { border-collapse:separate; border-spacing:0; width:100%; min-width:0; table-layout:fixed; font-size:.77rem; }
+.cm-calendar th, .cm-calendar td { border-right:1px solid #d6e0e5; border-bottom:1px solid #d6e0e5; vertical-align:top; overflow-wrap:anywhere; }
+.cm-date-heading { padding:.5rem .25rem; background:var(--pan-info,#0dcaf0); text-align:center; color:#092533; }
+.cm-day-name { display:block; font-size:.79rem; font-weight:700; }
+.cm-day-date { font-size:.73rem; }
+.cm-slot-heading { width:6.2rem; padding:.5rem .25rem; text-align:center; background:#edf6fa; }
+.cm-calendar thead .cm-slot-heading { background:var(--pan-info,#0dcaf0); }
+.cm-slot-name { display:block; font-weight:700; }
+.cm-slot-heading small { display:block; color:#617381; margin-top:.2rem; }
+.cm-cell { width:calc((100% - 6.2rem) / 7); min-width:0; padding:.35rem .25rem; background:#fff; }
+.cm-cell-partial { background:#f8fcff; }
+.cm-cell-full { background:#f0f7ff; }
+.cm-cell-summary { display:flex; flex-wrap:wrap; gap:.15rem .35rem; justify-content:space-between; font-size:.68rem; margin-bottom:.3rem; }
+.cm-cell-summary strong { font-weight:700; }
+.cm-cell-summary span { color:#617381; }
+.cm-progress { width:100%; height:.42rem; overflow:hidden; background:#e7eef7; border-radius:.3rem; }
 .cm-progress > span { display:block; height:100%; border-radius:inherit; transition:width .2s; }
 .cm-progress-used { background:#2563eb; }
 .cm-progress-load { background:#0d9488; }
-.cm-kg-summary { display:flex; flex-direction:column; gap:2px; margin:6px 0 10px; color:#526780; font-size:.73rem; }
-.cm-machines { display:flex; flex-direction:column; gap:7px; }
-.cm-machine { min-width:0; border:1px solid #b9c9dc; border-radius:8px; background:#f9fbfe; padding:8px; }
-.cm-machine-used { background:#eaf3ff; border-left:4px solid #2563eb; }
+.cm-kg-summary { display:flex; flex-direction:column; gap:.15rem; margin:.35rem 0 .5rem; color:#526780; font-size:.66rem; }
+.cm-machines { display:flex; flex-direction:column; gap:.3rem; }
+.cm-machine { min-width:0; border:1px solid #c4d0db; border-radius:.32rem; background:#fbfcfd; padding:.35rem; }
+.cm-machine-used { background:#eaf3ff; border-left:3px solid #2563eb; }
 .cm-machine-free { background:#f7f9fc; }
-.cm-machine-legacy { background:#fff6e5; border-left:4px solid #d49a39; }
-.cm-machine-head { display:flex; justify-content:space-between; gap:5px; flex-wrap:wrap; font-size:.76rem; line-height:1.2; }
-.cm-machine-head strong { overflow-wrap:anywhere; }
-.cm-machine-head span { color:#526983; font-weight:700; white-space:nowrap; }
-.cm-machine-plan { margin-top:5px; font-weight:750; font-size:.74rem; }
-.cm-machine-article { font-size:.74rem; margin:3px 0; line-height:1.28; overflow-wrap:anywhere; }
-.cm-machine-status { font-size:.73rem; color:#455d77; margin-top:4px; }
-.cm-progress-small { height:6px; margin-top:5px; }
-.cm-nota { margin:15px 0; color:#60718a; font-size:.85rem; }
-.cm-empty { border:1px dashed #c6d4e6; border-radius:8px; padding:20px; }
-@media (max-width:1100px) { .cm-stat-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
-@media (max-width:600px) { .cm-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .cm-header, .cm-navigation { align-items:flex-start; } .cm-navigation h2 { flex-basis:100%; order:-1; text-align:left; } }
-
-.cm-machine-weekly { margin-top:16px; background:#fff; border:1px solid #cbd6e5; border-radius:11px; padding:16px; }
-.cm-machine-weekly h3 { font-weight:750; font-size:1.1rem; margin:0 0 12px; }
-.cm-weekly-scroll { overflow-x:auto; }
-.cm-machine-weekly table { border-collapse:collapse; width:100%; min-width:650px; }
-.cm-machine-weekly th, .cm-machine-weekly td { border-bottom:1px solid #e0e8f2; padding:10px 14px; text-align:left; font-size:.86rem; }
-.cm-machine-weekly thead th { background:#edf3fa; color:#344761; font-weight:700; }
-.cm-progress-table { margin-top:6px; max-width:200px; }
+.cm-machine-legacy { background:#fff6e5; border-left:3px solid #d49a39; }
+.cm-machine-head { display:flex; flex-wrap:wrap; justify-content:space-between; gap:.15rem; line-height:1.2; font-size:.7rem; }
+.cm-machine-head strong { font-weight:700; overflow-wrap:anywhere; }
+.cm-machine-head span { color:#526983; font-weight:600; }
+.cm-machine-plan { margin-top:.25rem; font-size:.7rem; font-weight:700; white-space:normal; }
+.cm-machine-article { margin:.2rem 0; font-size:.69rem; line-height:1.2; overflow-wrap:anywhere; }
+.cm-machine-status { margin-top:.25rem; color:#455d77; font-size:.67rem; }
+.cm-progress-small { margin-top:.25rem; height:.32rem; }
+.cm-nota { margin:.7rem 0; color:var(--pan-muted,#6c757d); font-size:.8rem; }
+.cm-empty { padding:1rem; border:1px dashed var(--pan-border,#dee2e6); border-radius:.35rem; }
+.cm-machine-weekly { margin-top:.8rem; background:#fff; border:1px solid var(--pan-border,#dee2e6); border-radius:.4rem; padding:.8rem; box-shadow:var(--pan-shadow,0 2px 7px rgba(20,35,55,.065)); }
+.cm-machine-weekly h3 { font-size:1rem; font-weight:700; margin:0 0 .6rem; }
+.cm-weekly-scroll { min-width:0; max-width:100%; overflow:visible; }
+.cm-machine-weekly table { width:100%; min-width:0; border-collapse:collapse; table-layout:auto; }
+.cm-machine-weekly th, .cm-machine-weekly td { padding:.55rem .6rem; border-bottom:1px solid var(--pan-border,#dee2e6); font-size:.8rem; overflow-wrap:anywhere; }
+.cm-machine-weekly thead th { background:var(--pan-info,#0dcaf0); color:#092533; font-weight:700; }
+.cm-progress-table { margin-top:.3rem; max-width:100%; }
+@media(max-width:1200px) {
+  .cm-stat-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .cm-calendar { font-size:.71rem; }
+  .cm-cell { padding:.25rem .2rem; }
+  .cm-machine { padding:.25rem; }
+  .cm-machine-head, .cm-machine-status { font-size:.64rem; }
+}
+/* 7 colonne con molte macchine non sono leggibili sui telefoni.
+ * Trasformiamo ogni blocco (mattina/pomeriggio) in sette schede, una per giorno.
+ * Le date precise rimangono nel titolo dell'intervallo settimanale sopra la griglia. */
+@media(max-width:850px) {
+  .cm-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .cm-navigation h2 { flex-basis:100%; order:-1; text-align:left; }
+  .cm-calendar, .cm-calendar tbody, .cm-calendar tbody tr, .cm-calendar tbody th, .cm-calendar tbody td { display:block; width:100%; }
+  .cm-calendar thead { display:none; }
+  .cm-calendar tbody { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.6rem; padding:.6rem; }
+  .cm-calendar tbody tr { min-width:0; border:1px solid var(--pan-border,#dee2e6); border-radius:.35rem; overflow:hidden; }
+  .cm-calendar .cm-slot-heading { position:static; text-align:left; padding:.5rem .65rem; background:var(--pan-info,#0dcaf0); }
+  .cm-calendar .cm-slot-heading small { display:inline; margin-left:.3rem; color:#194454; }
+  .cm-calendar .cm-cell { border-right:0; padding:.55rem; border-bottom:1px solid var(--pan-border,#dee2e6); }
+  .cm-calendar .cm-cell::before { display:block; font-size:.76rem; font-weight:700; color:#092533; margin-bottom:.35rem; }
+  .cm-calendar .cm-cell:nth-of-type(1)::before { content:'Lunedì'; }
+  .cm-calendar .cm-cell:nth-of-type(2)::before { content:'Martedì'; }
+  .cm-calendar .cm-cell:nth-of-type(3)::before { content:'Mercoledì'; }
+  .cm-calendar .cm-cell:nth-of-type(4)::before { content:'Giovedì'; }
+  .cm-calendar .cm-cell:nth-of-type(5)::before { content:'Venerdì'; }
+  .cm-calendar .cm-cell:nth-of-type(6)::before { content:'Sabato'; }
+  .cm-calendar .cm-cell:nth-of-type(7)::before { content:'Domenica'; }
+  .cm-machines { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr)); }
+  .cm-machine-head, .cm-machine-status { font-size:.73rem; }
+  .cm-machine-weekly table, .cm-machine-weekly tbody, .cm-machine-weekly tbody tr, .cm-machine-weekly tbody td { display:block; width:100%; }
+  .cm-machine-weekly thead { display:none; }
+  .cm-machine-weekly tbody tr { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); border-bottom:1px solid var(--pan-border,#dee2e6); padding:.45rem; }
+  .cm-machine-weekly tbody :is(td,th) { display:flex; flex-direction:column; min-width:0; padding:.3rem; border:0; }
+  .cm-machine-weekly tbody :is(td,th)::before { display:block; font-size:.7rem; font-weight:700; color:var(--pan-muted,#6c757d); }
+  .cm-machine-weekly tbody th::before { content:'Impastatrice'; }
+  .cm-machine-weekly tbody td:nth-child(2)::before { content:'Capacità / blocco'; }
+  .cm-machine-weekly tbody td:nth-child(3)::before { content:'Blocchi prenotati'; }
+  .cm-machine-weekly tbody td:nth-child(4)::before { content:'Impiego'; }
+  .cm-machine-weekly tbody td:nth-child(5)::before { content:'Saturazione media'; }
+  .cm-machine-weekly tbody td[colspan] { grid-column:1/-1; }
+}
+@media(max-width:600px) {
+  .cm-header { align-items:flex-start; }
+  .cm-links a { flex:1 1 auto; }
+  .cm-stat-grid { gap:.4rem; }
+  .cm-stat { padding:.5rem .6rem; }
+  .cm-calendar tbody { grid-template-columns:1fr; padding:.4rem; }
+}

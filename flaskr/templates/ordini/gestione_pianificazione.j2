@@ -1,7 +1,8 @@
 {% extends "base.j2" %}
 {% block title %}Gestione pianificazione #{{ piano.IdPianificazione }}{% endblock %}
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+<div class="pan-page pan-detail-page">
+<header class="pan-page-header">
   <div>
     <h1 class="h3 mb-1">Pianificazione #{{ piano.IdPianificazione }}</h1>
     <p class="text-secondary mb-0">{{ piano.CodArt }} · {{ piano.DataProduzione.strftime('%d/%m/%Y') }} · Blocco {{ piano.BloccoIniziale }}</p>
@@ -11,20 +12,20 @@
     <a class="btn btn-outline-secondary" href="{{ url_for('ordini_cliente.ordini_cliente') }}">Ordini</a>
     <a class="btn btn-outline-primary" href="{{ url_for('ordini_cliente.pianificazioni_chiuse') }}">Storico</a>
   </div>
+</header>
+<div class="pan-kpi-grid">
+  <div class="pan-kpi"><small class="pan-kpi-label">Pezzi da produrre</small><div class="pan-kpi-value">{{ piano.PanettoniPianificati }}</div></div>
+  <div class="pan-kpi"><small class="pan-kpi-label">Cotte</small><div class="pan-kpi-value">{{ piano.NumeroCotte }}</div></div>
+  <div class="pan-kpi"><small class="pan-kpi-label">Peso impasto</small><div class="pan-kpi-value">{{ '%.2f'|format(piano.PesoTotale|float / 1000) }} kg</div></div>
+  <div class="pan-kpi"><small class="pan-kpi-label">Prelievi / surplus stock</small><div class="pan-kpi-value">{{ totale_da_stock }} / {{ piano.QtaStockGenerata if piano.QtaStockGenerata is not none else 'N/D' }} pz</div></div>
 </div>
-<div class="row g-3 mb-4">
-  <div class="col-sm-3"><div class="border rounded p-3 h-100"><small class="text-secondary">Pezzi da produrre</small><div class="h4 mb-0">{{ piano.PanettoniPianificati }}</div></div></div>
-  <div class="col-sm-3"><div class="border rounded p-3 h-100"><small class="text-secondary">Cotte</small><div class="h4 mb-0">{{ piano.NumeroCotte }}</div></div></div>
-  <div class="col-sm-3"><div class="border rounded p-3 h-100"><small class="text-secondary">Peso impasto</small><div class="h4 mb-0">{{ '%.2f'|format(piano.PesoTotale|float / 1000) }} kg</div></div></div>
-  <div class="col-sm-3"><div class="border rounded p-3 h-100"><small class="text-secondary">Prelievi / surplus stock</small><div class="h4 mb-0">{{ totale_da_stock }} / {{ piano.QtaStockGenerata if piano.QtaStockGenerata is not none else 'N/D' }} pz</div></div></div>
-</div>
-<section class="mb-4">
-  <h2 class="h5">Ordini associati</h2>
-  <div class="table-responsive border rounded" style="max-height:340px;overflow:auto">
-    <table class="table table-striped align-middle mb-0">
-      <thead class="table-light"><tr><th>Ordine</th><th>Cliente</th><th>Quantità impegnata</th><th>Da stock</th><th>Da produrre</th><th>Stato</th></tr></thead>
+<section class="pan-panel mb-3">
+  <div class="pan-panel-header"><h2 class="pan-section-title">Ordini associati</h2></div>
+  <div class="table-responsive">
+    <table class="table table-striped table-hover align-middle mb-0 pan-table pan-mobile-cards">
+      <thead><tr><th>Ordine</th><th>Cliente</th><th>Quantità impegnata</th><th>Da stock</th><th>Da produrre</th><th>Stato</th></tr></thead>
       <tbody>
-      {% for a, o in associazioni %}<tr><td>{{ a.IdDocumento }}-{{ a.IdRiga }}</td><td>{{ o.Cliente.RagioneSociale }}</td><td>{{ a.QtaPianificata }}</td><td>{{ a.QtaDaStock or 0 }}</td><td>{{ a.QtaPianificata - (a.QtaDaStock or 0) }}</td><td>{{ a.Stato }}</td></tr>
+      {% for a, o in associazioni %}<tr><td data-label="Ordine">{{ a.IdDocumento }}-{{ a.IdRiga }}</td><td data-label="Cliente">{{ o.Cliente.RagioneSociale }}</td><td data-label="Quantità impegnata">{{ a.QtaPianificata }}</td><td data-label="Da stock">{{ a.QtaDaStock or 0 }}</td><td data-label="Da produrre">{{ a.QtaPianificata - (a.QtaDaStock or 0) }}</td><td data-label="Stato">{{ a.Stato }}</td></tr>
       {% else %}<tr><td colspan="6">Nessun ordine associato</td></tr>{% endfor %}
       </tbody>
     </table>
@@ -33,7 +34,7 @@
 {% if piano.StatoRigaOrdine == 'In produzione' %}
 <div class="row g-3">
   <div class="col-lg-6">
-    <section class="card h-100"><div class="card-body">
+    <section class="card pan-panel h-100"><div class="card-body">
       <h2 class="h5">Conferma completamento</h2>
       <p>Chiude questa pianificazione e tutte le sue righe. Le quantità già impegnate restano contabilizzate; il surplus non viene accreditato nuovamente.</p>
       <form method="post" action="{{ url_for('ordini_cliente.conferma_chiusura_pianificazione', IdPianificazione=piano.IdPianificazione) }}" onsubmit="return confirm('Confermare la chiusura definitiva della pianificazione #{{ piano.IdPianificazione }}?')">
@@ -42,7 +43,7 @@
     </div></section>
   </div>
   <div class="col-lg-6">
-    <section class="card border-danger h-100"><div class="card-body">
+    <section class="card pan-panel border-danger h-100"><div class="card-body">
       <h2 class="h5 text-danger">Annulla pianificazione</h2>
       <p>Libera le impastatrici, restituisce lo stock prelevato e storna il surplus accreditato. Non cancella lo storico.</p>
       {% set storico_bloccato = piano.QtaStockGenerata is none and surplus_teorico != 0 %}
@@ -89,6 +90,7 @@
 <div class="alert alert-info">Questa pianificazione non è più in produzione: non è possibile eseguire nuovamente chiusura o annullamento.</div>
 {% endif %}
 {% if registro %}
-<section class="mt-4"><h2 class="h5">Registro operazioni</h2><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Data</th><th>Evento</th><th>Operatore</th><th>Motivo</th><th>Stock restituito</th><th>Stock stornato</th></tr></thead><tbody>{% for e in registro %}<tr><td>{{ e.DataOperazione.strftime('%d/%m/%Y %H:%M') }}</td><td>{{ e.Azione }}</td><td>{{ e.Operatore }}</td><td>{{ e.Motivo or '—' }}</td><td>{{ e.StockRestituito }}</td><td>{{ e.StockStornato }}</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="pan-panel mt-3"><div class="pan-panel-header"><h2 class="pan-section-title">Registro operazioni</h2></div><div class="table-responsive"><table class="table table-sm table-bordered pan-table pan-mobile-cards"><thead><tr><th>Data</th><th>Evento</th><th>Operatore</th><th>Motivo</th><th>Stock restituito</th><th>Stock stornato</th></tr></thead><tbody>{% for e in registro %}<tr><td data-label="Data">{{ e.DataOperazione.strftime('%d/%m/%Y %H:%M') }}</td><td data-label="Evento">{{ e.Azione }}</td><td data-label="Operatore">{{ e.Operatore }}</td><td data-label="Motivo">{{ e.Motivo or '—' }}</td><td data-label="Stock restituito">{{ e.StockRestituito }}</td><td data-label="Stock stornato">{{ e.StockStornato }}</td></tr>{% endfor %}</tbody></table></div></section>
 {% endif %}
+</div>
 {% endblock %}

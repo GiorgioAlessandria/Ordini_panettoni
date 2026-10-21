@@ -1,6 +1,6 @@
 {% extends 'base.j2' %}
 
-{% block title %}<title>Impostazioni produzione</title>{% endblock %}
+{% block title %}Impostazioni produzione{% endblock %}
 
 {% block head %}
     {{ super() }}
@@ -8,8 +8,8 @@
 {% endblock %}
 
 {% block content %}
-<div class="settings-wrapper">
-    <header class="settings-top mb-3">
+<div class="settings-wrapper pan-page pan-settings-page">
+    <header class="settings-top pan-page-header">
         <div>
             <a class="settings-back" href="{{ url_for('ordini_cliente.ordini_cliente') }}">← Torna agli ordini</a>
             <h1 class="h3 mt-2 mb-1">Impostazioni produzione</h1>
@@ -24,7 +24,7 @@
     {% if errore %}<div class="alert alert-danger">{{ errore }}</div>{% endif %}
 
     <div class="settings-layout">
-        <nav class="settings-sidebar card" aria-label="Sezioni impostazioni">
+        <nav class="settings-sidebar card pan-panel" aria-label="Sezioni impostazioni">
             <div class="card-body">
                 {% for gruppo in gruppi %}
                     <h2 class="settings-group-title">{{ gruppo }}</h2>
@@ -43,7 +43,7 @@
         </nav>
 
         <div class="settings-main">
-            <section class="card settings-panel">
+            <section class="card settings-panel pan-panel">
                 <div class="card-header settings-panel-header">
                     <div>
                         <h2 class="h5 mb-1">{{ spec.titolo }}</h2>
@@ -52,7 +52,7 @@
                     <a class="btn btn-primary btn-sm" href="{{ url_for('ordini_cliente.impostazioni_pagina', sezione=spec.slug) }}">+ Nuovo</a>
                 </div>
                 <div class="card-body">
-                    <form method="get" action="{{ url_for('ordini_cliente.impostazioni_pagina', sezione=spec.slug) }}" class="settings-search mb-3">
+                    <form method="get" action="{{ url_for('ordini_cliente.impostazioni_pagina', sezione=spec.slug) }}" class="settings-search pan-toolbar mb-3">
                         <label class="visually-hidden" for="settings-search">Cerca</label>
                         <input class="form-control" id="settings-search" type="search" name="q" value="{{ q }}" placeholder="Cerca per codice, nome o valore...">
                         <button class="btn btn-outline-primary" type="submit">Cerca</button>
@@ -60,7 +60,7 @@
                     </form>
 
                     {% if righe %}
-                        <div class="settings-results">
+                        <div class="settings-results pan-settings-records">
                             {% for record in righe %}
                                 <div class="settings-record">
                                     <div class="settings-record-info">
@@ -122,7 +122,7 @@
                 </div>
             </section>
 
-            <section class="card settings-panel" id="modulo-configurazione">
+            <section class="card settings-panel pan-panel" id="modulo-configurazione">
                 <div class="card-header settings-panel-header">
                     <h2 class="h5 mb-0">{{ 'Modifica' if record_modifica else 'Nuova configurazione' }}</h2>
                     {% if record_modifica %}

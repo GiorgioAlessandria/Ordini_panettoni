@@ -1,12 +1,12 @@
-<div class="cm-stat-grid" role="group" aria-label="Riepilogo della settimana">
-    <div class="cm-stat"><span>Impastatrici censite</span><strong>{{ riepilogo.numero_macchine }}</strong></div>
-    <div class="cm-stat"><span>Capacità nominale / blocco</span><strong>{{ '%.1f'|format(riepilogo.capacita_nominale) }} kg</strong></div>
-    <div class="cm-stat"><span>Blocchi-macchina occupati</span><strong>{{ riepilogo.blocchi_occupati }} / {{ riepilogo.totale_macchine_blocco }}</strong></div>
-    <div class="cm-stat"><span>Occupazione settimanale</span><strong>{{ riepilogo.occupazione_settimana }}%</strong></div>
-    <div class="cm-stat"><span>Saturazione media per blocco</span><strong>{% if riepilogo.saturazione_settimana is not none %}{{ riepilogo.saturazione_settimana }}%{% else %}N/D{% endif %}</strong></div>
+<div class="cm-stat-grid pan-machine-stat-grid" role="group" aria-label="Riepilogo della settimana">
+    <div class="cm-stat pan-machine-stat"><span>Impastatrici censite</span><strong>{{ riepilogo.numero_macchine }}</strong></div>
+    <div class="cm-stat pan-machine-stat"><span>Capacità nominale / blocco</span><strong>{{ '%.1f'|format(riepilogo.capacita_nominale) }} kg</strong></div>
+    <div class="cm-stat pan-machine-stat"><span>Blocchi-macchina occupati</span><strong>{{ riepilogo.blocchi_occupati }} / {{ riepilogo.totale_macchine_blocco }}</strong></div>
+    <div class="cm-stat pan-machine-stat"><span>Occupazione settimanale</span><strong>{{ riepilogo.occupazione_settimana }}%</strong></div>
+    <div class="cm-stat pan-machine-stat"><span>Saturazione media per blocco</span><strong>{% if riepilogo.saturazione_settimana is not none %}{{ riepilogo.saturazione_settimana }}%{% else %}N/D{% endif %}</strong></div>
 </div>
 
-<div class="cm-legend" aria-label="Legenda">
+<div class="cm-legend pan-machine-legend" aria-label="Legenda">
     <span><i class="cm-indicator cm-indicator-free"></i> Macchina libera</span>
     <span><i class="cm-indicator cm-indicator-used"></i> Macchina prenotata</span>
     <span><i class="cm-indicator cm-indicator-legacy"></i> Occupazione storica, kg non disponibili</span>
@@ -15,8 +15,8 @@
 {% if riepilogo.numero_macchine == 0 %}
     <p class="cm-empty">Non ci sono impastatrici nell'anagrafica. Verificare la tabella <code>anagrafica_impastatrici</code>.</p>
 {% else %}
-    <div class="cm-scroll" role="region" aria-label="Calendario settimanale per blocchi" tabindex="0">
-        <table class="cm-calendar">
+    <div class="cm-scroll pan-machine-grid-wrap" role="region" aria-label="Calendario settimanale per blocchi" tabindex="0">
+        <table class="cm-calendar pan-machine-calendar">
             <thead>
                 <tr>
                     <th scope="col" class="cm-slot-heading">Blocco</th>
@@ -91,9 +91,9 @@
     </div>
 {% endif %}
 
-<section class="cm-machine-weekly" aria-label="Riepilogo settimanale per singola impastatrice">
+<section class="cm-machine-weekly pan-panel" aria-label="Riepilogo settimanale per singola impastatrice">
     <h3>Riepilogo per impastatrice</h3>
-    <div class="cm-weekly-scroll">
+    <div class="cm-weekly-scroll pan-machine-week-wrap">
         <table>
             <thead><tr>
                 <th scope="col">Impastatrice</th>

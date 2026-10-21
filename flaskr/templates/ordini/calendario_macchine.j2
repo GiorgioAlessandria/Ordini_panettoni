@@ -1,6 +1,6 @@
 {% extends 'base.j2' %}
 
-{% block title %}<title>Calendario impiego impastatrici</title>{% endblock %}
+{% block title %}Calendario impiego impastatrici{% endblock %}
 
 {% block head %}
     {{ super() }}
@@ -8,20 +8,21 @@
 {% endblock %}
 
 {% block content %}
+<div class="pan-page pan-machines-page">
 <div class="cm-workspace">
-    <header class="cm-header">
+    <header class="cm-header pan-page-header">
         <div>
             <h1>Calendario impiego impastatrici</h1>
             <p>Disponibilità e carico pianificato delle macchine per giorno e blocco.</p>
         </div>
-        <nav class="cm-links" aria-label="Navigazione pagine">
+        <nav class="cm-links pan-page-actions" aria-label="Navigazione pagine">
             <a href="{{ url_for('ordini_cliente.ordini_calendario') }}">Calendario produzione</a>
             <a href="{{ url_for('ordini_cliente.ordini_cliente') }}">Gestione ordini</a>
             <a href="{{ url_for('ordini_cliente.stock_articoli') }}">Stock panettoni</a>
         </nav>
     </header>
 
-    <section class="cm-navigation" aria-label="Navigazione settimane">
+    <section class="cm-navigation pan-panel" aria-label="Navigazione settimane">
         <a class="cm-button" href="{{ url_for('ordini_cliente.calendario_macchine', settimana=riepilogo.precedente.isoformat()) }}" aria-label="Settimana precedente">&larr; Precedente</a>
         <h2>{{ riepilogo.lunedi.strftime('%d/%m/%Y') }} – {{ riepilogo.fine.strftime('%d/%m/%Y') }}</h2>
         <a class="cm-button" href="{{ url_for('ordini_cliente.calendario_macchine', settimana=riepilogo.successiva.isoformat()) }}" aria-label="Settimana successiva">Successiva &rarr;</a>
@@ -33,7 +34,7 @@
         </form>
     </section>
 
-    <section aria-label="Occupazione settimanale"
+    <section class="pan-panel" aria-label="Occupazione settimanale"
              id="cm-dati"
              hx-get="{{ url_for('ordini_cliente.calendario_macchine_griglia', settimana=riepilogo.lunedi.isoformat()) }}"
              hx-trigger="every 30s, pianificazioneSalvata from:body"
@@ -54,6 +55,7 @@
   </div>
 </div>
 
+</div>
 {% endblock %}
 
 {% block scripts %}

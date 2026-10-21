@@ -1,10 +1,10 @@
 {# Stesso riepilogo per la pagina ordini e per la modale. #}
 {% if riepilogo %}
-<div class="border rounded-3 bg-white p-3">
+<div class="pan-summary-content pan-panel p-3">
     <h6 class="fw-bold mb-3">Riepilogo ordini selezionati</h6>
-    <div class="table-responsive" style="max-height: 270px; overflow-y: auto;">
-        <table class="table table-sm table-striped table-bordered align-middle mb-0">
-            <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+    <div class="pan-table-wrap">
+        <table class="table table-sm table-striped align-middle mb-0 pan-table pan-responsive-records">
+            <thead class="table-light">
                 <tr>
                     <th scope="col">Ordine</th>
                     <th scope="col">Cliente</th>
@@ -18,13 +18,13 @@
             <tbody>
                 {% for riga in riepilogo.ordini_riepilogo %}
                     <tr>
-                        <td class="text-nowrap">{{ riga.IdDocumento }}-{{ riga.IdRigaDoc }}</td>
-                        <td>{{ riga.Cliente }}</td>
-                        <td>{{ riga.CodArt }}</td>
-                        <td>{{ riga.DesArt }}</td>
-                        <td class="text-nowrap">{{ riga.DataConsegna }}</td>
-                        <td class="text-end">{{ riga.QTA_ORD }}</td>
-                        <td class="text-end fw-semibold">{{ riga.QtaDisponibile }}</td>
+                        <td data-label="Ordine" class="text-nowrap">{{ riga.IdDocumento }}-{{ riga.IdRigaDoc }}</td>
+                        <td data-label="Cliente">{{ riga.Cliente }}</td>
+                        <td data-label="Articolo">{{ riga.CodArt }}</td>
+                        <td data-label="Descrizione">{{ riga.DesArt }}</td>
+                        <td data-label="Consegna" class="text-nowrap">{{ riga.DataConsegna }}</td>
+                        <td data-label="Q.tà ordinata" class="text-end">{{ riga.QTA_ORD }}</td>
+                        <td data-label="Q.tà disponibile" class="text-end fw-semibold">{{ riga.QtaDisponibile }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -38,20 +38,20 @@
     </div>
 
     <div class="row g-2 mt-2">
-        <div class="col-6 col-lg-3"><div class="border rounded p-2 h-100">
+        <div class="col-6 col-lg-3"><div class="pan-kpi h-100">
             <small class="text-muted d-block">Ordini selezionati</small>
             <strong>{{ riepilogo.numero_ordini }}</strong>
         </div></div>
-        <div class="col-6 col-lg-3"><div class="border rounded p-2 h-100">
+        <div class="col-6 col-lg-3"><div class="pan-kpi h-100">
             <small class="text-muted d-block">Panettoni disponibili</small>
             <strong>{{ riepilogo.qta_panettoni }}</strong>
         </div></div>
-        <div class="col-6 col-lg-3"><div class="border rounded p-2 h-100">
+        <div class="col-6 col-lg-3"><div class="pan-kpi h-100">
             <small class="text-muted d-block">Cotte necessarie</small>
             <strong>{{ riepilogo.numero_cotte }}</strong>
             <small class="text-muted d-block">{{ riepilogo.capienza_cotta }} pezzi/cotta</small>
         </div></div>
-        <div class="col-6 col-lg-3"><div class="border rounded p-2 h-100">
+        <div class="col-6 col-lg-3"><div class="pan-kpi h-100">
             <small class="text-muted d-block">Panettoni per completare l'ultima cotta</small>
             <strong>{{ riepilogo.panettoni_mancanti_cotta }}</strong>
         </div></div>
