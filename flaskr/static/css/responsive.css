@@ -66,3 +66,21 @@ body.pan-app-body :is(img,video,iframe,canvas) { max-width:100%; }
   .pan-orders-page .ordini-filtro { flex-basis:100%; }
   .pan-orders-page .ordini-panel .ordini-table :is(th,td) { font-size:.7rem; padding:.25rem .17rem; }
 }
+
+/* 20261021-5: annulla definitivamente la paginazione e la compressione colonne. */
+body.pan-app-body .pan-orders-page .ordini-table-scroll {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    max-height: none !important;
+}
+body.pan-app-body .pan-orders-page .ordini-table {
+    width: max-content !important;
+    min-width: max(1200px, 100%) !important;
+    max-width: none !important;
+    table-layout: auto !important;
+}
+body.pan-app-body .pan-orders-page .ordini-table :is(thead th,tbody td) { display: table-cell !important; }
+body.pan-app-body .pan-orders-page .ordini-paginazione { display: none !important; }
+@media(max-width:767.98px) {
+    body.pan-app-body .pan-orders-page .ordini-table-scroll { height: min(48dvh,430px); }
+}

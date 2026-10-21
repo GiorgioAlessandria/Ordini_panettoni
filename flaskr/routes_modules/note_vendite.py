@@ -16,6 +16,28 @@ def _ordine_esistente(id_documento, id_riga):
     return ordine
 
 
+
+
+def _carica_note(id_documento, id_riga):
+    return db.session.scalars(select(NotaVenditeOrdine).where(
+        NotaVenditeOrdine.IdDocumento == id_documento,
+        NotaVenditeOrdine.IdRigaDoc == id_riga,
+    ).order_by(NotaVenditeOrdine.CreatoIl.desc(), NotaVenditeOrdine.Id.desc())).all()
+
+
+def _render_pannello_note(id_documento, id_riga):
+    return render_template(
+        "ordini/_partials/_note_vendite_pannello.j2",
+        ordine=_ordine_esistente(id_documento, id_riga),
+        note=_carica_note(id_documento, id_riga),
+    )
+
+
+@bp_ordini_cliente.get("/ordine/<int:id_documento>/<int:id_riga>/note/pannello", endpoint="note_vendite_pannello")
+@solo_ruoli("admin", "utente_produzione", "utente_vendite")
+def note_vendite_pannello(id_documento, id_riga):
+    return _render_pannello_note(id_documento, id_riga)
+
 @bp_ordini_cliente.get("/ordine/<int:id_documento>/<int:id_riga>/note", endpoint="note_vendite_ordine")
 @solo_ruoli("admin", "utente_produzione", "utente_vendite")
 def note_vendite_ordine(id_documento, id_riga):
@@ -39,6 +61,8 @@ def aggiungi_nota_vendite(id_documento, id_riga):
         IdDocumento=id_documento, IdRigaDoc=id_riga,
         AutoreId=g.user.id, AutoreNome=g.user.username, Testo=testo))
     db.session.commit()
+    if request.headers.get("HX-Request") == "true":
+        return _render_pannello_note(id_documento, id_riga)
     flash("Commento salvato.", "success")
     return redirect(url_for("ordini_cliente.note_vendite_ordine", id_documento=id_documento, id_riga=id_riga))
 
@@ -58,6 +82,8 @@ def modifica_nota_vendite(nota_id):
     nota.Testo = testo
     nota.ModificatoIl = datetime.now(timezone.utc)
     db.session.commit()
+    if request.headers.get("HX-Request") == "true":
+        return _render_pannello_note(nota.IdDocumento, nota.IdRigaDoc)
     flash("Commento modificato.", "success")
     return redirect(url_for("ordini_cliente.note_vendite_ordine",
                             id_documento=nota.IdDocumento, id_riga=nota.IdRigaDoc))

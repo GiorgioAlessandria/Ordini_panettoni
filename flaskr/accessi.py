@@ -25,6 +25,7 @@ VENDITE_GET = frozenset({
     "ordini_cliente.calendario_riepilogo_ordine",
     "ordini_cliente.calendario_riepilogo_piano",
     "ordini_cliente.note_vendite_ordine",
+    "ordini_cliente.note_vendite_pannello",
 })
 VENDITE_POST = frozenset({
     "ordini_cliente.aggiungi_nota_vendite",

@@ -23,7 +23,6 @@
                 selezionati: new Set(),
                 scrollX: 0,
                 scrollY: 0,
-                pagina: 1,
                 focus: null,
             });
         }
@@ -77,42 +76,12 @@
         ordinate.forEach((riga) => tbody.appendChild(riga));
     }
 
-    function creaPaginatore(contenitore) {
-        const form = contenitore.querySelector(".ordini-form");
-        const scroll = form?.querySelector(".ordini-table-scroll");
-        if (!scroll) return null;
-        let nav = form.querySelector("[data-ordini-paginatore]");
-        if (!nav) {
-            nav = document.createElement("nav");
-            nav.className = "ordini-paginazione";
-            nav.dataset.ordiniPaginatore = "";
-            nav.setAttribute("aria-label", "Pagine " + (contenitore.id === "ordini_cliente_da_produrre" ? "ordini da produrre" : "ordini in produzione"));
-            nav.innerHTML = `
-                <button type="button" class="btn btn-outline-primary btn-sm" data-pagina="precedente">← Precedente</button>
-                <span class="ordini-pagina-testo" data-pagina-stato aria-live="polite"></span>
-                <button type="button" class="btn btn-outline-primary btn-sm" data-pagina="successiva">Successiva →</button>`;
-            scroll.insertAdjacentElement("afterend", nav);
-        }
-        return nav;
-    }
-
-    function righePerPagina(contenitore, corrispondenti) {
-        const scroll = contenitore.querySelector(".ordini-table-scroll");
-        if (!scroll || !scroll.clientHeight) return window.innerHeight < 800 ? 5 : 8;
-        const intestazione = contenitore.querySelector(".ordini-table thead");
-        const altezzaTestata = intestazione?.getBoundingClientRect().height || 40;
-        const campione = corrispondenti.find((r) => r.getBoundingClientRect().height > 0);
-        const altezzaRiga = campione ? Math.max(36, campione.getBoundingClientRect().height) : 43;
-        const spazio = Math.max(100, scroll.clientHeight - altezzaTestata - 5);
-        return Math.max(2, Math.min(16, Math.floor(spazio / altezzaRiga)));
-    }
-
     function applicaFiltri(contenitore) {
         const stato = statoDi(contenitore);
         const filtri = stato.filtri;
         const ricerca = (filtri.ricerca || "").trim().toLocaleLowerCase("it");
         const tutti = righe(contenitore);
-        // Verifica i filtri sull'intero dataset prima di paginare.
+        // Verifica i filtri sull'intero dataset prima di mostrare le righe.
         const corrispondenti = tutti.filter((riga) => (
             (!ricerca || (riga.dataset.filterText || "").toLocaleLowerCase("it").includes(ricerca)) &&
             (!filtri.prezzatura || riga.dataset.filterPrezzatura === filtri.prezzatura) &&
@@ -123,17 +92,11 @@
             (!filtri.dal || riga.dataset.filterConsegna >= filtri.dal) &&
             (!filtri.al || riga.dataset.filterConsegna <= filtri.al)
         ));
-        const nav = creaPaginatore(contenitore);
-        // Misura mentre una riga è visibile, poi nasconde tutte quelle fuori pagina.
-        const riferimento = corrispondenti[0];
-        if (riferimento) { riferimento.hidden = false; riferimento.style.display = ""; }
-        const perPagina = righePerPagina(contenitore, corrispondenti);
-        const pagine = Math.max(1, Math.ceil(corrispondenti.length / perPagina));
-        stato.pagina = Math.max(1, Math.min(stato.pagina, pagine));
-        const inizio = (stato.pagina - 1) * perPagina;
-        const paginati = new Set(corrispondenti.slice(inizio, inizio + perPagina));
+        // Nessuna paginazione: ogni riga che soddisfa i filtri resta nel DOM
+        // ed e' raggiungibile scorrendo la tabella in verticale.
+        const visibili = new Set(corrispondenti);
         for (const riga of tutti) {
-            const visibile = paginati.has(riga);
+            const visibile = visibili.has(riga);
             riga.hidden = !visibile;
             riga.style.display = visibile ? "" : "none";
         }
@@ -142,13 +105,6 @@
             const scelti = contenitore.querySelectorAll('input[name="ordini_selezionati"]:checked').length;
             contatore.textContent = `${corrispondenti.length} di ${tutti.length} righe` +
                 (contenitore.id === "ordini_cliente_da_produrre" ? ` · ${scelti} selezionate` : "");
-        }
-        if (nav) {
-            const testo = nav.querySelector("[data-pagina-stato]");
-            if (testo) testo.textContent = `${stato.pagina} / ${pagine}`;
-            nav.querySelector('[data-pagina="precedente"]').disabled = stato.pagina <= 1;
-            nav.querySelector('[data-pagina="successiva"]').disabled = stato.pagina >= pagine;
-            nav.hidden = corrispondenti.length === 0 || tutti.length === 0;
         }
         const tbody = contenitore.querySelector(".ordini-table tbody");
         if (!tbody) return;
@@ -188,6 +144,11 @@
                 (input) => input.value
             ));
         }
+        const area = contenitore.querySelector(".ordini-table-scroll");
+        if (area) {
+            stato.scrollX = area.scrollLeft;
+            stato.scrollY = area.scrollTop;
+        }
         const attivo = document.activeElement;
         stato.focus = attivo && contenitore.contains(attivo) && attivo.dataset.filter ? {
             filtro: attivo.dataset.filter,
@@ -217,6 +178,11 @@
         }
         applicaOrdinamento(contenitore);
         applicaFiltri(contenitore);
+        const area = contenitore.querySelector(".ordini-table-scroll");
+        if (area) {
+            area.scrollLeft = stato.scrollX;
+            area.scrollTop = stato.scrollY;
+        }
         if (stato.focus) {
             const input = contenitore.querySelector(`[data-filter="${stato.focus.filtro}"]`);
             input?.focus({ preventScroll: true });
@@ -255,7 +221,6 @@
         const contenitore = contenitoreDi(elemento);
         if (!contenitore) return;
         statoDi(contenitore).filtri[elemento.dataset.filter] = elemento.value;
-        statoDi(contenitore).pagina = 1;
         applicaFiltri(contenitore);
     });
 
@@ -275,21 +240,11 @@
             elemento.dataset.priorityLevel = elemento.value;
         } else if (elemento.matches("[data-filter]")) {
             statoDi(contenitore).filtri[elemento.dataset.filter] = elemento.value;
-            statoDi(contenitore).pagina = 1;
             applicaFiltri(contenitore);
         }
     });
 
     document.body.addEventListener("click", (event) => {
-        const cambio = event.target.closest?.("[data-pagina]");
-        if (cambio) {
-            const contenitore = contenitoreDi(cambio);
-            if (!contenitore) return;
-            const stato = statoDi(contenitore);
-            stato.pagina += cambio.dataset.pagina === "successiva" ? 1 : -1;
-            applicaFiltri(contenitore);
-            return;
-        }
         const sort = event.target.closest?.("[data-sort-key]");
         if (sort) {
             const contenitore = contenitoreDi(sort);
@@ -302,7 +257,6 @@
                 tipo: sort.dataset.sortType || "text",
                 direzione: precedente?.chiave === chiave && precedente.direzione === "asc" ? "desc" : "asc",
             };
-            stato.pagina = 1;
             applicaOrdinamento(contenitore);
             applicaFiltri(contenitore);
             return;
@@ -313,7 +267,6 @@
             if (!contenitore) return;
             const stato = statoDi(contenitore);
             stato.filtri = {};
-            stato.pagina = 1;
             contenitore.querySelectorAll("[data-filter]").forEach((input) => { input.value = ""; });
             applicaFiltri(contenitore);
         }

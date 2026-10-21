@@ -1,0 +1,46 @@
+{# Frammento HTMX: non contiene <html> o modali. #}
+<div class="pan-commenti-summary mb-2">
+    <strong>Ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}</strong>
+    <span class="text-secondary small ms-2">{{ ordine.CodArt }} · {{ ordine.DesArt }}</span>
+</div>
+{% if puo_scrivere_note_vendite %}
+<form method="post" class="pan-commenti-new mb-3"
+      hx-post="{{ url_for('ordini_cliente.aggiungi_nota_vendite', id_documento=ordine.IdDocumento, id_riga=ordine.IdRigaDoc) }}"
+      hx-target="#pan-commenti-contenuto" hx-swap="innerHTML">
+    <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
+    <label class="form-label fw-semibold small" for="pan-commenti-nuovo">Nuovo commento vendite</label>
+    <div class="d-flex gap-2 flex-wrap align-items-start">
+        <textarea id="pan-commenti-nuovo" name="testo" class="form-control form-control-sm"
+                  maxlength="2000" rows="2" required placeholder="Scrivi un commento per questo ordine..."></textarea>
+        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
+    </div>
+</form>
+{% else %}
+<div class="text-secondary small mb-2">Sola lettura: solo vendite e amministratori possono modificare i commenti.</div>
+{% endif %}
+<div class="pan-commenti-lista" aria-label="Commenti associati all'ordine">
+{% for nota in note %}
+    <article class="pan-commento">
+        <div class="pan-commento-meta">
+            <strong>{{ nota.AutoreNome }}</strong>
+            <time>{{ nota.CreatoIl.strftime('%d/%m/%Y %H:%M') }}</time>
+            {% if nota.ModificatoIl %}<span>· modificato</span>{% endif %}
+        </div>
+        <p class="pan-commento-testo">{{ nota.Testo }}</p>
+        {% if ruolo_corrente == 'admin' or (ruolo_corrente == 'utente_vendite' and nota.AutoreId == g.user.id) %}
+        <details class="pan-commento-modifica">
+            <summary class="small">Modifica il tuo commento</summary>
+            <form class="d-flex flex-wrap gap-2 align-items-start mt-2" method="post"
+                  hx-post="{{ url_for('ordini_cliente.modifica_nota_vendite', nota_id=nota.Id) }}"
+                  hx-target="#pan-commenti-contenuto" hx-swap="innerHTML">
+                <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
+                <textarea class="form-control form-control-sm" name="testo" maxlength="2000" rows="2" required>{{ nota.Testo }}</textarea>
+                <button class="btn btn-outline-primary btn-sm" type="submit">Aggiorna</button>
+            </form>
+        </details>
+        {% endif %}
+    </article>
+{% else %}
+    <p class="text-secondary small mb-0">Nessun commento per questo ordine.</p>
+{% endfor %}
+</div>

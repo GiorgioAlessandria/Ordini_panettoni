@@ -400,3 +400,117 @@
 }
 .pan-menu-button:focus-visible { outline: 3px solid var(--pan-primary); outline-offset: 2px; }
 /* Le azioni sulla pagina restano contestuali; i link globali vivono solo nel menu. */
+
+/* ---------------------------------------------------------------------
+ * Ordini 2026-10-21-5: scorrimento delle tabelle, niente paginazione.
+ * Commenti vendite nel pannello fisso, indipendente dagli swap HTMX.
+ * Queste regole prevalgono sui vecchi stili della vista paginata.
+ * --------------------------------------------------------------------- */
+.pan-app-body .pan-orders-page .ordini-panel {
+    container-type: normal;
+}
+.pan-app-body .pan-orders-page .ordini-table-scroll,
+.pan-app-body .pan-orders-page .pan-orders-table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none !important;
+    width: 100%;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    scrollbar-width: auto;
+    border: 1px solid var(--pan-border);
+    border-radius: .35rem;
+}
+.pan-app-body .pan-orders-page .ordini-table-scroll::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+}
+.pan-app-body .pan-orders-page .ordini-table-scroll::-webkit-scrollbar-thumb {
+    background: #b8c5d4;
+    border: 2px solid #f4f6fa;
+    border-radius: 8px;
+}
+.pan-app-body .pan-orders-page .ordini-table {
+    table-layout: auto !important;
+    width: max-content !important;
+    min-width: max(1200px, 100%) !important;
+    max-width: none !important;
+    font-size: .82rem;
+}
+.pan-app-body .pan-orders-page .ordini-form[data-tipo-tabella="In produzione"] .ordini-table {
+    min-width: max(1370px, 100%) !important;
+}
+/* Tutte le colonne rimangono accessibili; nessuna viene nascosta sui breakpoint. */
+.pan-app-body .pan-orders-page .ordini-table thead tr > th,
+.pan-app-body .pan-orders-page .ordini-table tbody tr > td {
+    display: table-cell !important;
+    white-space: normal;
+    overflow-wrap: normal;
+    padding: .48rem .6rem;
+    vertical-align: middle;
+}
+.pan-app-body .pan-orders-page .ordini-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    min-width: 88px;
+    white-space: normal;
+    background: var(--pan-info) !important;
+}
+.pan-app-body .pan-orders-page .ordini-table thead th:first-child { min-width: 100px; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="cliente"] { min-width: 210px; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="descrizione"] { min-width: 190px; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="articolo"] { min-width: 128px; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="quantita"],
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="ordinata"] { min-width: 100px; }
+.pan-app-body .pan-orders-page .ordini-table .piano-plurale { max-width: 270px; }
+.pan-app-body .pan-orders-page .ordini-table .piano-ordini-elenco { min-width: 250px; }
+.pan-app-body .pan-orders-page .ordini-paginazione { display: none !important; }
+.pan-app-body .pan-orders-page .ordini-layout-toggle { display: none !important; }
+.pan-orders-page .ordini-table tr.pan-commenti-row-selected > td {
+    box-shadow: inset 0 0 0 9999px rgba(13,110,253,.095);
+}
+.pan-orders-page .ordini-table tr.pan-commenti-row-selected > td:first-child {
+    border-left: 3px solid var(--pan-primary);
+}
+.pan-orders-page .pan-commenti-select { white-space: nowrap; padding: .18rem .35rem; font-size: .74rem; }
+
+/* La tabella superiore occupa lo spazio residuo; i commenti restano sempre a vista. */
+@media (min-width: 768px) {
+    body.pan-app-body:has(.pan-orders-page) > .pan-main { min-height: 0; }
+    .pan-orders-page .ordini-panels { flex: 1 1 auto; min-height: 0; }
+    .pan-orders-page .ordini-panel { min-height: 0; }
+    .pan-orders-page .ordini-panel-body { min-height: 0; }
+    .pan-orders-page .ordini-form { flex: 1 1 auto; min-height: 0; }
+    .pan-orders-page .pan-commenti-panel { flex: 0 0 min(29dvh, 290px); min-height: 190px; }
+}
+.pan-orders-page .pan-commenti-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    margin-top: .65rem;
+}
+.pan-orders-page .pan-commenti-header { flex: 0 0 auto; padding: .45rem .75rem; }
+.pan-orders-page .pan-commenti-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: .65rem .75rem; }
+.pan-orders-page .pan-commenti-picker { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.pan-orders-page .pan-commenti-picker[hidden] { display: none; }
+.pan-orders-page .pan-commenti-picker .form-select { width: auto; max-width: 100%; }
+.pan-orders-page .pan-commenti-new { border-bottom: 1px solid var(--pan-border); padding-bottom: .65rem; }
+.pan-orders-page .pan-commenti-new textarea,
+.pan-orders-page .pan-commento-modifica textarea { min-width: min(300px, 100%); flex: 1 1 20rem; }
+.pan-orders-page .pan-commento { padding: .5rem .6rem; border: 1px solid var(--pan-border); background: #fff; border-radius: .35rem; margin-bottom: .45rem; }
+.pan-orders-page .pan-commento-meta { display: flex; gap: .5rem; flex-wrap: wrap; align-items: baseline; font-size: .75rem; color: var(--pan-muted); }
+.pan-orders-page .pan-commento-meta strong { color: var(--pan-text); }
+.pan-orders-page .pan-commento-testo { margin: .3rem 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; }
+.pan-orders-page .pan-commento-modifica summary { color: var(--pan-primary); cursor: pointer; }
+@media (max-width: 767.98px) {
+    /* Sui telefoni l'altezza torna naturale; scorrono soltanto le tabelle. */
+    body.pan-app-body:has(.pan-orders-page) { height: auto; min-height: 100dvh; overflow-y: auto; }
+    body.pan-app-body:has(.pan-orders-page) > .pan-main { overflow: visible; height: auto; }
+    .pan-orders-page .ordini-panels { flex: 0 0 auto; }
+    .pan-app-body .pan-orders-page .ordini-table-scroll { height: min(48dvh, 430px); min-height: 220px; }
+    .pan-orders-page .pan-commenti-panel { max-height: 60dvh; min-height: 250px; }
+}
