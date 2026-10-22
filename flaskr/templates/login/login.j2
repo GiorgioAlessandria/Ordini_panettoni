@@ -1,31 +1,29 @@
-{% extends "base.j2" %}
-
-{% block title %}
-    Login
+{% extends 'base.j2' %}
+{% block title %}Accesso · Ordini Panettoni{% endblock %}
+{% block head %}
+  {{ super() }}
+  <style>
+    .pan-login-wrap{min-height:min(75dvh,680px);display:grid;place-items:center;padding:1rem}
+    .pan-login-card{width:min(100%,420px);background:#fff;border:1px solid var(--pan-border,#dee2e6);border-radius:.5rem;box-shadow:0 3px 16px rgba(0,0,0,.07)}
+    .pan-login-card .card-body{padding:1.5rem}
+    .pan-login-card .form-control{font-size:1.15rem}
+  </style>
 {% endblock %}
-
 {% block content %}
-    <form method="post">
-        <label for="username">
-            Username
-        </label>
-        <input
-                id="username"
-                name="username"
-                type="text"
-                required
-        >
-        <label for="password">
-            Password
-        </label>
-        <input
-                id="password"
-                name="password"
-                type="password"
-                required
-        >
-        <button type="submit">
-            Login
-        </button>
-    </form>
+<div class="pan-login-wrap">
+  <section class="pan-login-card" aria-labelledby="titolo-login">
+    <div class="card-body">
+      <h1 class="h4 mb-1" id="titolo-login">Ordini Panettoni</h1>
+      <p class="text-secondary small mb-4">Inserisci la tua password personale.</p>
+      <form action="{{ url_for('auth.login') }}" method="post" autocomplete="on">
+        <input type="hidden" name="csrf_login" value="{{ csrf_login }}">
+        <label for="login-password" class="form-label fw-semibold">Password</label>
+        <input id="login-password" name="password" type="password" class="form-control mb-2"
+               required autofocus autocomplete="current-password" spellcheck="false">
+        <p class="form-text mb-3">Non è necessario inserire il nome utente.</p>
+        <button class="btn btn-primary w-100" type="submit">Accedi</button>
+      </form>
+    </div>
+  </section>
+</div>
 {% endblock %}

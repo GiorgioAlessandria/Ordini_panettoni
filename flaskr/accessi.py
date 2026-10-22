@@ -4,11 +4,10 @@ from functools import wraps
 import click
 from flask import abort, g, redirect, request, session, url_for
 from werkzeug.security import generate_password_hash
+from flaskr.service.password_login_service import imposta_password
 from flaskr.extensions import db
 from flaskr.models.model_auth import User
 from flaskr.models.model_accessi import RuoloUtente, RUOLI
-
-MIN_PASSWORD_LENGTH = 5
 
 RUOLI_GESTIONALI = frozenset(("admin", "utente_produzione"))
 
@@ -112,22 +111,149 @@ def init_accessi(app):
     @click.argument("username")
     @click.password_option(confirmation_prompt=True)
     def bootstrap_admin(username, password):
-        """Crea il primo amministratore, o promuove un account esistente."""
+        """Crea un primo amministratore con password personalizzata."""
         from sqlalchemy import select
         if db.session.scalar(select(RuoloUtente).where(RuoloUtente.Ruolo == "admin")):
-            raise click.ClickException("Un admin esiste gia': usa /ordini/utenti.")
+            raise click.ClickException("Un admin esiste gia': usa imposta-password-login.")
         username = username.strip()
-        if not username or len(password) < MIN_PASSWORD_LENGTH:
-            raise click.ClickException(f"Username e password di almeno {MIN_PASSWORD_LENGTH} caratteri richiesti.")
+        if not username or not password:
+            raise click.ClickException("Username e password non vuoti obbligatori.")
         utente = db.session.scalar(select(User).where(User.username == username))
         if utente is None:
             utente = User(username=username, password=generate_password_hash(password))
             db.session.add(utente)
             db.session.flush()
-        record = db.session.get(RuoloUtente, utente.id)
-        if record:
-            record.Ruolo = "admin"
-        else:
+        try:
+            imposta_password(utente, password)
+        except ValueError as error:
+            db.session.rollback()
+            raise click.ClickException(str(error)) from error
+        ruolo = db.session.get(RuoloUtente, utente.id)
+        if ruolo is None:
             db.session.add(RuoloUtente(UserId=utente.id, Ruolo="admin"))
+        else:
+            ruolo.Ruolo = "admin"
         db.session.commit()
-        click.echo(f"Amministratore '{username}' configurato.")
+        click.echo(f"Account amministratore '{utente.username}' configurato con la password scelta.")
+
+    @app.cli.command("diagnostica-login")
+    def diagnostica_login():
+        """Mostra dove Flask cerca gli utenti, senza leggere password o codici."""
+        from sqlalchemy import inspect, text
+        from sqlalchemy.exc import SQLAlchemyError
+
+        db_url = db.engine.url
+        click.echo(f"Database collegato: {db_url.render_as_string(hide_password=True)}")
+        click.echo(f"Tabella usata dal modello User: {User.__tablename__}")
+        tabelle = set(inspect(db.engine).get_table_names())
+        click.echo("Tabelle utente presenti: " + ", ".join(
+            sorted(tabelle.intersection({"user", "users"}))
+        ) if tabelle.intersection({"user", "users"}) else "Tabelle utente presenti: NESSUNA")
+
+        # I nomi delle tabelle sono costanti, non input dell'utente.
+        for nome in ("users", "user"):
+            if nome not in tabelle:
+                continue
+            try:
+                with db.engine.connect() as connessione:
+                    righe = connessione.execute(
+                        text(f'SELECT id, username FROM "{nome}" ORDER BY id LIMIT 40')
+                    ).all()
+                    totale = connessione.execute(
+                        text(f'SELECT COUNT(*) FROM "{nome}"')
+                    ).scalar_one()
+                click.echo(f"Tabella {nome}: {totale} utenti. Primi 40: ")
+                for identificativo, username in righe:
+                    click.echo(f"  ID={identificativo}, username={username}")
+            except SQLAlchemyError as exc:
+                click.echo(f"Impossibile leggere {nome}: {exc.__class__.__name__}")
+
+        if User.__tablename__ not in tabelle:
+            click.secho("ATTENZIONE: il modello User punta a una tabella inesistente in questo database.", fg="red")
+            return
+        if User.__tablename__ != "users" and "users" in tabelle:
+            click.secho("ATTENZIONE: il modello NON legge la tabella 'users'. Verifica model_auth.py.", fg="yellow")
+
+        if RuoloUtente.__tablename__ in tabelle:
+            try:
+                from sqlalchemy import select
+                amministratori = db.session.execute(
+                    select(User.id, User.username)
+                    .join(RuoloUtente, RuoloUtente.UserId == User.id)
+                    .where(RuoloUtente.Ruolo == "admin")
+                ).all()
+                click.echo("Account con ruolo admin: " + (
+                    ", ".join(f"{username} (ID={identificativo})" for identificativo, username in amministratori)
+                    if amministratori else "nessuno"
+                ))
+            except SQLAlchemyError as exc:
+                click.echo(f"Impossibile leggere i ruoli: {exc.__class__.__name__}")
+        else:
+            click.echo("Tabella ruoli non trovata: verifica le migrazioni.")
+
+    @app.cli.command("imposta-password-login")
+    @click.argument("username", required=False)
+    @click.option("--user-id", type=int, help="ID numerico account, da diagnostica-login.")
+    @click.option("--admin", "seleziona_admin", is_flag=True, help="Seleziona l'unico account admin.")
+    @click.password_option(confirmation_prompt=True)
+    def imposta_password_login(username, user_id, seleziona_admin, password):
+        """Sostituisce la password di un account senza conoscerne quella vecchia.
+
+        ATTENZIONE: usare soltanto sulla console del server, con accesso
+        amministrativo. La password e' richiesta in maniera non visibile.
+        """
+        from sqlalchemy import inspect, select, func
+        selezioni = sum([bool(username), user_id is not None, seleziona_admin])
+        if selezioni != 1:
+            raise click.ClickException(
+                "Usa uno username, --user-id N o --admin (esattamente uno). "
+                "Puoi prima eseguire diagnostica-login."
+            )
+        tabelle = set(inspect(db.engine).get_table_names())
+        if User.__tablename__ not in tabelle:
+            raise click.ClickException(
+                f"Il modello punta a '{User.__tablename__}', ma la tabella non esiste. "
+                "Controlla model_auth.py e la configurazione database."
+            )
+        if User.__tablename__ != 'users' and 'users' in tabelle:
+            raise click.ClickException(
+                "Il modello non sta usando 'users', presente nel database. "
+                "Controlla model_auth.py prima di impostare una password."
+            )
+        if not password:
+            raise click.ClickException("La password non puo' essere vuota.")
+        utente = None
+        if user_id is not None:
+            utente = db.session.get(User, user_id) if user_id > 0 else None
+        elif seleziona_admin:
+            admins = db.session.scalars(
+                select(User).join(RuoloUtente, RuoloUtente.UserId == User.id)
+                .where(RuoloUtente.Ruolo == 'admin')
+            ).all()
+            if len(admins) != 1:
+                raise click.ClickException(
+                    f"Trovati {len(admins)} admin: usa diagnostica-login e --user-id N."
+                )
+            utente = admins[0]
+        else:
+            richiesto = username.strip()
+            utente = db.session.scalar(select(User).where(User.username == richiesto))
+            if utente is None:
+                candidati = db.session.scalars(
+                    select(User).where(func.lower(User.username) == richiesto.lower())
+                ).all()
+                if len(candidati) == 1:
+                    utente = candidati[0]
+        if utente is None:
+            raise click.ClickException("Account non trovato: esegui diagnostica-login.")
+        try:
+            imposta_password(utente, password)
+            db.session.commit()
+        except ValueError as error:
+            db.session.rollback()
+            raise click.ClickException(str(error)) from error
+        except Exception:
+            db.session.rollback()
+            raise
+        click.echo(f"Password aggiornata per {utente.username} (ID={utente.id}).")
+

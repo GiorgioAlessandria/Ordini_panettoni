@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/skeleton.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/forma/theme.css') }}">
     {# Tema ricavato dal gestionale Vendite, isolato sul nuovo applicativo. #}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/tema_panettoni.css', v='20261022-2') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tema_panettoni.css', v='20261021-10') }}">
     {% block head %}{% endblock %}
 </head>
 <body class="pan-app-body">
@@ -28,7 +28,8 @@
     'ordini_cliente.impostazioni_index': 'Impostazioni produzione',
     'ordini_cliente.impostazioni_pagina': 'Impostazioni produzione',
     'ordini_cliente.admin_utenti': 'Utenti e ruoli',
-    'ordini_cliente.note_vendite_ordine': 'Commenti vendite'
+    'ordini_cliente.note_vendite_ordine': 'Commenti vendite',
+    'auth.cambia_password_personale': 'Cambia password'
 } %}
 {% set pan_page_label = pan_titles.get(pan_current_page, 'Ordini Panettoni') %}
 {% if pan_current_page == 'ordini_cliente.gestione_pianificazione' and piano is defined %}
@@ -83,6 +84,12 @@
         <a class="pan-nav-item{{ ' is-active' if pan_is_settings else '' }}" href="{{ url_for('ordini_cliente.impostazioni_index') }}" {% if pan_is_settings %}aria-current="page"{% endif %}>Impostazioni</a>
         <a class="pan-nav-item{{ ' is-active' if pan_is_users else '' }}" href="{{ url_for('ordini_cliente.admin_utenti') }}" {% if pan_is_users %}aria-current="page"{% endif %}>Utenti e ruoli</a>
         {% endif %}
+        <a class="pan-nav-item mt-3 border-top pt-3{{ ' is-active' if pan_current_endpoint == 'auth.cambia_password_personale' else '' }}"
+           href="{{ url_for('auth.cambia_password_personale') }}">Cambia password</a>
+        <form method="post" action="{{ url_for('auth.logout') }}" class="mt-1">
+            <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
+            <button type="submit" class="btn pan-nav-item w-100 text-start border-0">Esci (logout)</button>
+        </form>
     </div>
 </nav>
 {% endif %}

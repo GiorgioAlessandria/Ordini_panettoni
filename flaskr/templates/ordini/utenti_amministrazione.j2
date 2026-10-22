@@ -1,35 +1,34 @@
 {% extends "base.j2" %}
 {% block title %}Utenti e ruoli{% endblock %}
 {% block content %}
-<div class="pan-page pan-admin-page">
-    <header class="pan-page-header">
-        <h1 class="h3 mb-0">Utenti e ruoli</h1>
-    </header>
-    <section class="card pan-panel mb-3"><div class="card-body">
-        <h2 class="h5">Crea utente</h2>
-        <form action="{{ url_for('ordini_cliente.admin_crea_utente') }}" method="post" class="row g-2 align-items-end">
+<div class="container-fluid py-3">
+    <div class="card p-3 mb-4">
+        <h2 class="h5">Crea utente</h2><p class="small text-secondary">Il nome utente viene visualizzato nell'intestazione. Ogni password deve essere diversa da quelle degli altri account.</p>
+        <form action="{{ url_for('ordini_cliente.admin_crea_utente') }}" method="post" class="row g-3">
             <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
-            <div class="col-lg-3 col-md-6"><label class="form-label">Username</label><input name="username" class="form-control" required maxlength="120"></div>
-            <div class="col-lg-3 col-md-6"><label class="form-label">Password (min. {{ min_password_length }} caratteri)</label><input name="password" type="password" minlength="{{ min_password_length }}" class="form-control" autocomplete="new-password" required></div>
-            <div class="col-lg-3 col-md-6"><label class="form-label">Ruolo</label><select name="ruolo" class="form-select">{% for ruolo in ruoli_validi %}<option value="{{ ruolo }}">{{ ruolo }}</option>{% endfor %}</select></div>
-            <div class="col-lg-3 col-md-6 d-flex align-items-end"><button class="btn btn-primary w-100" type="submit">Crea</button></div>
+            <div class="col-md-4"><label class="form-label">Username</label><input name="username" class="form-control" required maxlength="120"></div>
+            <div class="col-md-4"><label class="form-label">Password personale</label><input name="password" type="password" autocomplete="new-password" class="form-control" required></div>
+            <div class="col-md-3"><label class="form-label">Ruolo</label><select name="ruolo" class="form-select">{% for ruolo in ruoli_validi %}<option value="{{ ruolo }}">{{ ruolo }}</option>{% endfor %}</select></div>
+            <div class="col-md-1 d-flex align-items-end"><button class="btn btn-primary w-100" type="submit">Crea</button></div>
         </form>
-    </div></section>
-    <section class="card pan-panel"><div class="card-body">
+    </div>
+    <div class="card p-3">
         <h2 class="h5">Account esistenti</h2>
-        <div class="table-responsive pan-data-slot"><table class="table table-striped table-hover align-middle pan-table pan-admin-table">
-            <thead><tr><th>Utente</th><th>Ruolo corrente</th><th>Modifica ruolo</th><th>Reset password</th><th>Elimina</th></tr></thead>
+        <div class="table-responsive"><table class="table table-striped align-middle">
+            <thead><tr><th>Utente</th><th>Ruolo corrente</th><th>Modifica ruolo</th><th>Imposta password</th><th>Elimina</th></tr></thead>
             <tbody>{% for utente in utenti %}
-                <tr><td data-label="Utente">{{ utente.username }}</td><td data-label="Ruolo corrente">{{ ruoli.get(utente.id, 'Senza ruolo') }}</td>
-                    <td data-label="Modifica ruolo"><form method="post" action="{{ url_for('ordini_cliente.admin_cambia_ruolo', user_id=utente.id) }}" class="pan-inline-form">
+                <tr><td>{{ utente.username }}</td><td>{{ ruoli.get(utente.id, 'Senza ruolo') }}</td>
+                    <td><form method="post" action="{{ url_for('ordini_cliente.admin_cambia_ruolo', user_id=utente.id) }}" class="d-flex gap-2">
                         <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
                         <select name="ruolo" class="form-select form-select-sm" aria-label="Ruolo {{ utente.username }}">{% for ruolo in ruoli_validi %}<option value="{{ ruolo }}" {% if ruoli.get(utente.id) == ruolo %}selected{% endif %}>{{ ruolo }}</option>{% endfor %}</select>
                         <button class="btn btn-outline-primary btn-sm" type="submit">Salva</button></form></td>
-                    <td data-label="Reset password"><form method="post" action="{{ url_for('ordini_cliente.admin_cambia_password', user_id=utente.id) }}" class="pan-inline-form">
+                    <td><form method="post" action="{{ url_for('ordini_cliente.admin_cambia_password', user_id=utente.id) }}" class="d-flex gap-2 align-items-center">
                         <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
-                        <input type="password" name="password" class="form-control form-control-sm" aria-label="Nuova password {{ utente.username }}" placeholder="Nuova password" minlength="{{ min_password_length }}" required>
-                        <button class="btn btn-outline-secondary btn-sm" type="submit">Aggiorna</button></form></td>
-                    <td data-label="Elimina">
+                        <input name="password" type="password" class="form-control form-control-sm" placeholder="Nuova password"
+                               aria-label="Password per {{ utente.username }}" autocomplete="new-password" required>
+                        <button class="btn btn-outline-primary btn-sm" type="submit">Salva</button>
+                    </form></td>
+                    <td>
                         {% set ruolo_utente = ruoli.get(utente.id) %}
                         {% if utente.id == utente_corrente_id %}
                             <button type="button" class="btn btn-outline-secondary btn-sm" disabled
@@ -49,6 +48,6 @@
                     </td>
                 </tr>{% else %}<tr><td colspan="5">Nessun account</td></tr>{% endfor %}</tbody>
         </table></div>
-    </div></section>
+    </div>
 </div>
 {% endblock %}

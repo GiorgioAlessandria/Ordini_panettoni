@@ -50,8 +50,20 @@
             : 'scadenza-giorno-in-corso';
     }
 
+    function allineaLegendaAlTitolo() {
+        // FullCalendar genera il titolo della settimana/mese dinamicamente.
+        // Collocare la legenda accanto al titolo evita una fascia dedicata.
+        const legenda = calendarEl.closest('.calendario-shell')?.querySelector('.calendario-legenda');
+        const titolo = calendarEl.querySelector('.fc-header-toolbar .fc-toolbar-title');
+        const zonaTitolo = titolo?.closest('.fc-toolbar-chunk');
+        if (!legenda || !zonaTitolo) return;
+        legenda.classList.add('calendario-legenda--toolbar');
+        zonaTitolo.appendChild(legenda);
+    }
+
     const calendario = new FullCalendar.Calendar(calendarEl, {
         themeSystem: 'classic',
+        datesSet() { allineaLegendaAlTitolo(); },
         initialView: 'timeGridWeek',
         locale: 'it',
         firstDay: 1,
@@ -168,5 +180,6 @@
 
     calendarEl.dataset.calendarInitialized = '1';
     calendario.render();
+    allineaLegendaAlTitolo();
     document.body.addEventListener('pianificazioneSalvata', () => calendario.refetchEvents());
 })();

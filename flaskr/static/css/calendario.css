@@ -192,3 +192,25 @@
   font-size: .83rem;
   line-height: 1.35;
 }
+
+/* Legenda nella toolbar FullCalendar, a destra del mese/intervallo. */
+.calendario-shell #calendar .fc-toolbar-chunk:has(.fc-toolbar-title) {
+  display: flex; align-items: center; justify-content: center;
+  gap: .45rem .8rem; flex-wrap: wrap; min-width: 0;
+}
+.calendario-shell #calendar .calendario-legenda--toolbar {
+  display: flex; align-items: center; justify-content: center;
+  flex-wrap: wrap; gap: .3rem .65rem; min-width: 0;
+  margin: 0; padding: 0; background: transparent;
+  border: 0; border-radius: 0; box-shadow: none;
+  font-size: .71rem; line-height: 1.2; color: var(--pan-muted, #64748b);
+}
+.calendario-shell #calendar .calendario-legenda--toolbar span {gap:.2rem;white-space:nowrap;}
+.calendario-shell #calendar .calendario-legenda--toolbar .calendario-legenda-dot {
+  width: 9px; height: 9px; border-width: 1px; flex: 0 0 auto;
+}
+.calendario-shell #calendar .calendario-legenda--toolbar .calendario-legenda-tipi {font-size: inherit;}
+@media (max-width: 920px) {
+  .calendario-shell #calendar .fc-toolbar-chunk:has(.fc-toolbar-title) {justify-content: flex-start;}
+  .calendario-shell #calendar .calendario-legenda--toolbar {justify-content:flex-start;gap:.2rem .45rem;}
+}
