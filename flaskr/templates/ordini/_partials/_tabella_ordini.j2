@@ -5,7 +5,7 @@
 {# Un'unica query per recuperare i commenti di tutti gli ordini presenti in tabella. #}
 {% set note_per_ordine = note_vendite_per_righe(ordini_cliente, selezione_attiva) %}
 {% macro colonna(key, nome, tipo='text') %}
-    <th scope="col" aria-sort="none" data-sort-column="{{ key }}">
+    <th scope="col" aria-sort="none" data-sort-column="{{ key }}" data-col="{{ key }}">
         <button type="button" class="ordini-sort" data-sort-key="{{ key }}" data-sort-type="{{ tipo }}"
                 aria-label="Ordina per {{ nome }}">
             {{ nome }} <span class="ordini-sort-indicator" aria-hidden="true">↕</span>
@@ -100,7 +100,7 @@
             <thead>
                 <tr>
                     {% if selezione_attiva %}
-                        <th scope="col" class="col-centro">Seleziona</th>
+                        <th scope="col" class="col-centro" data-col="seleziona">Seleziona</th>
                         {{ colonna('priorita', 'Priorità', 'number') }}
                     {% else %}
                         {{ colonna('pianificazione', 'Pianificazione', 'number') }}
@@ -114,8 +114,8 @@
                     {{ colonna('prezzatura', 'Prezzatura', 'number') }}
                     {{ colonna('glassa', 'Glassa') }}
                     {{ colonna('stato', 'Stato') }}
-                    <th scope="col" class="pan-note-col-heading">Commenti vendite</th>
-                    {% if not selezione_attiva %}<th scope="col">Azioni</th>{% endif %}
+                    <th scope="col" class="pan-note-col-heading" data-col="commenti">Commenti vendite</th>
+                    {% if not selezione_attiva %}<th scope="col" data-col="azioni">Azioni</th>{% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -146,7 +146,7 @@
                         aria-label="Pianificazione {{ ordine.IdPianificazione }} con {{ ordine.NumeroOrdini }} ordini"
                         {% endif %}>
                         {% if selezione_attiva %}
-                            <td class="col-centro">
+                            <td class="col-centro" data-col="seleziona">
                                 {% if puo_gestire_produzione %}
                                 <input type="checkbox" name="ordini_selezionati"
                                        value="{{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}"
@@ -238,7 +238,7 @@
                             {% endif %}
                         </td>
                         {% if not selezione_attiva %}
-                        <td>
+                        <td data-col="azioni">
                             {% if puo_gestire_produzione %}<a class="btn btn-outline-primary btn-sm"
                                href="{{ url_for('ordini_cliente.gestione_pianificazione', IdPianificazione=ordine.IdPianificazione) }}"
                                onclick="event.stopPropagation()">Gestisci / chiudi</a>{% else %}<span class="text-secondary">Sola lettura</span>{% endif %}

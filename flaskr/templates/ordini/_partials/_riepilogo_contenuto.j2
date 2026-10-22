@@ -1,5 +1,14 @@
 {# Stesso riepilogo per la pagina ordini e per la modale. #}
 {% if riepilogo %}
+{% if sommatoria_compatta|default(false) %}
+<div class="ordini-mini-summary" role="group" aria-label="Totali ordini selezionati">
+    <div class="ordini-mini-metric"><span>Ordini</span><strong>{{ riepilogo.numero_ordini }}</strong></div>
+    <div class="ordini-mini-metric"><span>Panettoni</span><strong>{{ riepilogo.qta_panettoni }}</strong></div>
+    <div class="ordini-mini-metric"><span>Cotte</span><strong>{{ riepilogo.numero_cotte }}</strong><small>/ {{ riepilogo.capienza_cotta }} pz</small></div>
+    <div class="ordini-mini-metric"><span>Mancanti ultima cotta</span><strong>{{ riepilogo.panettoni_mancanti_cotta }}</strong></div>
+    <div class="ordini-mini-metric"><span>Peso impasto</span><strong>{{ '%.2f' | format(riepilogo.peso_impasto) }} kg</strong></div>
+</div>
+{% else %}
 <div class="pan-summary-content pan-panel p-3">
     <h6 class="fw-bold mb-3">Riepilogo ordini selezionati</h6>
     <div class="pan-table-wrap">
@@ -61,4 +70,5 @@
         Il riepilogo considera le quantità ancora disponibili, non gli ordini già impegnati.
     </p>
 </div>
+{% endif %}
 {% endif %}

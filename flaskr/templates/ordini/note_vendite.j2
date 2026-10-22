@@ -2,10 +2,7 @@
 {% block title %}Commenti vendite ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}{% endblock %}
 {% block content %}
 <div class="pan-page pan-notes-page">
-    <header class="pan-page-header">
-        <div><h1 class="h4">Commenti ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}</h1>
-        <p class="text-secondary mb-0">{{ ordine.DesArt }} · {{ ordine.CodArt }}</p></div>
-    </header>
+
     {% if puo_scrivere_note_vendite %}
     <section class="card pan-panel p-3 mb-3"><h2 class="h6">Nuovo commento delle vendite</h2>
         <form method="post" action="{{ url_for('ordini_cliente.aggiungi_nota_vendite', id_documento=ordine.IdDocumento, id_riga=ordine.IdRigaDoc) }}">

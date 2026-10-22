@@ -8,17 +8,7 @@
 
 
 <div class="ordini-workspace pan-page pan-orders-page">
-    <header class="ordini-header pan-page-header">
-        <div>
-            <h1>Gestione ordini panettoni</h1>
-            <p class="descrizione">Disponibilità e lavorazioni sulla stessa pagina.</p>
-        </div>
-    </header>
 
-    <div class="ordini-panel-switch" role="group" aria-label="Seleziona la tabella da visualizzare">
-        <button type="button" class="btn btn-primary btn-sm" data-panel-switch="nuovi" aria-pressed="true">Da produrre</button>
-        <button type="button" class="btn btn-outline-primary btn-sm" data-panel-switch="produzione" aria-pressed="false">In produzione</button>
-    </div>
 
     <div class="ordini-panels">
         <section class="ordini-panel pan-panel" data-panel="nuovi" aria-labelledby="titolo-nuovi">
@@ -36,23 +26,22 @@
                     <p class="ordini-loading">Caricamento ordini da produrre...</p>
                 </div>
                 {% if puo_gestire_produzione %}
-                <div class="ordini-actions">
-                    <button type="button" class="btn btn-primary"
-                            hx-post="{{ url_for('ordini_cliente.anteprima_pianificazione') }}"
-                            hx-include="#form-ordini"
-                            hx-params="ordini_selezionati"
-                            hx-target="#contenuto-pianificazione"
-                            hx-swap="innerHTML"
-                            data-bs-toggle="modal"
-                            data-bs-target="#modal-pianificazione">
-                        Pianifica ordini selezionati
-                    </button>
-                    
-                </div>
-                {% endif %}
-                {% if puo_gestire_produzione %}
-                <div id="riepilogo-ordini" class="ordini-sommario mt-2" aria-live="polite">
-                    Nessun ordine selezionato
+                <div class="ordini-compact-footer" aria-label="Sommatoria e pianificazione ordini selezionati">
+                    <div id="riepilogo-ordini" class="ordini-sommario" aria-live="polite">
+                        <span class="ordini-summary-empty">Seleziona uno o più ordini per visualizzare i totali.</span>
+                    </div>
+                    <div class="ordini-actions">
+                        <button type="button" class="btn btn-primary btn-sm ordini-plan-btn"
+                                hx-post="{{ url_for('ordini_cliente.anteprima_pianificazione') }}"
+                                hx-include="#form-ordini"
+                                hx-params="ordini_selezionati"
+                                hx-target="#contenuto-pianificazione"
+                                hx-swap="innerHTML"
+                                data-bs-toggle="modal"
+                                data-bs-target="#modal-pianificazione">
+                            Pianifica ordini selezionati
+                        </button>
+                    </div>
                 </div>
                 {% endif %}
             </div>
@@ -91,6 +80,6 @@
 {% block scripts %}
     {{ super() }}
     <script src="{{ url_for('static', filename='js/selezione_ordini.js', v='20261021-6') }}"></script>
-    <script src="{{ url_for('static', filename='js/responsive.js', v='20261021-6') }}" defer></script>
+
     <script src="{{ url_for('static', filename='js/commenti_inline.js', v='20261021-6') }}" defer></script>
 {% endblock %}

@@ -1,5 +1,6 @@
 {% if errore %}
     <div class="alert alert-warning pan-summary-alert mb-0" role="alert">{{ errore }}</div>
 {% else %}
+    {% set sommatoria_compatta = true %}
     {% include "ordini/_partials/_riepilogo_contenuto.j2" %}
 {% endif %}

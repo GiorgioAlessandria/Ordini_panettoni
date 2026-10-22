@@ -2,15 +2,11 @@
 {% block title %}Gestione pianificazione #{{ piano.IdPianificazione }}{% endblock %}
 {% block content %}
 <div class="pan-page pan-detail-page">
-<header class="pan-page-header">
-  <div>
-    <h1 class="h3 mb-1">Pianificazione #{{ piano.IdPianificazione }}</h1>
-    <p class="text-secondary mb-0">{{ piano.CodArt }} · {{ piano.DataProduzione.strftime('%d/%m/%Y') }} · Blocco {{ piano.BloccoIniziale }}</p>
-  </div>
-  <div class="d-flex gap-2 flex-wrap">
-    <span class="badge {{ 'bg-success' if piano.StatoRigaOrdine == 'Chiuso' else 'bg-secondary' if piano.StatoRigaOrdine == 'Annullato' else 'bg-primary' }} p-2 align-self-center">{{ piano.StatoRigaOrdine }}</span>
-  </div>
-</header>
+
+<div class="d-flex gap-2 align-items-center mb-2">
+  <span class="badge {{ 'bg-success' if piano.StatoRigaOrdine == 'Chiuso' else 'bg-secondary' if piano.StatoRigaOrdine == 'Annullato' else 'bg-primary' }}">{{ piano.StatoRigaOrdine }}</span>
+  <small class="text-secondary">{{ piano.CodArt }} · {{ piano.DataProduzione.strftime('%d/%m/%Y') }} · Blocco {{ piano.BloccoIniziale }}</small>
+</div>
 <div class="pan-kpi-grid">
   <div class="pan-kpi"><small class="pan-kpi-label">Pezzi da produrre</small><div class="pan-kpi-value">{{ piano.PanettoniPianificati }}</div></div>
   <div class="pan-kpi"><small class="pan-kpi-label">Cotte</small><div class="pan-kpi-value">{{ piano.NumeroCotte }}</div></div>

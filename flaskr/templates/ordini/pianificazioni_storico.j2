@@ -2,9 +2,7 @@
 {% block title %}Storico pianificazioni{% endblock %}
 {% block content %}
 <div class="pan-page pan-history-page">
-<header class="pan-page-header">
-  <div><h1 class="h3 mb-1">Storico pianificazioni</h1><p class="text-secondary mb-0">Pianificazioni completate o annullate, fuori dalla produzione attiva.</p></div>
-</header>
+
 {% for stato, titolo in [('Chiuso', 'Pianificazioni completate'), ('Annullato', 'Pianificazioni annullate')] %}
 <section class="pan-panel mb-3">
 <div class="pan-panel-header"><h2 class="pan-section-title">{{ titolo }}</h2></div>

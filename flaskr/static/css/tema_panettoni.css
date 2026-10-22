@@ -506,3 +506,505 @@
 .pan-orders-page .pan-note-order-label { display: block; color: #235c8d; font-size: .75rem; font-weight: 700; margin: .2rem 0 .35rem; }
 /* Gli aggiornamenti delle tabelle non devono nascondere la colonna commenti. */
 .pan-app-body .pan-orders-page .ordini-table :is(th.pan-note-col-heading, td.pan-note-cell) { display: table-cell !important; }
+
+/* 2026-10-21 · unico titolo nell'header; due tabelle sempre 50% a desktop.
+ * Non nascondiamo le colonne: ciascuna tabella scorre in orizzontale e verticale.
+ */
+.pan-app-header .pan-header-identity { justify-content:center; gap:.65rem; min-width:0; }
+.pan-app-header .pan-header-user { font-weight:750; flex:0 0 auto; }
+.pan-app-header .pan-header-page { font-weight:650; min-width:0; overflow-wrap:anywhere; }
+.pan-app-header .pan-header-brand { min-width:0; }
+.pan-app-body .pan-main .pan-page-header { display:none !important; }
+.pan-app-body .pan-orders-page .ordini-header,
+.pan-app-body .pan-orders-page .ordini-panel-switch { display:none !important; }
+.pan-app-body .pan-orders-page .ordini-panels {
+  display:grid !important;
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  grid-template-rows:minmax(0,1fr) !important;
+  gap:.65rem; flex:1 1 auto; min-height:0; width:100%; align-items:stretch;
+}
+.pan-app-body .pan-orders-page .ordini-panel,
+.pan-app-body .pan-orders-page .ordini-panel[data-panel="nuovi"],
+.pan-app-body .pan-orders-page .ordini-panel[data-panel="produzione"] {
+  display:flex !important; flex-direction:column; min-width:0; width:100%;
+  min-height:0; overflow:hidden;
+}
+.pan-app-body .pan-orders-page .ordini-panel-body,
+.pan-app-body .pan-orders-page .ordini-form,
+.pan-app-body .pan-orders-page #ordini_cliente_da_produrre,
+.pan-app-body .pan-orders-page #ordini_cliente_in_produzione {
+  min-width:0; min-height:0; display:flex; flex-direction:column;
+}
+.pan-app-body .pan-orders-page .ordini-table-scroll {
+  display:block !important;
+  width:100%; max-width:100%; min-width:0 !important; min-height:0 !important;
+  max-height:none !important; flex:1 1 auto;
+  overflow-x:auto !important; overflow-y:auto !important;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+}
+.pan-app-body .pan-orders-page table.ordini-table {
+  min-width:1600px !important; width:max-content !important;
+  table-layout:auto !important;
+}
+.pan-app-body .pan-orders-page table.ordini-table :is(thead,tbody) :is(th,td) {
+  white-space:nowrap; overflow:visible; text-overflow:clip;
+  padding:.4rem .55rem; font-size:.8rem;
+}
+.pan-app-body .pan-orders-page .ordini-table :is(th,td),
+.pan-app-body .pan-orders-page .ordini-form[data-tipo-tabella="Nuovo"] .ordini-table :is(th,td),
+.pan-app-body .pan-orders-page .ordini-form[data-tipo-tabella="In produzione"] .ordini-table :is(th,td) {
+  display:table-cell !important;
+}
+.pan-app-body .pan-orders-page table.ordini-table .pan-note-cell {
+  width:360px; min-width:340px; max-width:420px;
+  white-space:normal !important;
+}
+.pan-app-body .pan-orders-page .ordini-table thead th {
+  position:sticky; top:0; z-index:2;
+}
+.pan-app-body .pan-orders-page .ordini-panel-header {
+  flex:0 0 auto; padding:.35rem .65rem;
+}
+.pan-app-body .pan-orders-page .ordini-panel-body { padding:.35rem .55rem; }
+.pan-app-body .pan-orders-page .ordini-filtri { flex:0 0 auto; }
+.pan-app-body .pan-orders-page .ordini-barra { flex:0 0 auto; }
+.pan-app-body .pan-orders-page .ordini-panel-header h2 { font-size:.96rem; }
+@media(max-width:767.98px) {
+  /* La richiesta di metà schermo è preservata anche sui viewport piccoli. */
+  .pan-app-body .pan-orders-page .ordini-panels { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  .pan-app-header .pan-header-identity { font-size:.82rem; }
+  .pan-app-header .pan-header-brand .pan-brand-text { display:none; }
+  .pan-app-body .pan-orders-page .ordini-panel-header .ordini-meta { display:none; }
+}
+/* Mantieni le due tabelle al 50% anche su viewport stretti, con scroll locale. */
+@media(max-width:767.98px) {
+  body.pan-app-body:has(.pan-orders-page) {
+    display:flex; flex-direction:column; height:100dvh; overflow:hidden;
+  }
+  body.pan-app-body:has(.pan-orders-page) > .pan-app-header { flex:0 0 auto; }
+  body.pan-app-body:has(.pan-orders-page) > .pan-main {
+    display:flex; flex-direction:column; flex:1 1 auto; min-height:0; overflow:hidden;
+  }
+  .pan-app-body .pan-orders-page { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+}
+
+
+/* 2026-10-21-8 · ORDINI: sezioni sovrapposte, larghezza intera.
+   Desktop: entrambe le sezioni condividono in parti uguali l'altezza
+   disponibile; lo scorrimento delle tabelle rimane interno e indipendente.
+   Queste regole sono intenzionalmente in fondo per prevalere sui
+   precedenti layout a due colonne (anche nei media query). */
+.pan-app-body .pan-orders-page .ordini-panels {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  gap: .65rem;
+  align-items: stretch;
+}
+.pan-app-body .pan-orders-page .ordini-panel[data-panel="nuovi"],
+.pan-app-body .pan-orders-page .ordini-panel[data-panel="produzione"] {
+  display: flex !important;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.pan-app-body .pan-orders-page .ordini-table-scroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+/* Su schermi molto stretti i filtri possono occupare più di metà altezza:
+   lascia allora scorrere la pagina, senza nascondere il contenuto. */
+@media (max-width: 767.98px) {
+  body.pan-app-body:has(.pan-orders-page) {
+    height: auto !important;
+    min-height: 100dvh;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+  body.pan-app-body:has(.pan-orders-page) > .pan-main {
+    flex: 1 0 auto;
+    overflow: visible !important;
+    min-height: 0;
+  }
+  .pan-app-body .pan-orders-page {
+    flex: 0 0 auto;
+    min-height: 0;
+    height: auto;
+  }
+  .pan-app-body .pan-orders-page .ordini-panels {
+    grid-template-rows: repeat(2, clamp(440px, 82dvh, 720px)) !important;
+  }
+  .pan-app-body .pan-orders-page .ordini-panel[data-panel="nuovi"],
+  .pan-app-body .pan-orders-page .ordini-panel[data-panel="produzione"] {
+    min-height: 440px;
+  }
+}
+
+/* =====================================================================
+   Ottimizzazione operativa ordini (2026-10-21-9)
+   Due tabelle verticali, filtri compatti, sommatoria minima e pianifica
+   nel footer dedicato: niente sovrapposizioni con i filtri.
+   ===================================================================== */
+.pan-app-body .pan-orders-page .ordini-panels {
+  grid-template-columns: minmax(0,1fr) !important;
+  grid-template-rows: repeat(2,minmax(0,1fr)) !important;
+  gap: .4rem !important;
+}
+.pan-app-body .pan-orders-page .ordini-panel-header {
+  padding: .28rem .65rem !important;
+  min-height: 27px;
+}
+.pan-app-body .pan-orders-page .ordini-panel-header h2 {
+  font-size: .85rem !important;
+  line-height: 1.2;
+}
+.pan-app-body .pan-orders-page .ordini-panel-header .ordini-meta {
+  font-size: .67rem;
+}
+.pan-app-body .pan-orders-page .ordini-panel-body {
+  padding: .25rem .48rem .32rem !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.pan-app-body .pan-orders-page #ordini_cliente_da_produrre,
+.pan-app-body .pan-orders-page #ordini_cliente_in_produzione {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  display: flex;
+  flex-direction: column;
+}
+.pan-app-body .pan-orders-page .ordini-form {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+}
+/* Un'unica fila di filtri sulle risoluzioni desktop; il layout torna a
+   più righe soltanto quando lo spazio è davvero insufficiente. */
+.pan-app-body .pan-orders-page .ordini-filtri {
+  display: grid !important;
+  grid-template-columns: minmax(175px,2fr) repeat(4,minmax(90px,1fr)) repeat(2,minmax(120px,1.1fr)) auto !important;
+  align-items: end !important;
+  flex: 0 0 auto !important;
+  gap: .28rem .45rem !important;
+  padding: .12rem 0 .28rem !important;
+  margin: 0 !important;
+}
+.pan-app-body .pan-orders-page .ordini-filtri .ordini-filtro,
+.pan-app-body .pan-orders-page .ordini-filtri .ordini-filtro.ricerca {
+  min-width: 0 !important;
+  width: auto !important;
+  grid-column: auto !important;
+  flex: initial !important;
+}
+.pan-app-body .pan-orders-page .ordini-filtri .ordini-filtro label {
+  display: block;
+  font-size: .65rem !important;
+  line-height: 1.12 !important;
+  font-weight: 650;
+  margin: 0 0 .1rem !important;
+}
+.pan-app-body .pan-orders-page .ordini-filtri :is(.form-control,.form-select) {
+  font-size: .76rem !important;
+  height: 29px !important;
+  min-height: 29px !important;
+  line-height: 1.2 !important;
+  padding: .23rem .4rem !important;
+}
+.pan-app-body .pan-orders-page .ordini-filtri .ordini-reset {
+  width: auto !important;
+  grid-column: auto !important;
+  justify-self: stretch;
+  height: 29px;
+  padding: .15rem .45rem;
+  font-size: .72rem !important;
+  white-space: nowrap;
+}
+.pan-app-body .pan-orders-page .ordini-barra {
+  gap: .3rem;
+  padding: .05rem 0 .2rem !important;
+  font-size: .68rem !important;
+  line-height: 1.1;
+  flex: 0 0 auto;
+}
+.pan-app-body .pan-orders-page .ordini-table-scroll {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+/* Righe meno alte, senza nascondere le colonne o disabilitare i commenti. */
+.pan-app-body .pan-orders-page table.ordini-table :is(thead,tbody) :is(th,td) {
+  padding: .24rem .42rem !important;
+  font-size: .75rem !important;
+  line-height: 1.18 !important;
+  vertical-align: middle;
+}
+.pan-app-body .pan-orders-page table.ordini-table thead th { padding-block: .33rem !important; }
+.pan-app-body .pan-orders-page table.ordini-table :is(.form-select,.form-control) {
+  font-size: .74rem;
+}
+.pan-app-body .pan-orders-page .ordini-priorita-select {
+  min-height: 27px;
+  height: 27px;
+  padding: .12rem .4rem;
+}
+/* I commenti lunghi restano accessibili, ma non alzano indefinitamente le righe. */
+.pan-app-body .pan-orders-page .pan-note-history {
+  max-height: 2.9rem;
+  overflow-y: auto;
+  font-size: .7rem;
+  scrollbar-width: thin;
+}
+.pan-app-body .pan-orders-page .pan-note-new,
+.pan-app-body .pan-orders-page .pan-note-edit {
+  display: grid !important;
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: center;
+  gap: .25rem !important;
+  margin-top: .2rem;
+}
+.pan-app-body .pan-orders-page .pan-note-new input[type=hidden],
+.pan-app-body .pan-orders-page .pan-note-edit input[type=hidden] { display: none; }
+.pan-app-body .pan-orders-page .pan-note-inline textarea {
+  width: 100%;
+  min-height: 29px;
+  height: 29px;
+  padding: .2rem .35rem;
+  line-height: 1.15;
+  font-size: .72rem;
+  resize: vertical;
+}
+.pan-app-body .pan-orders-page .pan-note-inline textarea:focus { height: 64px; }
+.pan-app-body .pan-orders-page .pan-note-inline button {
+  font-size: .68rem;
+  padding: .2rem .4rem;
+  align-self: center !important;
+}
+.pan-app-body .pan-orders-page .pan-notes-group {
+  max-height: 7rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+/* Footer: la sommatoria e il bottone sono vicini ma in due aree distinte.
+   Non occupano la zona dei filtri e non possono coprirla. */
+.pan-app-body .pan-orders-page .ordini-compact-footer {
+  flex: 0 0 auto !important;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: center;
+  gap: .55rem;
+  margin-top: .24rem;
+  padding: .34rem .15rem .05rem;
+  border-top: 1px solid var(--pan-border);
+}
+.pan-app-body .pan-orders-page .ordini-compact-footer .ordini-sommario {
+  flex: initial !important;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: .73rem;
+}
+.pan-app-body .pan-orders-page .ordini-compact-footer .ordini-actions {
+  flex: initial !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 0;
+}
+.pan-app-body .pan-orders-page .ordini-plan-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  max-width: 100%;
+  padding: .28rem .6rem !important;
+  font-size: .74rem !important;
+  white-space: nowrap;
+  position: static !important;
+  transform: none !important;
+  z-index: auto;
+}
+.pan-app-body .pan-orders-page .ordini-mini-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .24rem .85rem;
+  min-width: 0;
+}
+.pan-app-body .pan-orders-page .ordini-mini-metric {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .28rem;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.pan-app-body .pan-orders-page .ordini-mini-metric span { color: var(--pan-muted); font-size: .69rem; }
+.pan-app-body .pan-orders-page .ordini-mini-metric strong { font-size: .83rem; font-weight: 750; }
+.pan-app-body .pan-orders-page .ordini-mini-metric small { color: var(--pan-muted); font-size: .66rem; }
+.pan-app-body .pan-orders-page .ordini-summary-empty { color: var(--pan-muted); }
+.pan-app-body .pan-orders-page .ordini-compact-footer .alert {
+  margin: 0;
+  padding: .25rem .45rem;
+  line-height: 1.25;
+  font-size: .75rem;
+}
+@media (max-width: 1300px) {
+  .pan-app-body .pan-orders-page .ordini-filtri {
+    grid-template-columns: repeat(4,minmax(0,1fr)) !important;
+  }
+  .pan-app-body .pan-orders-page .ordini-filtri .ordini-filtro.ricerca { grid-column: span 2 !important; }
+}
+@media (max-width: 750px) {
+  .pan-app-body .pan-orders-page .ordini-filtri {
+    grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+  }
+  .pan-app-body .pan-orders-page .ordini-filtri .ordini-filtro.ricerca { grid-column: span 2 !important; }
+  .pan-app-body .pan-orders-page .ordini-compact-footer { grid-template-columns: minmax(0,1fr); }
+  .pan-app-body .pan-orders-page .ordini-compact-footer .ordini-actions { justify-content: flex-start; }
+  .pan-app-body .pan-orders-page .ordini-mini-summary { gap: .32rem .65rem; }
+}
+
+/* Non occupare una riga per "nessun commento" quando e' gia' presente
+   il campo di inserimento nella stessa cella. */
+.pan-app-body .pan-orders-page .pan-note-inline:has(.pan-note-new) .pan-note-empty {
+  display: none;
+}
+/* Su telefoni la pagina scorre normalmente; ogni sezione deve avere spazio
+   sufficiente per filtri, tabella, sommatoria e comando Pianifica. */
+@media (max-width: 767.98px) {
+  .pan-app-body .pan-orders-page .ordini-panels {
+    grid-template-columns: minmax(0,1fr) !important;
+    grid-template-rows: repeat(2,minmax(570px,auto)) !important;
+  }
+  .pan-app-body .pan-orders-page .ordini-panel[data-panel="nuovi"],
+  .pan-app-body .pan-orders-page .ordini-panel[data-panel="produzione"] {
+    min-height: 570px !important;
+  }
+  .pan-app-body .pan-orders-page .ordini-panel-body {
+    display: flex !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+  .pan-app-body .pan-orders-page #ordini_cliente_da_produrre,
+  .pan-app-body .pan-orders-page #ordini_cliente_in_produzione,
+  .pan-app-body .pan-orders-page .ordini-form {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+  }
+}
+
+
+/* =====================================================================
+   CORREZIONE SCALING TABELLE ORDINI (2026-10-21-10)
+   - Se il pannello e' largo, la tabella ne occupa SEMPRE il 100%.
+   - Se e' stretto, le colonne mantengono larghezze leggibili e lo
+     scorrimento e' contenuto nel riquadro, non nella pagina.
+   - Non cambia la struttura delle due sezioni verticali, HTMX, filtri,
+     ordinamento, commenti in cella, priorita', selezione o riepilogo.
+   Queste regole sono volutamente alla fine: i vecchi blocchi responsive
+   e le regole per la paginazione non devono prevalere.
+   ===================================================================== */
+.pan-app-body .pan-orders-page .ordini-table-scroll {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+/* width:100% evita il vuoto sul lato destro delle tabelle visto a 1920px.
+   min-width evita testo minuscolo quando il monitor e' piu' stretto. */
+.pan-app-body .pan-orders-page .ordini-form[data-tipo-tabella="Nuovo"] table.ordini-table,
+.pan-app-body .pan-orders-page .ordini-form[data-tipo-tabella="In produzione"] table.ordini-table {
+  width: 100% !important;
+  max-width: none !important;
+  table-layout: auto !important;
+  border-spacing: 0;
+  font-size: .85rem !important;
+}
+.pan-app-body .pan-orders-page .ordini-form[data-tipo-tabella="Nuovo"] table.ordini-table {
+  min-width: 1860px !important;
+}
+.pan-app-body .pan-orders-page .ordini-form[data-tipo-tabella="In produzione"] table.ordini-table {
+  min-width: 1990px !important;
+}
+/* Impedisce ai vecchi selettori responsive di nascondere colonne. */
+.pan-app-body .pan-orders-page .ordini-form .ordini-table tr > :is(th, td) {
+  display: table-cell !important;
+  min-width: 0;
+  font-size: .85rem !important;
+  line-height: 1.24 !important;
+  padding: .32rem .55rem !important;
+  vertical-align: middle !important;
+  white-space: nowrap;
+}
+.pan-app-body .pan-orders-page .ordini-form .ordini-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding-block: .39rem !important;
+  background: var(--pan-info, #0dcaf0) !important;
+  white-space: nowrap !important;
+}
+/* Gli identificativi data-col coincidono con le colonne del template Jinja. */
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="seleziona"] { min-width: 78px; text-align: center; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="priorita"] { min-width: 116px; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="pianificazione"] { min-width: 168px; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="cliente"] { min-width: 205px; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="articolo"] { min-width: 160px; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="descrizione"] { min-width: 260px; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="consegna"] { min-width: 118px; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="ordinata"] { min-width: 116px; text-align: right; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="quantita"] { min-width: 116px; text-align: right; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="prezzatura"] { min-width: 112px; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="glassa"] { min-width: 80px; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="stato"] { min-width: 98px; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="azioni"] { min-width: 148px; }
+.pan-app-body .pan-orders-page .ordini-table :is(th, td)[data-col="commenti"] {
+  width: 375px;
+  min-width: 375px !important;
+  max-width: 430px;
+}
+/* Le descrizioni possono occupare due righe, senza comprimere il resto. */
+.pan-app-body .pan-orders-page .ordini-form .ordini-table td[data-col="descrizione"],
+.pan-app-body .pan-orders-page .ordini-form .ordini-table td[data-col="cliente"] {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+/* Commenti: input e pulsante rimangono allineati, senza sporgere dalla cella. */
+.pan-app-body .pan-orders-page .ordini-form .ordini-table td.pan-note-cell {
+  white-space: normal !important;
+}
+.pan-app-body .pan-orders-page .pan-note-inline,
+.pan-app-body .pan-orders-page .pan-note-new,
+.pan-app-body .pan-orders-page .pan-note-edit { min-width: 0; max-width: 100%; }
+.pan-app-body .pan-orders-page .pan-note-inline textarea {
+  min-width: 0;
+  width: 100%;
+  font-size: .8rem;
+}
+.pan-app-body .pan-orders-page .pan-note-inline button { white-space: nowrap; flex-shrink: 0; }
+/* La tabella vuota occupa tutta la larghezza, anche quando contiene 1 sola cella colspan. */
+.pan-app-body .pan-orders-page .ordini-table tr[data-no-data] > td {
+  text-align: center;
+  white-space: normal;
+}

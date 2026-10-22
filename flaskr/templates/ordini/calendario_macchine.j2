@@ -10,12 +10,7 @@
 {% block content %}
 <div class="pan-page pan-machines-page">
 <div class="cm-workspace">
-    <header class="cm-header pan-page-header">
-        <div>
-            <h1>Calendario impiego impastatrici</h1>
-            <p>Disponibilità e carico pianificato delle macchine per giorno e blocco.</p>
-        </div>
-    </header>
+
 
     <section class="cm-navigation pan-panel" aria-label="Navigazione settimane">
         <a class="cm-button" href="{{ url_for('ordini_cliente.calendario_macchine', settimana=riepilogo.precedente.isoformat()) }}" aria-label="Settimana precedente">&larr; Precedente</a>

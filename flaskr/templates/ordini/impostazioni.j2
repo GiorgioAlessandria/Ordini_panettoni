@@ -9,17 +9,9 @@
 
 {% block content %}
 <div class="settings-wrapper pan-page pan-settings-page">
-    <header class="settings-top pan-page-header">
-        <div>
-            <h1 class="h3 mb-1">Impostazioni produzione</h1>
-            <p class="text-muted mb-0">Gestisci anagrafiche, parametri e collegamenti senza intervenire nel database.</p>
-        </div>
-        <div class="settings-readonly-note">
-            <strong>Dati ERP protetti</strong>
-            <span>Articoli, clienti e ordini non vengono modificati da questa pagina.</span>
-        </div>
-    </header>
 
+
+    <div class="alert alert-info small py-1" role="note">Articoli, clienti e ordini ERP non sono modificabili da queste impostazioni.</div>
     {% if errore %}<div class="alert alert-danger">{{ errore }}</div>{% endif %}
 
     <div class="settings-layout">
