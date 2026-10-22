@@ -1,0 +1,60 @@
+{# Riepilogo scadenze: commenti sempre e solo in lettura, anche per admin/vendite. #}
+<section class="scad-giorno" aria-label="Scadenze {{ giorno.strftime('%d/%m/%Y') }}">
+  <div class="scad-giorno-heading">
+    <div>
+      <h3 class="h5 mb-1">Scadenze del {{ giorno.strftime('%d/%m/%Y') }}</h3>
+      <p class="text-secondary small mb-0">{{ righe|length }} ordini · {{ eseguiti }} eseguiti · {{ righe|length - eseguiti }} da eseguire</p>
+    </div>
+    <div class="scad-giorno-legenda" aria-label="Legenda degli stati">
+      <span><i class="scad-stato-dot scad-stato-eseguito"></i> Eseguito</span>
+      <span><i class="scad-stato-dot scad-stato-attesa"></i> Da eseguire</span>
+    </div>
+  </div>
+  <div class="table-responsive scad-giorno-tabella" role="region" aria-label="Ordini in scadenza per il giorno selezionato" tabindex="0">
+    <table class="table table-sm table-bordered align-middle mb-0">
+      <thead>
+        <tr>
+          <th scope="col">Ordine</th>
+          <th scope="col">Cliente</th>
+          <th scope="col">Articolo</th>
+          <th scope="col" class="text-end">Q.tà ordinata</th>
+          <th scope="col" class="text-end">Q.tà da eseguire</th>
+          <th scope="col">Stato</th>
+          <th scope="col" class="scad-col-note">Commenti vendite</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for voce in righe %}
+          {% set ordine = voce.ordine %}
+          {% set id_documento = ordine.IdDocumento %}
+          {% set id_riga = ordine.IdRigaDoc %}
+          {% set note = note_per_ordine.get((id_documento, id_riga), []) %}
+          {% set nota_corrente = note[0] if note else none %}
+          <tr class="{{ 'scad-riga-eseguita' if voce.eseguito else 'scad-riga-da-eseguire' }}">
+            <td class="text-nowrap fw-semibold">{{ id_documento }}-{{ id_riga }}</td>
+            <td>{{ ordine.Cliente.RagioneSociale if ordine.Cliente else 'N/D' }}</td>
+            <td><strong>{{ ordine.CodArt }}</strong><div class="small">{{ ordine.DesArt or '' }}</div></td>
+            <td class="text-end">{{ ordine.QTA_ORD or 0 }}</td>
+            <td class="text-end fw-semibold">{{ [0, (ordine.QTA_SALDO_DOC or 0)|int - voce.quantita_chiusa]|max }}</td>
+            <td>
+              <span class="scad-stato-etichetta {{ 'scad-stato-eseguito' if voce.eseguito else 'scad-stato-attesa' }}">
+                {{ 'Eseguito' if voce.eseguito else 'Da eseguire' }}
+              </span>
+            </td>
+            <td class="scad-col-note">
+              {% if nota_corrente %}
+                <div class="scad-commento-lettura" style="white-space:pre-wrap">{{ nota_corrente.Testo }}</div>
+                <small class="text-secondary">{{ nota_corrente.AutoreNome }}</small>
+              {% else %}
+                <span class="text-secondary small">—</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="text-center text-secondary p-3">Nessuna scadenza per questa data.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="small text-secondary mt-2 mb-0">Verde: saldo ERP esaurito oppure quantità residua interamente coperta da produzioni chiuse. Arancione: sono ancora presenti quantità da eseguire.</p>
+</section>

@@ -1,31 +1,12 @@
 {% extends "base.j2" %}
-{% block title %}Commenti vendite ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}{% endblock %}
+{% block title %}Commento ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}{% endblock %}
 {% block content %}
-<div class="pan-page pan-notes-page">
-
-    {% if puo_scrivere_note_vendite %}
-    <section class="card pan-panel p-3 mb-3"><h2 class="h6">Nuovo commento delle vendite</h2>
-        <form method="post" action="{{ url_for('ordini_cliente.aggiungi_nota_vendite', id_documento=ordine.IdDocumento, id_riga=ordine.IdRigaDoc) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
-            <textarea name="testo" class="form-control mb-2" maxlength="2000" required rows="3"></textarea>
-            <button type="submit" class="btn btn-primary">Salva commento</button>
-        </form>
-    </section>
-    {% else %}<p class="alert alert-info">I commenti delle vendite sono in sola lettura.</p>{% endif %}
-    <h2 class="pan-section-title mb-2">Storico commenti</h2>
-    {% for nota in note %}
-        <article class="card pan-panel pan-note-card p-3"><div class="text-secondary small mb-2">{{ nota.AutoreNome }} · {{ nota.CreatoIl.strftime('%d/%m/%Y %H:%M') }}{% if nota.ModificatoIl %} · modificato{% endif %}</div>
-        <p style="white-space:pre-wrap">{{ nota.Testo }}</p>
-        {% if ruolo_corrente == 'admin' or (ruolo_corrente == 'utente_vendite' and nota.AutoreId == g.user.id) %}
-          <details><summary>Modifica commento</summary>
-            <form method="post" action="{{ url_for('ordini_cliente.modifica_nota_vendite', nota_id=nota.Id) }}" class="mt-2">
-                <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
-                <textarea name="testo" class="form-control mb-2" maxlength="2000" required>{{ nota.Testo }}</textarea>
-                <button class="btn btn-outline-primary btn-sm" type="submit">Salva modifica</button>
-            </form>
-          </details>
-        {% endif %}
-        </article>
-    {% else %}<p class="text-secondary">Nessun commento presente.</p>{% endfor %}
-</div>
+<section class="pan-page pan-notes-page pan-panel p-3" aria-label="Commento vendite">
+    <div class="mb-2"><strong>Ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}</strong>
+        <span class="text-secondary">· {{ ordine.CodArt }} · {{ ordine.DesArt }}</span>
+    </div>
+    {% with id_documento=ordine.IdDocumento, id_riga=ordine.IdRigaDoc %}
+        {% include 'ordini/_partials/_note_vendite_cella.j2' %}
+    {% endwith %}
+</section>
 {% endblock %}

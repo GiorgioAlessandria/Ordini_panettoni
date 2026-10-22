@@ -1,6 +1,8 @@
-from datetime import datetime
+from collections import defaultdict
+from datetime import date, datetime, time, timedelta
 
 from flask import abort, jsonify, render_template, request, url_for
+from sqlalchemy import tuple_
 from sqlalchemy.orm import joinedload
 
 from flaskr.extensions import db
@@ -13,6 +15,11 @@ from flaskr.models.model_ordini import (
     PianificazioneOrdiniImpastatrici,
     PianificazioneProduzione,
     TipologieLavorazione,
+)
+from flaskr.models.model_accessi import NotaVenditeOrdine
+from flaskr.accessi import ruolo_attuale
+from flaskr.service.scadenze_giornaliere_service import (
+    articolo_cnf, eseguito, raggruppa_per_giorno,
 )
 from flaskr.routes_auth import login_required
 from flaskr.routes_blueprint import bp_ordini_cliente
@@ -37,43 +44,123 @@ def ordini_calendario():
     return render_template("ordini/calendario.j2")
 
 
-@bp_ordini_cliente.route("/calendario/dati_scadenza")
-@login_required
-def ordini_calendario_scadenze():
-    data_inizio = datetime.fromisoformat(request.args["start"])
-    data_fine = datetime.fromisoformat(request.args["end"])
+def _ordini_scadenti(inizio: date, fine: date):
+    """Intervallo [inizio, fine): CNF nascosti al solo ruolo produzione."""
     stmt = (
         db.select(OrdiniCliente)
-        .options(joinedload(OrdiniCliente.Cliente))
+        .options(joinedload(OrdiniCliente.Cliente), joinedload(OrdiniCliente.stato))
         .where(
-            OrdiniCliente.DataConsegna >= data_inizio,
-            OrdiniCliente.DataConsegna < data_fine,
+            OrdiniCliente.DataConsegna >= datetime.combine(inizio, time.min),
+            OrdiniCliente.DataConsegna < datetime.combine(fine, time.min),
         )
+        .order_by(OrdiniCliente.DataConsegna, OrdiniCliente.IdDocumento, OrdiniCliente.IdRigaDoc)
     )
-    ordini_data_scadenza = db.session.execute(stmt).scalars().all()
-    json_ordini_data_scadenza = [
-        {
-            "id": f"{ordine.IdDocumento}-{ordine.IdRigaDoc}",
-            "title": f"{ordine.Cliente.RagioneSociale} · {ordine.DesArt or 'Articolo senza descrizione'}",
-            "start": ordine.DataConsegna.date().isoformat(),
+    if ruolo_attuale() == "utente_produzione":
+        stmt = stmt.where(~db.func.upper(db.func.trim(OrdiniCliente.CodArt)).like("CNF%"))
+    return db.session.scalars(stmt).all()
+
+
+def _quantita_chiuse(ordini):
+    """Aggrega solo le quantita' dei piani chiusi in batch (SQLite)."""
+    chiavi = sorted({(o.IdDocumento, o.IdRigaDoc) for o in ordini})
+    risultato = {}
+    for start in range(0, len(chiavi), 250):
+        blocco = chiavi[start:start + 250]
+        stmt = (
+            db.select(
+                PianificazioneOrdini.IdDocumento,
+                PianificazioneOrdini.IdRiga,
+                db.func.sum(PianificazioneOrdini.QtaPianificata),
+            )
+            .where(
+                tuple_(PianificazioneOrdini.IdDocumento, PianificazioneOrdini.IdRiga).in_(blocco),
+                PianificazioneOrdini.Stato == "Chiuso",
+            )
+            .group_by(PianificazioneOrdini.IdDocumento, PianificazioneOrdini.IdRiga)
+        )
+        for documento, riga, quantita in db.session.execute(stmt):
+            risultato[(documento, riga)] = int(quantita or 0)
+    return risultato
+
+
+def _note_del_giorno(ordini):
+    """Commenti in una query per blocco di ordini, non una query per riga."""
+    chiavi = sorted({(o.IdDocumento, o.IdRigaDoc) for o in ordini})
+    note = defaultdict(list)
+    for start in range(0, len(chiavi), 250):
+        stmt = (
+            db.select(NotaVenditeOrdine)
+            .where(tuple_(NotaVenditeOrdine.IdDocumento, NotaVenditeOrdine.IdRigaDoc).in_(chiavi[start:start + 250]))
+            .order_by(NotaVenditeOrdine.CreatoIl.desc(), NotaVenditeOrdine.Id.desc())
+        )
+        for nota in db.session.scalars(stmt):
+            note[(nota.IdDocumento, nota.IdRigaDoc)].append(nota)
+    return note
+
+
+@bp_ordini_cliente.get("/calendario/dati_scadenza")
+@login_required
+def ordini_calendario_scadenze():
+    """Un solo evento FullCalendar per giorno di consegna."""
+    try:
+        inizio = date.fromisoformat(request.args["start"][:10])
+        fine = date.fromisoformat(request.args["end"][:10])
+    except (KeyError, ValueError):
+        abort(400, description="Intervallo date del calendario non valido.")
+    if fine <= inizio:
+        return jsonify([])
+    ordini = _ordini_scadenti(inizio, fine)
+    chiuse = _quantita_chiuse(ordini)
+    eventi = []
+    for gruppo in raggruppa_per_giorno(ordini, chiuse):
+        giorno = gruppo["giorno"]
+        in_attesa = gruppo["da_eseguire"] > 0
+        eventi.append({
+            "id": f"scadenze-{giorno.isoformat()}",
+            "title": f"{gruppo['numero_ordini']} ordini · {gruppo['quantita_ordinata']} pz",
+            "start": giorno.isoformat(),
             "allDay": True,
             "extendedProps": {
-                "tipo_evento": "scadenza",
-                "descrizione_articolo": ordine.DesArt or "Articolo senza descrizione",
-                "cod_art": ordine.CodArt,
-                "cliente": ordine.Cliente.RagioneSociale,
-                "quantita_residua": ordine.QTA_SALDO_DOC,
-                "detailUrl": url_for(
-                    "ordini_cliente.calendario_riepilogo_ordine",
-                    IdDocumento=ordine.IdDocumento,
-                    IdRigaDoc=ordine.IdRigaDoc,
-                )
+                "tipo_evento": "scadenze_giorno",
+                "numero_ordini": gruppo["numero_ordini"],
+                "numero_completati": gruppo["completati"],
+                "numero_da_eseguire": gruppo["da_eseguire"],
+                "quantita_ordinata": gruppo["quantita_ordinata"],
+                "quantita_saldo": gruppo["quantita_saldo"],
+                "stato_giorno": "da_eseguire" if in_attesa else "eseguito",
+                "detailUrl": url_for("ordini_cliente.calendario_riepilogo_giorno", data=giorno.isoformat()),
             },
-        }
-        for ordine in ordini_data_scadenza
-    ]
+        })
+    return jsonify(eventi)
 
-    return jsonify(json_ordini_data_scadenza)
+
+@bp_ordini_cliente.get("/calendario/scadenze/<data>/riepilogo")
+@login_required
+def calendario_riepilogo_giorno(data: str):
+    """Tabella unica dei documenti del giorno, con commenti nella stessa riga."""
+    try:
+        giorno = date.fromisoformat(data)
+    except ValueError:
+        abort(404)
+    ordini = _ordini_scadenti(giorno, giorno + timedelta(days=1))
+    if not ordini:
+        abort(404)
+    chiuse = _quantita_chiuse(ordini)
+    righe = [
+        {
+            "ordine": o,
+            "quantita_chiusa": chiuse.get((o.IdDocumento, o.IdRigaDoc), 0),
+            "eseguito": eseguito(o, chiuse.get((o.IdDocumento, o.IdRigaDoc), 0)),
+        }
+        for o in ordini
+    ]
+    return render_template(
+        "ordini/_partials/_riepilogo_calendario_giorno.j2",
+        giorno=giorno,
+        righe=righe,
+        note_per_ordine=_note_del_giorno(ordini),
+        eseguiti=sum(r["eseguito"] for r in righe),
+    )
 
 
 @bp_ordini_cliente.get("/calendario/pianificazione/eventi")
@@ -156,6 +243,8 @@ def eventi_fase_calendario():
     eventi = []
     for fase in fasi:
         piano = piani.get(fase.IdPianificazione)
+        if piano is not None and ruolo_attuale() == "utente_produzione" and articolo_cnf(piano.CodArt):
+            continue
         lavorazione = lavorazioni.get(fase.IdLavorazione)
         if piano is not None and piano.StatoRigaOrdine == "Annullato":
             continue
@@ -221,7 +310,7 @@ def calendario_riepilogo_ordine(IdDocumento: int, IdRigaDoc: int):
         .options(joinedload(OrdiniCliente.Cliente))
         .where(OrdiniCliente.IdDocumento == IdDocumento, OrdiniCliente.IdRigaDoc == IdRigaDoc)
     )
-    if ordine is None:
+    if ordine is None or (ruolo_attuale() == "utente_produzione" and articolo_cnf(ordine.CodArt)):
         abort(404)
     impegnata = db.session.scalar(
         db.select(db.func.coalesce(db.func.sum(PianificazioneOrdini.QtaPianificata), 0))
@@ -241,7 +330,7 @@ def calendario_riepilogo_ordine(IdDocumento: int, IdRigaDoc: int):
 def calendario_riepilogo_piano(IdPianificazione: int):
     """Elenco ordini, stock utilizzato, macchine e fasi per un piano."""
     piano = db.session.get(PianificazioneProduzione, IdPianificazione)
-    if piano is None:
+    if piano is None or (ruolo_attuale() == "utente_produzione" and articolo_cnf(piano.CodArt)):
         abort(404)
     associazioni = db.session.execute(
         db.select(PianificazioneOrdini, OrdiniCliente)

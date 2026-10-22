@@ -1008,3 +1008,27 @@
   text-align: center;
   white-space: normal;
 }
+
+/* Commenti vendite: un solo campo per ordine (22/10/2026).
+   Scorrimento orizzontale delle tabelle e comandi operativi preservati. */
+.pan-app-body .pan-orders-page .pan-note-cell,
+.pan-note-single {
+    min-width: 0;
+}
+.pan-note-single .pan-note-current { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.pan-note-single .pan-note-single-field {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 2.8rem;
+    max-height: 8rem;
+    resize: vertical;
+    line-height: 1.3;
+    font-size: .8rem;
+}
+.pan-note-single .pan-note-single-field[readonly] { background: #f8f9fa; color: #495057; cursor: default; }
+.pan-note-single .pan-note-single-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; }
+.pan-note-single .pan-note-single-actions .btn { padding: .18rem .48rem; white-space: nowrap; }
+.pan-note-single .pan-note-current-author { font-size: .7rem; color: #6c757d; overflow-wrap: anywhere; }
+.pan-note-single .pan-note-feedback { font-size: .75rem; }

@@ -145,3 +145,50 @@
   #calendar .fc-timegrid-event .cal-event-title { font-size: .62rem; }
   #calendar .fc-timegrid-slot { height: 38px; }
 }
+
+
+/* Scadenze accorpate per data: una sola voce per giorno, stato visivo. */
+#calendar .fc-event.evento-scadenza.scadenza-giorno-completata,
+#calendar .fc-event.evento-scadenza.scadenza-giorno-completata.fc-daygrid-event,
+#calendar .fc-event.evento-scadenza.scadenza-giorno-completata.fc-timegrid-event {
+  background:#d1e7dd !important; border:2px solid #198754 !important;
+  border-left:5px solid #198754 !important; color:#0f5132 !important;
+}
+#calendar .fc-event.evento-scadenza.scadenza-giorno-in-corso,
+#calendar .fc-event.evento-scadenza.scadenza-giorno-in-corso.fc-daygrid-event,
+#calendar .fc-event.evento-scadenza.scadenza-giorno-in-corso.fc-timegrid-event {
+  background:#fff3cd !important; border:2px solid #d97706 !important;
+  border-left:5px solid #d97706 !important; color:#7c2d12 !important;
+}
+#calendar .scadenza-giorno-completata .scadenza-badge {background:#198754;color:#fff;}
+#calendar .scadenza-giorno-in-corso .scadenza-badge {background:#d97706;color:#fff;}
+.scad-giorno-heading {display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.7rem;margin-bottom:.7rem;}
+.scad-giorno-legenda {display:flex;flex-wrap:wrap;gap:.9rem;font-size:.8rem;}
+.scad-giorno-legenda > span {display:inline-flex;align-items:center;gap:.35rem;}
+.scad-stato-dot {display:inline-block;width:.7rem;height:.7rem;border-radius:.2rem;}
+.scad-stato-dot.scad-stato-eseguito {background:#198754;}
+.scad-stato-dot.scad-stato-attesa {background:#d97706;}
+.scad-giorno-tabella {width:100%;max-height:min(63dvh,650px);overflow:auto;border:1px solid #d3dce6;border-radius:.35rem;}
+.scad-giorno-tabella table {min-width:1040px;font-size:.84rem;}
+.scad-giorno-tabella thead th {position:sticky;top:0;z-index:2;background:var(--pan-info, #0dcaf0)!important;color:#092533!important;white-space:nowrap;}
+.scad-giorno-tabella tbody tr.scad-riga-eseguita > td {background:#d1e7dd!important;}
+.scad-giorno-tabella tbody tr.scad-riga-da-eseguire > td {background:#fff3cd!important;}
+.scad-giorno-tabella .scad-col-note {min-width:330px;width:33%;}
+.scad-giorno-tabella .pan-note-inline {max-width:470px;}
+.scad-giorno-tabella .pan-note-history {max-height:145px;overflow-y:auto;}
+.scad-giorno-tabella .pan-note-new,.scad-giorno-tabella .pan-note-edit {display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;}
+.scad-giorno-tabella .pan-note-new textarea,.scad-giorno-tabella .pan-note-edit textarea {flex:1 1 190px;min-height:36px;max-height:115px;}
+.scad-giorno-tabella .pan-note-new .btn,.scad-giorno-tabella .pan-note-edit .btn {flex:0 0 auto;}
+.scad-stato-etichetta {display:inline-block;padding:.2rem .5rem;border-radius:.3rem;font-weight:700;white-space:nowrap;font-size:.76rem;}
+.scad-stato-etichetta.scad-stato-eseguito {background:#198754;color:#fff;}
+.scad-stato-etichetta.scad-stato-attesa {background:#d97706;color:#fff;}
+@media (max-width:600px) { .scad-giorno-tabella table {font-size:.79rem;} .scad-giorno-heading h3 {font-size:1rem;} }
+
+/* Riepilogo giornaliero: nessun editor, testo del commento in sola lettura. */
+.scad-giorno-tabella .scad-commento-lettura {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 10rem;
+  font-size: .83rem;
+  line-height: 1.35;
+}

@@ -8,26 +8,18 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/skeleton.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/classic/theme.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/classic/palette.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/calendario.css', v='20261021-3') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/calendario.css', v='20261022-2') }}">
 {% endblock %}
 
 {% block content %}
-<div class="pan-page pan-calendar-page">
 <section class="calendario-shell">
-    <header class="calendario-intestazione pan-page-header">
-        <div>
-            <h1>Calendario produzione e scadenze</h1>
-            <p>Settimana oraria: lavorazioni concomitanti affiancate; ogni fase mostra descrizione, quantità e tipologia.</p>
-        </div>
-    </header>
-
     <div class="calendario-legenda" aria-label="Legenda del calendario">
         <span><i class="calendario-legenda-dot produzione" aria-hidden="true"></i> Produzioni · colore per pianificazione</span>
         <span><i class="calendario-legenda-dot scadenza" aria-hidden="true"></i> Scadenze cliente · arancione</span>
         <span class="calendario-legenda-tipi">Tipologia: <b>Impasto</b> · <b>Cottura</b> · <b>Altre lavorazioni</b></span>
     </div>
 
-    <div class="calendario-riquadro pan-panel" role="region" aria-label="Calendario settimanale" tabindex="0">
+    <div class="calendario-riquadro" role="region" aria-label="Calendario settimanale" tabindex="0">
         <div id="calendar"
              data-events-scadenze-url="{{ url_for('ordini_cliente.ordini_calendario_scadenze') }}"
              data-events-pianificazione-url="{{ url_for('ordini_cliente.eventi_fase_calendario') }}">
@@ -45,7 +37,6 @@
   </div>
 </div>
 
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -54,5 +45,5 @@
        Questo plugin registra il tema classic prima che il calendario venga creato. #}
     <script src="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/classic/global.js') }}"></script>
     <script src="{{ url_for('static', filename='js/riepilogo_calendari.js', v='20261020-2') }}"></script>
-    <script src="{{ url_for('static', filename='js/calendario.js', v='20261020-2') }}"></script>
+    <script src="{{ url_for('static', filename='js/calendario.js', v='20261022-2') }}"></script>
 {% endblock %}

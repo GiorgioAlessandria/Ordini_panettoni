@@ -44,6 +44,12 @@
         return nodo;
     }
 
+    function propsStato(props) {
+        return props.stato_giorno === 'eseguito'
+            ? 'scadenza-giorno-completata'
+            : 'scadenza-giorno-in-corso';
+    }
+
     const calendario = new FullCalendar.Calendar(calendarEl, {
         themeSystem: 'classic',
         initialView: 'timeGridWeek',
@@ -88,7 +94,7 @@
             const produzione = info.event.source?.id === 'pianificazione';
             return produzione
                 ? ['evento-produzione', 'lavorazione-' + tipoLavorazione(info.event.extendedProps.lavorazione)]
-                : ['evento-scadenza'];
+                : ['evento-scadenza', propsStato(info.event.extendedProps)];
         },
         eventContent(info) {
             const props = info.event.extendedProps;
@@ -101,19 +107,20 @@
                     `Piano #${props.id_pianificazione ?? '?'} · ${props.lavorazione || 'Lavorazione'}`);
                 etichetta.dataset.lavorazione = tipoLavorazione(props.lavorazione);
             } else {
-                addText(scheda, 'cal-event-badge scadenza-badge', 'Scadenza cliente');
+                addText(scheda, 'cal-event-badge scadenza-badge', 'Scadenze del giorno');
             }
             if (info.timeText && produzione) addText(scheda, 'cal-event-time', info.timeText);
-            addText(scheda, 'cal-event-title', props.descrizione_articolo || info.event.title || 'Articolo');
+            addText(scheda, 'cal-event-title',
+                produzione ? (props.descrizione_articolo || info.event.title || 'Articolo')
+                           : (info.event.title || 'Scadenze cliente'));
 
             if (produzione) {
                 addText(scheda, 'cal-event-summary',
                     `${props.numero_ordini ?? 0} ordini · ${props.quantita_assegnata ?? 'N/D'} pz assegnati`);
                 if (props.dati_incompleti) addText(scheda, 'cal-event-warning', 'Quantità da verificare');
             } else {
-                if (props.cliente) addText(scheda, 'cal-event-summary', props.cliente);
-                if (props.quantita_residua != null) addText(scheda, 'cal-event-summary',
-                    `Da consegnare: ${props.quantita_residua} pz`);
+                addText(scheda, 'cal-event-summary',
+                    `${props.numero_completati ?? 0} eseguiti · ${props.numero_da_eseguire ?? 0} da eseguire`);
             }
             return { domNodes: [scheda] };
         },
@@ -139,7 +146,13 @@
                 );
                 if (p.impastatrici?.length) righe.push(`Impastatrici: ${p.impastatrici.join(', ')}`);
             } else {
-                righe.push(`Cliente: ${p.cliente || 'N/D'}`, `Da consegnare: ${p.quantita_residua ?? 'N/D'} pz`);
+                righe.push(
+                    `Ordini del giorno: ${p.numero_ordini ?? 0}`,
+                    `Eseguiti: ${p.numero_completati ?? 0}`,
+                    `Da eseguire: ${p.numero_da_eseguire ?? 0}`,
+                    `Quantità ordinata: ${p.quantita_ordinata ?? 0} pz`,
+                    'Clicca per vedere la tabella con i commenti'
+                );
             }
             info.el.title = righe.join('\n');
         },

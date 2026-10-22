@@ -26,6 +26,8 @@ from flaskr.models.model_ordini import (
     AnagraficaArticoli,
 )
 from flaskr.routes_auth import login_required
+from flaskr.accessi import ruolo_attuale
+from flaskr.service.scadenze_giornaliere_service import articolo_cnf
 from flaskr.routes_blueprint import bp_ordini_cliente
 from flaskr.service.ordini_service import (
     ErroreCalcoloRiepilogo,
@@ -59,6 +61,22 @@ from flaskr.service.risorse_produzione_service import (
 )
 
 
+def _proteggi_ordini_cnf(ordini):
+    """Le richieste POST manuali non possono aggirare il filtro del ruolo produzione."""
+    if ruolo_attuale() == "utente_produzione" and any(
+        articolo_cnf(o.CodArt) for o in ordini
+    ):
+        abort(404, description="Ordine non disponibile per questo profilo")
+
+
+def _proteggi_piano_cnf(id_pianificazione):
+    if ruolo_attuale() == "utente_produzione":
+        piano = db.session.get(PianificazioneProduzione, id_pianificazione)
+        if piano is not None and articolo_cnf(piano.CodArt):
+            abort(404, description="Pianificazione non disponibile per questo profilo")
+
+
+
 @bp_ordini_cliente.get("/stock")
 @login_required
 def stock_articoli():
@@ -81,6 +99,8 @@ def stock_articoli_tabella():
 def tabella_ordini_cliente_da_produrre():
 
     ordini_cliente_assegnati = dati_tabella_produzione(stato="Nuovo")
+    if ruolo_attuale() == "utente_produzione":
+        ordini_cliente_assegnati = [r for r in ordini_cliente_assegnati if not articolo_cnf(r.get("CodArt"))]
 
     return render_template(
         "ordini/_partials/_tabella_ordini.j2",
@@ -94,6 +114,8 @@ def tabella_ordini_cliente_da_produrre():
 def tabella_ordini_cliente_in_produzione():
 
     ordini_cliente_assegnati = dati_tabella_produzione(stato="In produzione")
+    if ruolo_attuale() == "utente_produzione":
+        ordini_cliente_assegnati = [r for r in ordini_cliente_assegnati if not articolo_cnf(r.get("CodArt"))]
 
     return render_template(
         "ordini/_partials/_tabella_ordini.j2",
@@ -111,7 +133,7 @@ def aggiorna_priorita_ordine(IdDocumento: int, IdRigaDoc: int):
         return "Priorità non valida", 400
 
     ordine = db.session.get(OrdiniCliente, (IdDocumento, IdRigaDoc))
-    if ordine is None:
+    if ordine is None or (ruolo_attuale() == "utente_produzione" and articolo_cnf(ordine.CodArt)):
         abort(404)
 
     # Le priorità riguardano esclusivamente gli ordini con residuo pianificabile.
@@ -148,6 +170,7 @@ def riepilogo_selezione():
     ids_selezionati = request.form.getlist("ordini_selezionati")
     try:
         ordini = recupera_ordini_selezionati(ids_selezionati)
+        _proteggi_ordini_cnf(ordini)
         riepilogo = calcolo_riepilogo_ordini(ordini)
     except ErroreCalcoloRiepilogo as errore:
         return render_template(
@@ -178,7 +201,7 @@ def dettaglio_ordine(IdDocumento: int, IdRigaDoc: int):
     if not ordine:
         errore = "Ordine selezionato non esistente a programma"
         render_template("ordini/_partials/_dettaglio_ordine.j2", errore=errore)
-    if ordine is None:
+    if ordine is None or (ruolo_attuale() == "utente_produzione" and articolo_cnf(ordine.CodArt)):
         abort(404)
 
     return render_template("ordini/_partials/_dettaglio_ordine.j2", ordine=ordine, errore=None)
@@ -210,6 +233,7 @@ def anteprima_pianificazione():
 
     try:
         ordini = recupera_ordini_selezionati(ids_selezionati)
+        _proteggi_ordini_cnf(ordini)
         riepilogo = calcolo_riepilogo_ordini(ordini)
     except ErroreCalcoloRiepilogo as errore:
         return render_template(template, error=str(errore))
@@ -244,6 +268,7 @@ def simulazione_pianificazione():
     template = "ordini/_partials/_anteprima_ottimizzazione.j2"
     try:
         ordini = recupera_ordini_selezionati(ids_ordini)
+        _proteggi_ordini_cnf(ordini)
         riepilogo = calcolo_riepilogo_ordini(ordini)
         _, ricetta = trova_capacita_forno(ordini[0], riepilogo["tipologia_panettone"])
         fasi = recupero_fasi_per_ricetta(ricetta)
@@ -314,6 +339,7 @@ def conferma_pianificazione():
             raise ErroreCalcoloPianificazione("Una o più impastatrici non sono state trovate")
 
         ordini_selezionati = recupera_ordini_selezionati(ids_ordini)
+        _proteggi_ordini_cnf(ordini_selezionati)
         chiavi_ordini = [(ordine.IdDocumento, ordine.IdRigaDoc) for ordine in ordini_selezionati]
         if len(chiavi_ordini) != len(set(chiavi_ordini)):
             raise ErroreCalcoloRiepilogo("Sono presenti ordini selezionati più volte")
@@ -539,6 +565,8 @@ def pianificazioni_chiuse():
         .where(PianificazioneProduzione.StatoRigaOrdine.in_(("Chiuso", "Annullato")))
         .order_by(PianificazioneProduzione.IdPianificazione.desc())
     ).all()
+    if ruolo_attuale() == "utente_produzione":
+        piani = [p for p in piani if not articolo_cnf(p.CodArt)]
     return render_template("ordini/pianificazioni_storico.j2", piani=piani)
 
 
@@ -546,7 +574,7 @@ def pianificazioni_chiuse():
 @login_required
 def gestione_pianificazione(IdPianificazione: int):
     piano = db.session.get(PianificazioneProduzione, IdPianificazione)
-    if piano is None:
+    if piano is None or (ruolo_attuale() == "utente_produzione" and articolo_cnf(piano.CodArt)):
         abort(404)
     assoc = db.session.execute(
         db.select(PianificazioneOrdini, OrdiniCliente)
@@ -575,6 +603,7 @@ def gestione_pianificazione(IdPianificazione: int):
 @login_required
 def conferma_riconciliazione_stock(IdPianificazione: int):
     """Operazione amministrativa: nessun movimento di magazzino."""
+    _proteggi_piano_cnf(IdPianificazione)
     # Disabilitata per default. Autorizzare esplicitamente gli utenti verificatori
     # con app.config["STOCK_RECONCILIATION_USERS"] = ["username1", ...].
     autorizzati = current_app.config.get("STOCK_RECONCILIATION_USERS", ())
@@ -599,6 +628,7 @@ def conferma_riconciliazione_stock(IdPianificazione: int):
 @bp_ordini_cliente.post("/pianificazioni/<int:IdPianificazione>/chiudi")
 @login_required
 def conferma_chiusura_pianificazione(IdPianificazione: int):
+    _proteggi_piano_cnf(IdPianificazione)
     try:
         chiudi_pianificazione(IdPianificazione, g.user.username)
     except ErroreCicloVita as errore:
@@ -611,6 +641,7 @@ def conferma_chiusura_pianificazione(IdPianificazione: int):
 @bp_ordini_cliente.post("/pianificazioni/<int:IdPianificazione>/annulla")
 @login_required
 def conferma_annullamento_pianificazione(IdPianificazione: int):
+    _proteggi_piano_cnf(IdPianificazione)
     motivo = (request.form.get("motivo_annullamento") or "").strip()
     try:
         annulla_pianificazione(IdPianificazione, g.user.username, motivo)
