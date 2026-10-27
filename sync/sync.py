@@ -4,12 +4,12 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import dateutil.utils
-from models_sync import VwESArticoli, VwESClientiFornitori, VwESOrdiniClienteAperti
 from sqlalchemy import create_engine, delete, event, exc, select, tuple_
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
+from config.production import SECRET_KEY, SQLALCHEMY_DATABASE_URI
 from flaskr.models.model_ordini import (
     AnagraficaArticoli,
     AnagraficaClienti,
@@ -17,8 +17,9 @@ from flaskr.models.model_ordini import (
     OrdiniCliente,
     StatoRigaOrdine,
 )
+from sync.models_sync import VwESArticoli, VwESClientiFornitori, VwESOrdiniClienteAperti
 
-sql_params: str = "DRIVER={ODBC Driver 18 for SQL Server};SERVER=SERVERSPRING02;DATABASE=BernardiProd;UID=Produzione;PWD=Produzione2025.;Encrypt=no;TrustServerCertificate=no;Pooling=no;MultipleActiveResultSets=False;"
+sql_params: str = SECRET_KEY
 TimeZone = "Europe/Rome"
 
 try:
@@ -31,9 +32,7 @@ except Exception as exc:
     raise
 
 try:
-    sqlite_engine_app = create_engine(
-        "sqlite://///Serverspring02/PythonDB/Ordini_panettoni/instance/db_ordini.sqlite3"
-    )
+    sqlite_engine_app = create_engine(SQLALCHEMY_DATABASE_URI)
     print("Sqlite connected")
     SessionSqlite = sessionmaker(bind=sqlite_engine_app)
     print("Sqlite session created")

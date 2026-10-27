@@ -4,15 +4,17 @@ Il peso del prodotto si ottiene dal riepilogo creato da calcolo_riepilogo_ordini
 che applica i coefficienti di glassatura e impasto configurati a database.
 Lo stesso peso unitario viene applicato a tutti i pezzi, surplus incluso.
 """
-from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Any
+
 from collections.abc import Sequence
+from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 
 from flaskr.models.model_ordini import RicettaFasi
 from flaskr.service.ordini_service import calcolo_infornate
 from flaskr.service.pianificazione_service import (
-    ErroreCalcoloPianificazione, calcolo_max_panettoni,
+    ErroreCalcoloPianificazione,
+    calcolo_max_panettoni,
 )
 
 
@@ -43,10 +45,13 @@ def simula_ottimizzazione(
     Nessuna scrittura a DB: si può invocare all'attivazione della checkbox.
     """
     fasi_cottura = [
-        fase for fase in fasi_ricetta
-        if ("forno" in str(fase.lavorazione.TipologiaLavorazione).casefold()
+        fase
+        for fase in fasi_ricetta
+        if (
+            "forno" in str(fase.lavorazione.TipologiaLavorazione).casefold()
             or "cott" in str(fase.lavorazione.DescrizioneLavorazione).casefold()
-            or "inforn" in str(fase.lavorazione.DescrizioneLavorazione).casefold())
+            or "inforn" in str(fase.lavorazione.DescrizioneLavorazione).casefold()
+        )
     ]
     if len(fasi_cottura) != 1:
         raise ErroreCalcoloPianificazione(
@@ -73,7 +78,10 @@ def simula_ottimizzazione(
             "Riduci la selezione degli ordini."
         )
     pezzi_produzione, pezzi_residui, pezzi_stock, _ = calcolo_max_panettoni(
-        massimo_cotte, capienza, pezzi_da_produrre, ottimizza,
+        massimo_cotte,
+        capienza,
+        pezzi_da_produrre,
+        ottimizza,
     )
     if pezzi_residui != 0 or pezzi_produzione < pezzi_da_produrre:
         raise ErroreCalcoloPianificazione("Il piano non copre completamente gli ordini selezionati")
