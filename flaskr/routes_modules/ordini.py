@@ -57,7 +57,7 @@ from flaskr.service.consumo_stock_service import distribuisci_stock_ordini
 from flaskr.service.risorse_produzione_service import (
     individua_fasi_risorse,
     verifica_capacita_forno,
-    verifica_e_distribuisci_impasto,
+    verifica_e_distribuisci_impasti,
 )
 
 
@@ -438,14 +438,13 @@ def conferma_pianificazione():
         # La concorrenza NON è più vietata per IdLavorazione.
         # Verifica la disponibilità delle risorse sulle fasi effettive
         # (che possono avere offset rispetto all'inizio della pianificazione).
-        (fase_impasto, lavoro_impasto), (fase_forno, lavoro_forno, ricetta_fase_forno) = (
+        fasi_impasto, (fase_forno, lavoro_forno, ricetta_fase_forno) = (
             individua_fasi_risorse(fasi)
         )
-        assegnazioni_macchine, blocchi_impasto = verifica_e_distribuisci_impasto(
+        assegnazioni_macchine, blocchi_per_fase_impasto = verifica_e_distribuisci_impasti(
             impastatrici=list_impastatrici,
             peso_totale_grammi=peso_totale_pianificato,
-            fase=fase_impasto,
-            lavorazione=lavoro_impasto,
+            fasi_impasto=fasi_impasto,
         )
         verifica_capacita_forno(
             fase_forno=fase_forno,
@@ -461,22 +460,23 @@ def conferma_pianificazione():
         db.session.add_all(fasi)
         db.session.flush()  # Servono gli ID delle fasi per le occupazioni.
         for id_macchina, kg in assegnazioni_macchine.items():
-            # Mantiene l'associazione legacy utilizzata dal calendario.
+            # Una sola associazione legacy macchina-piano, anche se la
+            # ricetta richiede due o piu' impasti sulla stessa impastatrice.
             db.session.add(PianificazioneOrdiniImpastatrici(
                 IdPianificazione=pianificazione.IdPianificazione,
                 IdImpastatrice=id_macchina,
             ))
-            for giorno, blocco in blocchi_impasto:
-                db.session.add(PianificazioneImpastatriceFase(
-                    IdPianificazioneFase=fase_impasto.IdPianificazioneFase,
-                    IdImpastatrice=id_macchina,
-                    DataFase=giorno,
-                    Blocco=blocco,
-                    # Peso dell'intero impasto assegnato alla macchina;
-                    # se la fase dura più blocchi, ripetuto solo ai fini
-                    # informativi (NON sommare sulle righe temporali).
-                    KgAssegnati=kg,
-                ))
+            for fase_impasto, blocchi_impasto in blocchi_per_fase_impasto:
+                for giorno, blocco in blocchi_impasto:
+                    db.session.add(PianificazioneImpastatriceFase(
+                        IdPianificazioneFase=fase_impasto.IdPianificazioneFase,
+                        IdImpastatrice=id_macchina,
+                        DataFase=giorno,
+                        Blocco=blocco,
+                        # Peso INFORMATIVO per passaggio: non sommarlo fra
+                        # fasi ripetute o slot successivi della stessa fase.
+                        KgAssegnati=kg,
+                    ))
 
         ora_log = datetime.now()
         for ordine, quantita_assegnata, quantita_da_stock in assegnazioni:

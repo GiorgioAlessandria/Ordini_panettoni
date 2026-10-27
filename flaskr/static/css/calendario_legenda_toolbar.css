@@ -1,0 +1,60 @@
+/* Calendario - legenda accanto al bottone Today/Oggi.
+ * CSS aggiuntivo volutamente isolato per non sovrascrivere calendario.css.
+ */
+
+/* Evita la fascia separata sopra il calendario durante l'inizializzazione. */
+.calendario-shell > .calendario-legenda {
+    display: none;
+}
+
+/* Il gruppo dei comandi a sinistra ospita la legenda, dopo Today/Oggi. */
+.calendario-shell #calendar .fc-header-toolbar .fc-toolbar-chunk:has(.fc-today-button) {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: .3rem .5rem;
+    min-width: 0;
+}
+
+.calendario-shell #calendar .calendario-legenda--vicino-oggi {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: .18rem .55rem;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+    color: #586779;
+    font-size: .7rem;
+    line-height: 1.2;
+}
+
+.calendario-shell #calendar .calendario-legenda--vicino-oggi span {
+    display: inline-flex;
+    align-items: center;
+    gap: .2rem;
+    white-space: nowrap;
+}
+
+.calendario-shell #calendar .calendario-legenda--vicino-oggi .calendario-legenda-dot {
+    width: 9px;
+    height: 9px;
+}
+
+.calendario-shell #calendar .calendario-legenda--vicino-oggi .calendario-legenda-tipi {
+    font-size: inherit;
+}
+
+/* Su schermi stretti la legenda può spezzarsi, senza sovrapporre i bottoni. */
+@media (max-width: 1100px) {
+    .calendario-shell #calendar .calendario-legenda--vicino-oggi {
+        gap: .18rem .45rem;
+        font-size: .68rem;
+    }
+}

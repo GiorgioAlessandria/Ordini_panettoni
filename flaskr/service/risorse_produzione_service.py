@@ -107,21 +107,41 @@ def _dati_fasi(fasi: Sequence[PianificazioneFasi]) -> list[tuple[PianificazioneF
 
 def individua_fasi_risorse(
     fasi: Sequence[PianificazioneFasi],
-) -> tuple[tuple[PianificazioneFasi, TipologieLavorazione],
+) -> tuple[list[tuple[PianificazioneFasi, TipologieLavorazione]],
            tuple[PianificazioneFasi, TipologieLavorazione, RicettaFasi]]:
-    dati = _dati_fasi(fasi)
+    """Trova *tutte* le fasi di impasto, anche con IdLavorazione ripetuto.
+
+    La singola occorrenza e' IdRicettaFase, non IdLavorazione: la stessa
+    lavorazione puo' tornare nella ricetta in blocchi successivi.
+    """
+    dati = sorted(_dati_fasi(fasi), key=lambda item: item[0].OffsetBlocchi)
     impasti = [(f, l) for f, l, _ in dati if _fase_impasto(l)]
     forni = [(f, l, r) for f, l, r in dati if _fase_forno(l)]
-    if len(impasti) != 1:
-        raise ErroreCalcoloPianificazione(
-            f"La ricetta deve avere esattamente una fase di impasto (trovate {len(impasti)}). "
-            "Verificare TipologiaLavorazione/DescrizioneLavorazione."
-        )
+    if not impasti:
+        raise ErroreCalcoloPianificazione("La ricetta non contiene fasi di impasto")
     if len(forni) != 1:
         raise ErroreCalcoloPianificazione(
             f"La ricetta deve avere esattamente una fase di cottura (trovate {len(forni)})."
         )
-    return impasti[0], forni[0]
+
+    # La stessa produzione non puo' svolgere due fasi nello stesso blocco,
+    # considerando anche le durate maggiori di un blocco.
+    occupazione_piano: dict[tuple[date, str], PianificazioneFasi] = {}
+    for fase, lavorazione, _ in dati:
+        for slot in _blocchi_occupati(
+            fase.DataFase, fase.Blocco, int(lavorazione.DurataBlocchi)
+        ):
+            altra = occupazione_piano.get(slot)
+            if altra is not None:
+                giorno, blocco = slot
+                raise ErroreCalcoloPianificazione(
+                    f"Due fasi della stessa produzione si sovrappongono il "
+                    f"{giorno:%d/%m/%Y} ({blocco}): fasi ricetta "
+                    f"{altra.IdRicettaFase} e {fase.IdRicettaFase}. "
+                    "Correggere gli offset o la durata delle lavorazioni."
+                )
+            occupazione_piano[slot] = fase
+    return impasti, forni[0]
 
 
 def distribuisci_peso_impastatrici(
@@ -225,16 +245,40 @@ def _occupazioni_impastatrici_storiche(
     return occupate
 
 
-def verifica_e_distribuisci_impasto(
+def verifica_e_distribuisci_impasti(
     impastatrici: Sequence[AnagraficaImpastatrici],
     peso_totale_grammi: Decimal,
-    fase: PianificazioneFasi,
-    lavorazione: TipologieLavorazione,
-) -> tuple[dict[int, Decimal], list[tuple[date, str]]]:
-    slots = _blocchi_occupati(fase.DataFase, fase.Blocco, int(lavorazione.DurataBlocchi))
+    fasi_impasto: Sequence[tuple[PianificazioneFasi, TipologieLavorazione]],
+) -> tuple[dict[int, Decimal], list[tuple[PianificazioneFasi, list[tuple[date, str]]]]]:
+    """Prenota la *stessa* selezione di macchine per ogni fase di impasto.
+
+    La massa viene verificata per OGNI passaggio, non sommata fra i passaggi:
+    lo stesso impasto puo' essere lavorato una seconda volta. Le occupazioni
+    vengono prenotate invece per ogni IdRicettaFase e per ogni blocco.
+    """
+    if not fasi_impasto:
+        raise ErroreCalcoloPianificazione("La ricetta non contiene fasi di impasto")
+
     ids = {m.IdImpastatrice for m in impastatrici}
     if not ids:
         raise ErroreCalcoloPianificazione("Seleziona almeno un'impastatrice")
+
+    blocchi_per_fase: list[tuple[PianificazioneFasi, list[tuple[date, str]]]] = []
+    slots_usati: set[tuple[date, str]] = set()
+    for fase, lavorazione in fasi_impasto:
+        slots = _blocchi_occupati(
+            fase.DataFase, fase.Blocco, int(lavorazione.DurataBlocchi)
+        )
+        if slots_usati.intersection(slots):
+            raise ErroreCalcoloPianificazione(
+                "Due fasi di impasto si sovrappongono: "
+                "la stessa impastatrice non puo' lavorare in due fasi nello stesso blocco"
+            )
+        slots_usati.update(slots)
+        blocchi_per_fase.append((fase, slots))
+
+    # Controlla l'intera finestra temporale PRIMA di assegnare le risorse,
+    # cosi' non cambia impastatrice dalla prima alla seconda fase.
     occupate = set(
         db.session.execute(
             db.select(
@@ -246,16 +290,33 @@ def verifica_e_distribuisci_impasto(
     )
     occupate |= _occupazioni_impastatrici_storiche(ids)
     disponibili = {
-        m.IdImpastatrice: _capacita_kg(m)
-        for m in impastatrici
-        if all((m.IdImpastatrice, giorno, blocco) not in occupate for giorno, blocco in slots)
+        macchina.IdImpastatrice: _capacita_kg(macchina)
+        for macchina in impastatrici
+        if all((macchina.IdImpastatrice, giorno, blocco) not in occupate
+               for giorno, blocco in slots_usati)
     }
     if not disponibili:
         raise ErroreCalcoloPianificazione(
-            "Le impastatrici selezionate sono già occupate nei blocchi previsti per l'impasto"
+            "Le impastatrici selezionate sono gia' occupate in uno dei blocchi "
+            "previsti per le fasi di impasto"
         )
+
     peso_kg = _decimale(peso_totale_grammi) / Decimal(1000)
-    return distribuisci_peso_impastatrici(peso_kg, disponibili), slots
+    assegnazioni = distribuisci_peso_impastatrici(peso_kg, disponibili)
+    return assegnazioni, blocchi_per_fase
+
+
+def verifica_e_distribuisci_impasto(
+    impastatrici: Sequence[AnagraficaImpastatrici],
+    peso_totale_grammi: Decimal,
+    fase: PianificazioneFasi,
+    lavorazione: TipologieLavorazione,
+) -> tuple[dict[int, Decimal], list[tuple[date, str]]]:
+    """Compatibilita' con i chiamanti che hanno un'unica fase di impasto."""
+    assegnazioni, blocchi = verifica_e_distribuisci_impasti(
+        impastatrici, peso_totale_grammi, [(fase, lavorazione)]
+    )
+    return assegnazioni, blocchi[0][1]
 
 
 def verifica_capacita_forno(
