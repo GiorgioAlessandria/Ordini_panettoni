@@ -122,6 +122,12 @@
 #calendar .cal-event-badge[data-lavorazione="cottura"] { background: #ccfbf1; color: #115e59; }
 #calendar .cal-event-badge[data-lavorazione="lievitazione"] { background: #ede9fe; color: #5b21b6; }
 #calendar .cal-event-badge[data-lavorazione="altro"] { background: #e2e8f0; color: #334155; }
+/* Il colore della singola fase prevale sul fallback della tipologia lavorazione. */
+#calendar .cal-event-badge[data-colore-fase="personalizzato"] {
+  background: var(--fase-badge-bg, #64748b);
+  color: var(--fase-badge-fg, #ffffff);
+  border: 1px solid rgba(0,0,0,.12);
+}
 #calendar .cal-event-badge.scadenza-badge { background: #fed7aa; color: #9a3412; }
 @media (max-width: 991.98px) {
   .calendario-intestazione { align-items: flex-start; }

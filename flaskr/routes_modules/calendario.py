@@ -14,6 +14,7 @@ from flaskr.models.model_ordini import (
     PianificazioneOrdini,
     PianificazioneOrdiniImpastatrici,
     PianificazioneProduzione,
+    RicettaFasi,
     TipologieLavorazione,
 )
 from flaskr.models.model_accessi import NotaVenditeOrdine
@@ -83,6 +84,47 @@ def _quantita_chiuse(ordini):
     return risultato
 
 
+
+def _quantita_pianificate(ordini):
+    """Quantità già prese in carico per ogni ordine, incluse pianificazioni parziali.
+
+    Le associazioni annullate non concorrono al conteggio; l'ordine ERP non viene modificato.
+    """
+    chiavi = sorted({(o.IdDocumento, o.IdRigaDoc) for o in ordini})
+    risultato = {}
+    for start in range(0, len(chiavi), 250):
+        blocco = chiavi[start:start + 250]
+        stmt = (
+            db.select(
+                PianificazioneOrdini.IdDocumento,
+                PianificazioneOrdini.IdRiga,
+                db.func.coalesce(db.func.sum(PianificazioneOrdini.QtaPianificata), 0),
+            )
+            .join(
+                PianificazioneProduzione,
+                PianificazioneProduzione.IdPianificazione == PianificazioneOrdini.IdPianificazione,
+            )
+            .where(
+                tuple_(PianificazioneOrdini.IdDocumento, PianificazioneOrdini.IdRiga).in_(blocco),
+                PianificazioneOrdini.Stato.in_(("In produzione", "Chiuso")),
+                PianificazioneProduzione.StatoRigaOrdine != "Annullato",
+            )
+            .group_by(PianificazioneOrdini.IdDocumento, PianificazioneOrdini.IdRiga)
+        )
+        for documento, riga, quantita in db.session.execute(stmt):
+            risultato[(documento, riga)] = int(quantita or 0)
+    return risultato
+
+
+def _stato_scadenza(quantita_pianificata: int, ordine_eseguito: bool) -> str:
+    """Stato visuale della scadenza, distinto dallo stato ERP della riga."""
+    if ordine_eseguito:
+        return "Eseguito"
+    if quantita_pianificata > 0:
+        return "Preso in carico"
+    return "Nuovo"
+
+
 def _note_del_giorno(ordini):
     """Commenti in una query per blocco di ordini, non una query per riga."""
     chiavi = sorted({(o.IdDocumento, o.IdRigaDoc) for o in ordini})
@@ -146,14 +188,21 @@ def calendario_riepilogo_giorno(data: str):
     if not ordini:
         abort(404)
     chiuse = _quantita_chiuse(ordini)
-    righe = [
-        {
-            "ordine": o,
-            "quantita_chiusa": chiuse.get((o.IdDocumento, o.IdRigaDoc), 0),
-            "eseguito": eseguito(o, chiuse.get((o.IdDocumento, o.IdRigaDoc), 0)),
-        }
-        for o in ordini
-    ]
+    pianificate = _quantita_pianificate(ordini)
+    righe = []
+    for ordine in ordini:
+        chiave = (ordine.IdDocumento, ordine.IdRigaDoc)
+        qta_chiusa = chiuse.get(chiave, 0)
+        qta_pianificata = pianificate.get(chiave, 0)
+        ordine_eseguito = eseguito(ordine, qta_chiusa)
+        righe.append({
+            "ordine": ordine,
+            "quantita_chiusa": qta_chiusa,
+            "quantita_pianificata": qta_pianificata,
+            "preso_in_carico": qta_pianificata > 0,
+            "stato_calendario": _stato_scadenza(qta_pianificata, ordine_eseguito),
+            "eseguito": ordine_eseguito,
+        })
     return render_template(
         "ordini/_partials/_riepilogo_calendario_giorno.j2",
         giorno=giorno,
@@ -182,6 +231,13 @@ def eventi_fase_calendario():
 
     ids_piani = {fase.IdPianificazione for fase in fasi}
     ids_lavorazioni = {fase.IdLavorazione for fase in fasi}
+    ids_ricetta_fasi = {fase.IdRicettaFase for fase in fasi if fase.IdRicettaFase is not None}
+    # Una sola query per gli attributi delle specifiche fasi di ricetta.
+    ricetta_fasi = {
+        rf.id: rf for rf in db.session.scalars(
+            db.select(RicettaFasi).where(RicettaFasi.id.in_(ids_ricetta_fasi))
+        ).all()
+    } if ids_ricetta_fasi else {}
 
     # Recuperi in blocco: nessuna query per ogni ordine o ogni fase.
     piani = {
@@ -261,6 +317,10 @@ def eventi_fase_calendario():
             lavorazione=lavorazione,
             associazioni=righe,
             descrizione_articolo=descrizioni_articoli.get(piano.CodArt) or "Articolo senza descrizione",
+            colore_fase=(ricetta_fasi[fase.IdRicettaFase].Colore
+                         if fase.IdRicettaFase in ricetta_fasi else None),
+            numero_fase=(ricetta_fasi[fase.IdRicettaFase].IdFase
+                         if fase.IdRicettaFase in ricetta_fasi else None),
         )
         evento["extendedProps"]["impastatrici"] = impastatrici_per_piano[fase.IdPianificazione]
         evento["extendedProps"]["detailUrl"] = url_for(

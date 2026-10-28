@@ -15,17 +15,31 @@
         return;
     }
 
-    const coloriPiani = [
-        ['#1d4ed8', '#eff6ff'], ['#0f766e', '#f0fdfa'],
-        ['#7e22ce', '#faf5ff'], ['#be185d', '#fdf2f8'],
-        ['#0369a1', '#f0f9ff'], ['#4d7c0f', '#f7fee7'],
-        ['#4338ca', '#eef2ff'], ['#b45309', '#fffbeb'],
-    ];
-
+    // Colore associato in modo stabile all'IdPianificazione.
+    // L'angolo aureo evita il riutilizzo periodico della palette di 8 colori.
+    // Il colore del piano identifica bordo e sfondo della scheda; quello della
+    // singola lavorazione rimane distinto nell'etichetta della fase.
     function infoPiano(id) {
-        const idNumerico = Number.parseInt(id, 10);
-        const indice = Number.isFinite(idNumerico) ? Math.abs(idNumerico - 1) % coloriPiani.length : 0;
-        return coloriPiani[indice];
+        const idNumerico = Number(id);
+        const hue = Number.isSafeInteger(idNumerico) && idNumerico > 0
+            ? (idNumerico * 137.50776405) % 360
+            : 215;
+        const tonalita = hue.toFixed(3);
+        return [
+            `hsl(${tonalita} 68% 35%)`, // bordo leggibile
+            `hsl(${tonalita} 78% 95%)`, // sfondo chiaro
+        ];
+    }
+
+    function testoContrastoEsadecimale(colore) {
+        // La luminosità relativa WCAG consente una scritta leggibile anche
+        // quando l'utente sceglie giallo, bianco o colori molto chiari.
+        const canali = [1, 3, 5].map(indice => {
+            const valore = parseInt(colore.slice(indice, indice + 2), 16) / 255;
+            return valore <= 0.04045 ? valore / 12.92 : ((valore + 0.055) / 1.055) ** 2.4;
+        });
+        const luminanza = 0.2126 * canali[0] + 0.7152 * canali[1] + 0.0722 * canali[2];
+        return luminanza > 0.179 ? '#16202e' : '#ffffff';
     }
 
     function tipoLavorazione(nome) {
@@ -115,9 +129,17 @@
             scheda.className = 'cal-event-content';
 
             if (produzione) {
+                const nomeFase = props.numero_fase == null
+                    ? (props.lavorazione || 'Lavorazione')
+                    : `Fase ${props.numero_fase} · ${props.lavorazione || 'Lavorazione'}`;
                 const etichetta = addText(scheda, 'cal-event-badge',
-                    `Piano #${props.id_pianificazione ?? '?'} · ${props.lavorazione || 'Lavorazione'}`);
+                    `Piano #${props.id_pianificazione ?? '?'} · ${nomeFase}`);
                 etichetta.dataset.lavorazione = tipoLavorazione(props.lavorazione);
+                if (typeof props.colore_fase === 'string' && /^#[0-9a-f]{6}$/i.test(props.colore_fase)) {
+                    etichetta.dataset.coloreFase = 'personalizzato';
+                    etichetta.style.setProperty('--fase-badge-bg', props.colore_fase);
+                    etichetta.style.setProperty('--fase-badge-fg', testoContrastoEsadecimale(props.colore_fase));
+                }
             } else {
                 addText(scheda, 'cal-event-badge scadenza-badge', 'Scadenze del giorno');
             }

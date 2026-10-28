@@ -143,6 +143,9 @@ class RicettaFasi(db.Model):
     IdLavorazione: Mapped[int] = mapped_column(ForeignKey("tipologia_lavorazione.IdLavorazione"))
     OffsetBlocchi: Mapped[int]
     CapacitaMax: Mapped[int]
+    # Colore della specifica fase (non della tipologia di lavorazione).
+    # NULL preserva gli stili preesistenti finché non viene scelto un colore.
+    Colore: Mapped[str | None] = mapped_column(db.String(7), nullable=True)
     ricetta: Mapped["TipologiaRicette"] = relationship(back_populates="fasi")
     __table_args__ = (UniqueConstraint("IdRicetta", "IdFase", name="uq_ricetta_fase"),)
     lavorazione: Mapped["TipologieLavorazione"] = relationship(back_populates="fasi")

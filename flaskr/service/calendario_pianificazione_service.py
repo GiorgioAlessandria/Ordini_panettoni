@@ -21,6 +21,8 @@ def costruisci_evento_fase(
     lavorazione: TipologieLavorazione,
     associazioni: Sequence[PianificazioneOrdini],
     descrizione_articolo: str,
+    colore_fase: str | None = None,
+    numero_fase: int | None = None,
 ) -> dict:
     """Un evento per fase del programma; gli ordini del programma sono sommati.
 
@@ -65,6 +67,9 @@ def costruisci_evento_fase(
         "extendedProps": {
             "id_pianificazione": pianificazione.IdPianificazione,
             "id_fase": fase.IdPianificazioneFase,
+            "id_ricetta_fase": fase.IdRicettaFase,
+            "numero_fase": numero_fase,
+            "colore_fase": colore_fase,
             "cod_art": pianificazione.CodArt,
             "descrizione_articolo": descrizione_articolo,
             "id_lavorazione": fase.IdLavorazione,

@@ -1,6 +1,7 @@
 """Pagina amministrativa delle anagrafiche e associazioni produttive."""
 from __future__ import annotations
 
+import re
 import secrets
 from functools import wraps
 from math import ceil
@@ -22,6 +23,15 @@ from flaskr.service.impostazioni_service import (
 
 
 PAGE_SIZE = 12
+COLORE_FASE_PREDEFINITO = '#64748b'
+
+
+def _normalizza_colore_fase(valore: str | None) -> str:
+    """Accetta solo HEX RGB; evita valori CSS arbitrari inseriti nel form."""
+    colore = (valore or COLORE_FASE_PREDEFINITO).strip()
+    if not re.fullmatch(r'#[0-9a-fA-F]{6}', colore):
+        raise ErroreImpostazioni('Seleziona un colore valido nel formato #RRGGBB.')
+    return colore.lower()
 
 
 def solo_configuratori(funzione):
@@ -134,6 +144,11 @@ def _render_pagina(slug, *, dati_form=None, errore=None, record_token=None):
         valori_form=valori_form,
         token_modifica=token_modifica,
         record_modifica=record_modifica,
+        colore_fase_form=(
+            (dati_form.get('Colore') or COLORE_FASE_PREDEFINITO)
+            if dati_form is not None else
+            (getattr(record_modifica, 'Colore', None) or COLORE_FASE_PREDEFINITO)
+        ),
         errore=errore,
         csrf_token=_csrf_token(),
     )
@@ -171,6 +186,12 @@ def impostazioni_salva(sezione):
             abort(404)
 
     try:
+        # Questo campo non è nella scheda generica impostazioni_service:
+        # lo salviamo solo per la sezione fasi, mantenendo la validazione esistente.
+        colore_fase = (
+            _normalizza_colore_fase(request.form.get('Colore'))
+            if sezione == 'fasi' else None
+        )
         dati = estrai_valori(spec, request.form, record)
         if record is None:
             record = spec.modello(**dati)
@@ -179,6 +200,8 @@ def impostazioni_salva(sezione):
             for campo in spec.campi:
                 if campo.nome not in chiavi_pk(spec):
                     setattr(record, campo.nome, dati[campo.nome])
+        if sezione == 'fasi':
+            record.Colore = colore_fase
         db.session.commit()
     except (ErroreImpostazioni, IntegrityError) as errore:
         db.session.rollback()

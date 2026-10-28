@@ -66,6 +66,13 @@
                                                 {% if not loop.last %}<span class="text-muted"> · </span>{% endif %}
                                             {% endfor %}
                                         </div>
+                                        {% if spec.slug == 'fasi' %}
+                                            <div class="d-flex align-items-center gap-2 mt-1">
+                                                <span class="rounded border" aria-hidden="true"
+                                                      style="display:inline-block;width:20px;height:20px;background-color:{{ record.Colore or '#64748b' }}"></span>
+                                                <small class="text-muted">Colore fase: {{ record.Colore or 'non configurato' }}</small>
+                                            </div>
+                                        {% endif %}
                                         <div class="settings-record-details">
                                             {% for campo in spec.campi[2:] %}
                                                 {% set valore = record|attr(campo.nome) %}
@@ -155,6 +162,16 @@
                                 {% if blocca %}<div class="form-text">Identificativo non modificabile. Per cambiare il collegamento, creane uno nuovo e rimuovi quello precedente.</div>{% endif %}
                             </div>
                         {% endfor %}
+                        {% if spec.slug == 'fasi' %}
+                            <div class="settings-field">
+                                <label class="form-label fw-semibold" for="conf-Colore">Colore della fase nel calendario</label>
+                                <input class="form-control form-control-color" type="color" id="conf-Colore"
+                                       name="Colore" value="{{ colore_fase_form }}" title="Scegli il colore della fase"
+                                       style="width:100px;height:42px;" required>
+                                <div class="form-text">Specifico di questa fase della ricetta, anche se più fasi usano la stessa lavorazione.
+                                    Il colore identifica l'etichetta della fase; il bordo dell'evento identifica il piano.</div>
+                            </div>
+                        {% endif %}
                     </div>
                     <div class="card-footer settings-form-footer">
                         <span class="small text-muted">* Campi obbligatori</span>
