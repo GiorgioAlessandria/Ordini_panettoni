@@ -1,4 +1,4 @@
-// FullCalendar 7: vista settimanale oraria + vista a riquadri, mantenendo il riepilogo senza orari.
+// FullCalendar 7: raggruppamento verificato delle fasi su colonne e righe per blocco.
 (function () {
     'use strict';
     const calendarEl = document.getElementById('calendar');
@@ -47,14 +47,124 @@
         return nodo;
     }
 
+    // Nella vista oraria, gli eventi che occupano lo stesso identico intervallo
+    // diventano un unico contenitore, visualizzato come griglia di schede.
+    // L'endpoint Flask e gli eventi delle altre viste non vengono modificati.
+    function raggruppaFasiPerBlocco(eventi) {
+        if (!Array.isArray(eventi)) return [];
+        const gruppi = new Map();
+        const altri = [];
+        for (const evento of eventi) {
+            if (evento.allDay || typeof evento.start !== 'string' ||
+                    typeof evento.end !== 'string') {
+                altri.push(evento);
+                continue;
+            }
+            const chiave = `${evento.start}|${evento.end}`;
+            if (!gruppi.has(chiave)) gruppi.set(chiave, []);
+            gruppi.get(chiave).push(evento);
+        }
+        for (const [chiave, fasi] of gruppi) {
+            if (fasi.length === 1) {
+                altri.push(fasi[0]);
+                continue;
+            }
+            // Ordine deterministico: le schede restano sempre nella stessa posizione.
+            fasi.sort((a, b) => {
+                const aa = a.extendedProps || {};
+                const bb = b.extendedProps || {};
+                return Number(aa.id_pianificazione || 0) - Number(bb.id_pianificazione || 0) ||
+                    Number(aa.numero_fase || 0) - Number(bb.numero_fase || 0) ||
+                    String(a.id).localeCompare(String(b.id));
+            });
+            const prima = fasi[0];
+            altri.push({
+                id: `gruppo-${chiave}`,
+                title: `${fasi.length} fasi pianificate`,
+                start: prima.start,
+                end: prima.end,
+                allDay: false,
+                extendedProps: { tipo_evento: 'gruppo_fasi', fasi },
+            });
+        }
+        return altri;
+    }
+
+    function dettagliFase(evento) {
+        const p = evento.extendedProps || {};
+        const righe = [
+            `Pianificazione: ${p.id_pianificazione ?? '?'}`,
+            `Fase: ${p.numero_fase ?? '?'} · ${p.lavorazione || 'Lavorazione'}`,
+            `Articolo: ${p.descrizione_articolo || evento.title || 'N/D'}`,
+            `Ordini: ${(p.ordini || []).join(', ')}`,
+            `Quantità assegnata: ${p.quantita_assegnata ?? 'N/D'}`,
+        ];
+        if (p.impastatrici?.length) righe.push(`Impastatrici: ${p.impastatrici.join(', ')}`);
+        return righe.join('\n');
+    }
+
+    function creaSchedaFase(evento) {
+        const p = evento.extendedProps || {};
+        const nomeFase = p.numero_fase == null
+            ? (p.lavorazione || 'Lavorazione')
+            : `Fase ${p.numero_fase} · ${p.lavorazione || 'Lavorazione'}`;
+        const scheda = document.createElement('button');
+        scheda.type = 'button';
+        scheda.className = 'cal-blocco-scheda';
+        const [bordo, sfondo] = infoPiano(p.id_pianificazione);
+        scheda.style.setProperty('--piano-accent', bordo);
+        scheda.style.setProperty('--piano-bg', sfondo);
+        // La scheda raggruppata e' un <button>, non un evento FullCalendar:
+        // colora direttamente l'intera superficie come i vecchi riquadri.
+        // L'inline !important evita che reset Bootstrap/temi la rendano bianca.
+        scheda.style.setProperty('background', sfondo, 'important');
+        scheda.style.setProperty('background-color', sfondo, 'important');
+        scheda.style.setProperty('border', `2px solid ${bordo}`, 'important');
+        scheda.style.setProperty('border-left', `5px solid ${bordo}`, 'important');
+        scheda.title = dettagliFase(evento);
+        scheda.setAttribute('aria-label', dettagliFase(evento));
+        const etichetta = addText(scheda, 'cal-event-badge',
+            `Piano #${p.id_pianificazione ?? '?'} · ${nomeFase}`);
+        etichetta.dataset.lavorazione = tipoLavorazione(p.lavorazione);
+        if (typeof p.colore_fase === 'string' && /^#[0-9a-f]{6}$/i.test(p.colore_fase)) {
+            etichetta.dataset.coloreFase = 'personalizzato';
+            etichetta.style.setProperty('--fase-badge-bg', p.colore_fase);
+            etichetta.style.setProperty('--fase-badge-fg', '#000000');
+        }
+        addText(scheda, 'cal-event-title', p.descrizione_articolo || evento.title || 'Articolo');
+        addText(scheda, 'cal-event-summary',
+            `${p.numero_ordini ?? 0} ordini · ${p.quantita_assegnata ?? 'N/D'} pz`);
+        if (p.dati_incompleti) addText(scheda, 'cal-event-warning', 'Quantità da verificare');
+        scheda.addEventListener('click', (click) => {
+            click.preventDefault();
+            click.stopPropagation();
+            if (p.detailUrl && window.apriRiepilogoCalendario) {
+                window.apriRiepilogoCalendario(p.detailUrl);
+            }
+        });
+        return scheda;
+    }
+
     function propsStato(props) {
         return props.stato_giorno === 'eseguito'
             ? 'scadenza-giorno-completata'
             : 'scadenza-giorno-in-corso';
     }
 
-    // Il filtro weekend resta nel markup statico, fuori dalla toolbar
-    // ricostruita da FullCalendar quando si cambia vista o settimana.
+    // I comandi sono nel template, fuori dal DOM ricreato da FullCalendar.
+    // Aggiornare titolo e stato dei pulsanti a ogni cambio vista/periodo.
+    const titoloIntestazione = document.getElementById('calendar-current-title');
+    const pulsantiVista = Array.from(document.querySelectorAll('[data-calendar-view]'));
+
+    function aggiornaIntestazione(vista) {
+        if (titoloIntestazione) titoloIntestazione.textContent = vista.title || 'Calendario';
+        for (const pulsante of pulsantiVista) {
+            const attivo = pulsante.dataset.calendarView === vista.type;
+            pulsante.classList.toggle('is-active', attivo);
+            pulsante.setAttribute('aria-pressed', String(attivo));
+        }
+    }
+
 
     // Il weekend viene nascosto solo se non contiene fasi produttive.
     // Le scadenze cliente non obbligano a mostrare la colonna: chi consulta il
@@ -175,6 +285,7 @@
     const calendario = new FullCalendar.Calendar(calendarEl, {
         themeSystem: 'classic',
         datesSet(info) {
+            aggiornaIntestazione(info.view);
             aggiornaWeekendPerVista(info.view);
         },
         initialView: 'timeGridWeek',
@@ -185,6 +296,7 @@
         height: 'auto',
         expandRows: true,
         allDaySlot: true,
+        lazyFetching: false, // Ricalcola raggruppamento al cambio della vista.
         eventDisplay: 'block',
         displayEventEnd: false,
         displayEventTime: false,
@@ -196,27 +308,30 @@
         slotDuration: '00:30:00',
         slotLabelInterval: '01:00:00',
         nowIndicator: true,
-        headerToolbar: {
-            start: 'prev,next today',
-            center: 'title',
-            end: 'timeGridWeek,dayGridWeek,dayGridMonth,dayGridDay',
-        },
-        buttonText: {
-            today: 'Oggi',
-            timeGridWeek: 'Settimana (ore)',
-            dayGridWeek: 'Riquadri',
-            dayGridMonth: 'Mese',
-            dayGridDay: 'Giorno',
-        },
+        // Navigazione e scelta viste sono nella barra HTML permanente.
+        headerToolbar: false,
         views: {
             timeGridWeek: { dayHeaderFormat: { weekday: 'long', day: 'numeric', month: 'short' } },
             dayGridWeek: { dayHeaderFormat: { weekday: 'long', day: 'numeric', month: 'short' } },
         },
         eventSources: [
             { id: 'scadenze', url: scadenzeUrl },
-            { id: 'pianificazione', url: pianificazioneUrl },
+            {
+                id: 'pianificazione',
+                url: pianificazioneUrl,
+                // FullCalendar: nella singola event source la callback è `success`,
+                // NON `eventSourceSuccess` (che è un'opzione globale).
+                // Questo è il punto che impediva il precedente raggruppamento.
+                success(eventi) {
+                    return calendario.view?.type === 'timeGridWeek'
+                        ? raggruppaFasiPerBlocco(eventi)
+                        : eventi;
+                },
+            },
         ],
         eventClassNames(info) {
+            const gruppo = info.event.extendedProps.tipo_evento === 'gruppo_fasi';
+            if (gruppo) return ['evento-blocco-piani'];
             const produzione = info.event.source?.id === 'pianificazione' ||
                 (info.event.extendedProps.id_pianificazione != null &&
                  info.event.extendedProps.tipo_evento !== 'scadenze_giorno');
@@ -226,6 +341,13 @@
         },
         eventContent(info) {
             const props = info.event.extendedProps;
+            if (props.tipo_evento === 'gruppo_fasi') {
+                const griglia = document.createElement('div');
+                griglia.className = 'cal-blocco-griglia';
+                griglia.setAttribute('aria-label', `${props.fasi?.length ?? 0} fasi nello stesso blocco`);
+                for (const fase of props.fasi || []) griglia.appendChild(creaSchedaFase(fase));
+                return { domNodes: [griglia] };
+            }
             const produzione = info.event.source?.id === 'pianificazione' ||
                 (info.event.extendedProps.id_pianificazione != null &&
                  info.event.extendedProps.tipo_evento !== 'scadenze_giorno');
@@ -263,6 +385,7 @@
         },
         eventDidMount(info) {
             const p = info.event.extendedProps;
+            if (p.tipo_evento === 'gruppo_fasi') return;
             const produzione = info.event.source?.id === 'pianificazione' ||
                 (info.event.extendedProps.id_pianificazione != null &&
                  info.event.extendedProps.tipo_evento !== 'scadenze_giorno');
@@ -311,6 +434,17 @@
         },
         eventSourceFailure(error) { console.error('Errore caricamento eventi calendario', error); },
     });
+
+    // Collegare i comandi una sola volta: FullCalendar non li ricrea.
+    document.getElementById('calendar-prev')?.addEventListener('click', () => calendario.prev());
+    document.getElementById('calendar-next')?.addEventListener('click', () => calendario.next());
+    document.getElementById('calendar-today')?.addEventListener('click', () => calendario.today());
+    for (const pulsante of pulsantiVista) {
+        pulsante.addEventListener('click', () => {
+            const nomeVista = pulsante.dataset.calendarView;
+            if (nomeVista && calendario.view.type !== nomeVista) calendario.changeView(nomeVista);
+        });
+    }
 
     calendarEl.dataset.calendarInitialized = '1';
     calendario.render();

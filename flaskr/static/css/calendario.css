@@ -203,96 +203,248 @@
   line-height: 1.35;
 }
 
-/* Barra permanente sopra FullCalendar: il calendario puo' ricreare la
-   propria toolbar senza rimuovere i controlli dei weekend. */
-.calendario-shell .calendario-barra-opzioni {
-  display: flex;
-  flex-wrap: wrap;
+/* Intestazione unificata all'interno del riquadro del calendario.
+   Rimane nel template (non nel DOM di FullCalendar), quindi non sparisce
+   cambiando settimana o vista. */
+.calendario-shell .calendario-toolbar {
+  display: grid;
+  grid-template-columns: max-content minmax(195px, 1fr) max-content minmax(195px, 1fr) max-content;
   align-items: center;
-  justify-content: space-between;
-  gap: .35rem .8rem;
-  margin: .35rem 0 .6rem;
-  padding: .4rem .55rem;
-  border: 1px solid var(--pan-border, #dee2e6);
-  border-radius: .4rem;
+  gap: .5rem .85rem;
   background: #fff;
+  border-bottom: 1px solid #d7e0e8;
+  padding: .32rem .15rem .62rem;
+  margin-bottom: .55rem;
+  min-width: 0;
 }
-.calendario-shell .calendario-barra-opzioni .calendario-legenda {
+.calendario-shell .calendario-toolbar-nav,
+.calendario-shell .calendario-toolbar-frecce,
+.calendario-shell .calendario-toolbar-viste {
   display: flex;
-  flex: 1 1 22rem;
-  flex-wrap: wrap;
   align-items: center;
-  gap: .3rem .6rem;
-  border: 0;
-  background: transparent;
+  flex-wrap: nowrap;
+}
+.calendario-shell .calendario-toolbar-nav { gap: .4rem; white-space: nowrap; }
+.calendario-shell .calendario-toolbar-frecce { gap: 0; }
+.calendario-shell .calendario-toolbar-viste { justify-self: end; white-space: nowrap; }
+.calendario-shell .calendario-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #34475f;
+  border-radius: 0;
+  background: #2b3b53;
+  color: #fff;
+  font-size: .77rem;
+  font-weight: 650;
+  line-height: 1.15;
+  min-height: 32px;
+  padding: .42rem .55rem;
+  cursor: pointer;
+}
+.calendario-shell .calendario-toolbar-frecce .calendario-toolbar-btn { min-width: 32px; font-size: 1.16rem; padding: .2rem .4rem; }
+.calendario-shell .calendario-toolbar-frecce .calendario-toolbar-btn:first-child,
+.calendario-shell .calendario-toolbar-viste .calendario-toolbar-btn:first-child { border-radius: .25rem 0 0 .25rem; }
+.calendario-shell .calendario-toolbar-frecce .calendario-toolbar-btn:last-child,
+.calendario-shell .calendario-toolbar-viste .calendario-toolbar-btn:last-child { border-radius: 0 .25rem .25rem 0; }
+.calendario-shell .calendario-toolbar-viste .calendario-toolbar-btn + .calendario-toolbar-btn,
+.calendario-shell .calendario-toolbar-frecce .calendario-toolbar-btn + .calendario-toolbar-btn { border-left: 1px solid #536581; }
+.calendario-shell .calendario-toolbar-btn:hover { background: #405573; }
+.calendario-shell .calendario-toolbar-btn.is-active,
+.calendario-shell .calendario-toolbar-btn[aria-pressed="true"] { background: #1762b9; border-color: #1762b9; }
+.calendario-shell .calendario-toolbar-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; }
+.calendario-shell .calendario-toolbar-oggi { background: #64748b; border-color: #64748b; border-radius: .25rem; }
+.calendario-shell .calendario-toolbar-titolo {
+  margin: 0;
+  text-align: center;
+  color: #111827;
+  font-size: clamp(.97rem, 1.1vw, 1.25rem);
+  font-weight: 750;
+  white-space: nowrap;
+}
+.calendario-shell .calendario-toolbar .calendario-legenda {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: .25rem .55rem;
   margin: 0;
   padding: 0;
-  min-width: 0;
-  font-size: .74rem;
+  background: transparent;
+  border: 0;
+  font-size: .7rem;
+  line-height: 1.25;
 }
-.calendario-shell .calendario-controlli-weekend {
+.calendario-shell .calendario-toolbar .calendario-legenda span { gap: .25rem; }
+.calendario-shell .calendario-toolbar .calendario-legenda .calendario-legenda-dot { width: .65rem; height: .65rem; }
+.calendario-shell .calendario-toolbar .calendario-controlli-weekend {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: .3rem .5rem;
-  flex: 0 1 auto;
+  justify-content: flex-end;
+  gap: .35rem;
+  min-width: 0;
 }
 .calendario-shell .calendario-weekend-toggle {
   display: inline-flex;
   align-items: center;
-  gap: .45rem;
+  gap: .35rem;
+  padding: .35rem .45rem;
   margin: 0;
-  padding: .35rem .55rem;
-  border: 1px solid #96adc7;
-  border-radius: .4rem;
   background: #f1f7ff;
+  border: 1px solid #96adc7;
+  border-radius: .35rem;
   color: #173453;
+  font-size: .74rem;
   font-weight: 650;
-  font-size: .8rem;
   cursor: pointer;
+  white-space: nowrap;
 }
-.calendario-shell .calendario-weekend-toggle .form-check-input {
-  margin: 0;
-  flex: 0 0 auto;
-  cursor: pointer;
+.calendario-shell .calendario-weekend-toggle .form-check-input { margin: 0; flex: 0 0 auto; cursor: pointer; }
+.calendario-shell .calendario-weekend-toggle:focus-within { outline: 2px solid #2563eb; outline-offset: 2px; }
+.calendario-shell .calendario-weekend-status { color: #64748b; font-size: .68rem; }
+@media (max-width: 1450px) {
+  .calendario-shell .calendario-toolbar {
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    grid-template-areas:
+      "nav title views"
+      "legend legend weekend";
+  }
+  .calendario-shell .calendario-toolbar-nav { grid-area: nav; }
+  .calendario-shell .calendario-toolbar-titolo { grid-area: title; }
+  .calendario-shell .calendario-toolbar-viste { grid-area: views; }
+  .calendario-shell .calendario-legenda { grid-area: legend; }
+  .calendario-shell .calendario-controlli-weekend { grid-area: weekend; }
 }
-.calendario-shell .calendario-weekend-toggle span { white-space: normal; }
-.calendario-shell .calendario-weekend-toggle:focus-within {outline: 2px solid #2563eb;outline-offset:2px;}
-.calendario-shell .calendario-weekend-status { color: #64748b; font-size: .73rem; }
-@media (max-width: 700px) {
-  .calendario-shell .calendario-barra-opzioni {align-items:stretch;}
-  .calendario-shell .calendario-weekend-toggle {width:100%;justify-content:center;}
-  .calendario-shell .calendario-controlli-weekend {flex: 1 1 100%;}
+@media (max-width: 660px) {
+  .calendario-shell .calendario-toolbar {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "nav nav" "title title" "views views" "legend legend" "weekend weekend";
+    gap: .45rem;
+  }
+  .calendario-shell .calendario-toolbar-titolo { text-align: left; }
+  .calendario-shell .calendario-toolbar-viste { justify-self: stretch; }
+  .calendario-shell .calendario-toolbar-viste .calendario-toolbar-btn { flex: 1 1 auto; }
+  .calendario-shell .calendario-controlli-weekend { justify-content: flex-start; }
 }
 
+/* Vista timeGridWeek: le fasi dello stesso blocco vengono disposte
+   in 2 colonne e tutte le righe necessarie. Nessun +N e nessuna
+   sovrapposizione tra schede. Le ore rimangono nella colonna sinistra. */
+#calendar .fc-timeGridWeek-view .fc-timegrid-slot {
+  height: 56px !important; /* maggiore sviluppo verticale per le righe */
+}
+#calendar .fc-timeGridWeek-view .fc-event.evento-blocco-piani,
+#calendar .fc-timeGridWeek-view .fc-event.evento-blocco-piani.fc-timegrid-event {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+#calendar .fc-timeGridWeek-view .evento-blocco-piani .fc-event-main,
+#calendar .fc-timeGridWeek-view .evento-blocco-piani .fc-event-main-frame {
+  width: 100%;
+  height: 100%;
+  overflow: hidden !important;
+}
+#calendar .fc-timeGridWeek-view .cal-blocco-griglia {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Distribuisci l'altezza dell'intero blocco fra le righe: evita
+     schede colorate soltanto in alto e ampie aree bianche sottostanti.
+     In presenza di molte fasi, l'altezza minima crea lo scroll interno. */
+  grid-auto-rows: minmax(82px, 1fr);
+  gap: 5px;
+  align-content: stretch;
+  overflow-x: hidden;
+  overflow-y: auto;
+  width: 100%;
+  height: 100%;
+  padding: 2px 3px 4px 1px;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+#calendar .fc-timeGridWeek-view .cal-blocco-scheda {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+  min-height: 82px;
+  padding: 5px 6px;
+  border: 2px solid var(--piano-accent, #1d4ed8) !important;
+  border-left: 5px solid var(--piano-accent, #1d4ed8) !important;
+  border-radius: 5px;
+  background: var(--piano-bg, #bfdbfe) !important;
+  color: #000 !important;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(10, 25, 45, .12);
+}
+#calendar .fc-timeGridWeek-view .cal-blocco-scheda:hover {
+  filter: brightness(.97);
+  box-shadow: 0 1px 4px rgba(10, 25, 45, .26);
+}
+#calendar .fc-timeGridWeek-view .cal-blocco-scheda:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: -2px;
+}
+#calendar .fc-timeGridWeek-view .cal-blocco-scheda .cal-event-badge {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 2px 4px;
+  font-size: .69rem;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  color: #000 !important;
+}
+#calendar .fc-timeGridWeek-view .cal-blocco-scheda .cal-event-title {
+  font-size: .75rem;
+  line-height: 1.25;
+  font-weight: 750;
+  overflow-wrap: break-word;
+  word-break: normal;
+  color: #000 !important;
+}
+#calendar .fc-timeGridWeek-view .cal-blocco-scheda .cal-event-summary {
+  font-size: .66rem;
+  line-height: 1.2;
+  color: #000 !important;
+}
+#calendar .fc-timeGridWeek-view .cal-blocco-scheda .cal-event-warning {
+  font-size: .66rem;
+  color: #000 !important;
+}
+/* Su schermi stretti è più leggibile una sola scheda per riga.
+   Tutte le schede restano accessibili scorrendo nel proprio blocco. */
+@media (max-width: 1150px) {
+  #calendar .fc-timeGridWeek-view .cal-blocco-griglia {grid-template-columns: minmax(0, 1fr);}
+}
+/* Nessuna modifica alle griglie e alle schede di Mese / Giorno / Riquadri. */
 
-/* Riepilogo senza vista oraria: testo nero e pienamente leggibile.
-   Il colore del riquadro continua a provenire da IdPianificazione,
-   quello dell'etichetta dalla singola fase configurata. */
-.calendario-shell .calendario-legenda,
-.calendario-shell .calendario-legenda span,
-.calendario-shell .calendario-weekend-toggle,
-.calendario-shell .calendario-weekend-status,
-#calendar .fc-toolbar-title,
-#calendar .fc-col-header-cell-cushion,
-#calendar .fc-daygrid-day-number,
+#calendar .fc-timeGridWeek-view .cal-blocco-scheda .cal-event-badge[data-colore-fase="personalizzato"] {
+  color: #000 !important;
+  text-shadow: 0 0 2px rgba(255,255,255,.85), 0 0 4px rgba(255,255,255,.65);
+}
+
+/* Mantieni il testo nero della versione precedente in tutte le viste. */
 #calendar .fc-event.evento-produzione,
 #calendar .fc-event.evento-scadenza,
 #calendar .fc-event-main,
 #calendar .cal-event-content,
+#calendar .cal-event-badge,
 #calendar .cal-event-title,
 #calendar .cal-event-summary,
-#calendar .cal-event-badge,
 #calendar .cal-event-warning {
-    color: #000 !important;
+  color: #000 !important;
 }
-/* Il colore scelto per la fase rimane invariato; ombra chiara per
-   mantenere leggibile il nero anche su tinte particolarmente scure. */
-#calendar .cal-event-badge[data-colore-fase="personalizzato"] {
-    color: #000 !important;
-    text-shadow: 0 0 2px rgba(255, 255, 255, .95), 0 0 4px rgba(255, 255, 255, .7);
-}
-#calendar .fc-daygrid-event,
-#calendar .fc-daygrid-event .fc-event-main {
-    color: #000 !important;
+#calendar .fc-event.evento-produzione .cal-event-badge[data-colore-fase="personalizzato"] {
+  color: #000 !important;
+  text-shadow: 0 0 2px rgba(255,255,255,.85), 0 0 4px rgba(255,255,255,.65);
 }
