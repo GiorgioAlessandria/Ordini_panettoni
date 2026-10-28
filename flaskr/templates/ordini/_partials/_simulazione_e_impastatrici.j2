@@ -6,3 +6,8 @@
 {# Ricarica anche l'agenda dei giorni interessati quando cambiano data o blocco. #}
 {% set agenda_oob = true %}
 {% include 'ordini/_partials/_agenda_pianificazione.j2' %}
+
+{# Il footer del form resta presente: aggiorna gli eventuali errori con HTMX/OOB. #}
+<div id="errore-pianificazione" hx-swap-oob="outerHTML" class="w-100" role="status" aria-live="assertive" aria-atomic="true">
+  {% if error %}<div class="alert alert-danger mb-0" role="alert"><strong>Verifica i dati:</strong> {{ error }}</div>{% endif %}
+</div>

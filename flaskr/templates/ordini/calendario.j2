@@ -8,16 +8,26 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/skeleton.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/classic/theme.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/classic/palette.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/calendario.css', v='20261028-colori-fasi') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/calendario_legenda_toolbar.css', v='20261022-1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/calendario.css', v='20261028-riquadri-nero-v1') }}">
 {% endblock %}
 
 {% block content %}
 <section class="calendario-shell">
-    <div class="calendario-legenda" aria-label="Legenda del calendario">
-        <span><i class="calendario-legenda-dot produzione" aria-hidden="true"></i> Produzioni · colore per pianificazione</span>
-        <span><i class="calendario-legenda-dot scadenza" aria-hidden="true"></i> Scadenze cliente · arancione</span>
-        <span class="calendario-legenda-tipi">Tipologia: <b>Impasto</b> · <b>Cottura</b> · <b>Altre lavorazioni</b></span>
+    {# Controlli persistenti: NON spostarli nella toolbar di FullCalendar, che
+       viene ricreata al cambio vista/settimana e farebbe sparire il checkbox. #}
+    <div class="calendario-barra-opzioni" role="region" aria-label="Opzioni visualizzazione calendario">
+        <div class="calendario-legenda" aria-label="Legenda del calendario">
+            <span><i class="calendario-legenda-dot produzione" aria-hidden="true"></i> Produzioni · colore per pianificazione</span>
+            <span><i class="calendario-legenda-dot scadenza" aria-hidden="true"></i> Scadenze cliente · arancione</span>
+            <span class="calendario-legenda-tipi">Colori fasi: dalle Impostazioni</span>
+        </div>
+        <div class="calendario-controlli-weekend">
+            <label class="calendario-weekend-toggle" for="calendar-show-weekends">
+                <input id="calendar-show-weekends" type="checkbox" class="form-check-input">
+                <span>Mostra sabato e domenica (anche con sole scadenze)</span>
+            </label>
+            <small class="calendario-weekend-status" id="calendar-weekend-status" role="status" aria-live="polite"></small>
+        </div>
     </div>
 
     <div class="calendario-riquadro" role="region" aria-label="Calendario settimanale" tabindex="0">
@@ -46,7 +56,5 @@
        Questo plugin registra il tema classic prima che il calendario venga creato. #}
     <script src="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/classic/global.js') }}"></script>
     <script src="{{ url_for('static', filename='js/riepilogo_calendari.js', v='20261020-2') }}"></script>
-    <script src="{{ url_for('static', filename='js/calendario.js', v='20261028-colori-fasi') }}"></script>
-    {# Modulo indipendente: posiziona la legenda accanto a Today/Oggi. #}
-    <script src="{{ url_for('static', filename='js/calendario_legenda_toolbar.js', v='20261022-1') }}"></script>
+    <script src="{{ url_for('static', filename='js/calendario.js', v='20261028-settimana-oraria-ripristinata-v1') }}"></script>
 {% endblock %}

@@ -419,6 +419,21 @@ def simulazione_pianificazione():
         return render_template(template, **context)
 
 
+def _errore_conferma_pianificazione(messaggio: str):
+    """Mantiene il form aperto: con HTMX aggiorna soltanto il messaggio nel footer."""
+    if request.headers.get("HX-Request", "").lower() != "true":
+        # Fallback per richieste non HTMX: mantiene il comportamento precedente.
+        return render_template(
+            "ordini/_partials/_conferma_pianificazione.j2", error=messaggio
+        )
+    risposta = make_response(render_template(
+        "ordini/_partials/_errore_conferma_pianificazione.j2", error=messaggio
+    ))
+    risposta.headers["HX-Retarget"] = "#errore-pianificazione"
+    risposta.headers["HX-Reswap"] = "innerHTML"
+    return risposta
+
+
 @bp_ordini_cliente.post("/pianificazione/conferma")
 @login_required
 def conferma_pianificazione():
@@ -433,31 +448,31 @@ def conferma_pianificazione():
     try:
         stock_da_usare = _quantita_stock_form()
     except ErroreCalcoloPianificazione as errore:
-        return render_template(template, error=str(errore))
+        return _errore_conferma_pianificazione(str(errore))
 
     if blocco_input not in ("0", "1"):
-        return render_template(template, error="Seleziona un blocco iniziale valido")
+        return _errore_conferma_pianificazione("Seleziona un blocco iniziale valido")
     blocco_iniziale = int(blocco_input)
     blocco_iniziale_db = "M" if blocco_iniziale == 0 else "P"
 
     if not data_input:
-        return render_template(template, error="Seleziona una data di produzione")
+        return _errore_conferma_pianificazione("Seleziona una data di produzione")
     try:
         data_produzione = date.fromisoformat(data_input)
     except ValueError:
-        return render_template(template, error="La data inserita non è valida")
+        return _errore_conferma_pianificazione("La data inserita non è valida")
 
     if not ids_ordini:
-        return render_template(template, error="Nessun ordine selezionato")
+        return _errore_conferma_pianificazione("Nessun ordine selezionato")
     if not ids_impastatrici_form:
-        return render_template(template, error="Nessuna impastatrice selezionata")
+        return _errore_conferma_pianificazione("Nessuna impastatrice selezionata")
 
     try:
         ids_impastatrici = {int(valore) for valore in ids_impastatrici_form}
     except ValueError:
-        return render_template(template, error="ID impastatrice non valido")
+        return _errore_conferma_pianificazione("ID impastatrice non valido")
     if any(id_imp <= 0 for id_imp in ids_impastatrici):
-        return render_template(template, error="ID impastatrice non valido")
+        return _errore_conferma_pianificazione("ID impastatrice non valido")
 
     try:
         # Serializza lettura della disponibilità e scrittura su SQLite.
@@ -678,12 +693,12 @@ def conferma_pianificazione():
 
     except (ErroreCalcoloPianificazione, ErroreCalcoloRiepilogo, ValueError) as errore:
         db.session.rollback()
-        return render_template(template, error=str(errore))
+        return _errore_conferma_pianificazione(str(errore))
 
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception("Errore nel salvataggio della pianificazione")
-        return render_template(template, error="Errore durante il salvataggio della pianificazione")
+        return _errore_conferma_pianificazione("Errore durante il salvataggio della pianificazione")
 
     response = make_response(
         render_template(

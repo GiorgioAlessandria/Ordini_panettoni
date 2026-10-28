@@ -1,4 +1,4 @@
-// FullCalendar 7: vista settimanale con eventi concorrenti affiancati.
+// FullCalendar 7: vista settimanale oraria + vista a riquadri, mantenendo il riepilogo senza orari.
 (function () {
     'use strict';
     const calendarEl = document.getElementById('calendar');
@@ -26,20 +26,9 @@
             : 215;
         const tonalita = hue.toFixed(3);
         return [
-            `hsl(${tonalita} 68% 35%)`, // bordo leggibile
-            `hsl(${tonalita} 78% 95%)`, // sfondo chiaro
+            `hsl(${tonalita} 76% 34%)`, // bordo saturo e leggibile
+            `hsl(${tonalita} 83% 77%)`, // colore del riquadro nettamente visibile
         ];
-    }
-
-    function testoContrastoEsadecimale(colore) {
-        // La luminosità relativa WCAG consente una scritta leggibile anche
-        // quando l'utente sceglie giallo, bianco o colori molto chiari.
-        const canali = [1, 3, 5].map(indice => {
-            const valore = parseInt(colore.slice(indice, indice + 2), 16) / 255;
-            return valore <= 0.04045 ? valore / 12.92 : ((valore + 0.055) / 1.055) ** 2.4;
-        });
-        const luminanza = 0.2126 * canali[0] + 0.7152 * canali[1] + 0.0722 * canali[2];
-        return luminanza > 0.179 ? '#16202e' : '#ffffff';
     }
 
     function tipoLavorazione(nome) {
@@ -64,21 +53,132 @@
             : 'scadenza-giorno-in-corso';
     }
 
-    function allineaLegendaAlTitolo() {
-        // FullCalendar genera il titolo della settimana/mese dinamicamente.
-        // Collocare la legenda accanto al titolo evita una fascia dedicata.
-        const legenda = calendarEl.closest('.calendario-shell')?.querySelector('.calendario-legenda');
-        const titolo = calendarEl.querySelector('.fc-header-toolbar .fc-toolbar-title');
-        const zonaTitolo = titolo?.closest('.fc-toolbar-chunk');
-        if (!legenda || !zonaTitolo) return;
-        legenda.classList.add('calendario-legenda--toolbar');
-        zonaTitolo.appendChild(legenda);
+    // Il filtro weekend resta nel markup statico, fuori dalla toolbar
+    // ricostruita da FullCalendar quando si cambia vista o settimana.
+
+    // Il weekend viene nascosto solo se non contiene fasi produttive.
+    // Le scadenze cliente non obbligano a mostrare la colonna: chi consulta il
+    // calendario puo' scegliere di visualizzarle tramite il comando dedicato.
+    const mostraWeekendCheckbox = document.getElementById('calendar-show-weekends');
+    const statoWeekend = document.getElementById('calendar-weekend-status');
+    const periodiAnalizzati = new Map();
+    let weekendConProduzione = new Set();
+    let intervalloCorrente = null;
+    let vistaCorrente = null;
+    let ultimaRichiesta = 0;
+    let giorniNascosti = [0, 6];
+
+    function dataLocale(data) {
+        const anno = data.getFullYear();
+        const mese = String(data.getMonth() + 1).padStart(2, '0');
+        const giorno = String(data.getDate()).padStart(2, '0');
+        return `${anno}-${mese}-${giorno}`;
     }
+
+    function dataEstesa(data, giorni) {
+        const copia = new Date(data.getFullYear(), data.getMonth(), data.getDate(), 12);
+        copia.setDate(copia.getDate() + giorni);
+        return dataLocale(copia);
+    }
+
+    function weekendConEventi(eventi) {
+        const giorni = new Set();
+        for (const evento of eventi) {
+            if (!evento || typeof evento.start !== 'string') continue;
+            // Leggiamo la data locale della fase, senza conversione in UTC.
+            const inizio = evento.start.slice(0, 10);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(inizio)) continue;
+            const giorno = new Date(`${inizio}T12:00:00`).getDay();
+            if (giorno === 0 || giorno === 6) giorni.add(giorno);
+        }
+        return giorni;
+    }
+
+    function applicaVisibilitaWeekend() {
+        // La vista giornaliera non ha colonne da comprimere: mantenere il giorno
+        // scelto dall'utente, anche quando e' sabato o domenica.
+        const mostraTutti = Boolean(mostraWeekendCheckbox?.checked);
+        const nuovi = (vistaCorrente === 'dayGridDay' || mostraTutti)
+            ? []
+            : [0, 6].filter(giorno => !weekendConProduzione.has(giorno));
+        if (nuovi.join(',') === giorniNascosti.join(',')) return;
+        giorniNascosti = nuovi;
+        calendario.setOption('hiddenDays', nuovi);
+    }
+
+    function aggiornaWeekendPerVista(view) {
+        vistaCorrente = view.type;
+        if (vistaCorrente === 'dayGridDay') {
+            applicaVisibilitaWeekend();
+            return;
+        }
+        // currentStart/currentEnd sono stabili anche quando hiddenDays cambia.
+        // Nelle viste settimanali verifichiamo SOLO i weekend della settimana
+        // corrente; altrimenti un piano nel weekend successivo mostrerebbe
+        // erroneamente sabato e domenica anche nella settimana vuota.
+        // Solo il mese include giorni di raccordo visibili di altri mesi.
+        const calendarioMensile = view.type === 'dayGridMonth';
+        const inizio = calendarioMensile
+            ? dataEstesa(view.currentStart, -7) : dataLocale(view.currentStart);
+        const fine = calendarioMensile
+            ? dataEstesa(view.currentEnd, 7) : dataLocale(view.currentEnd);
+        const chiave = `${inizio}|${fine}`;
+        if (chiave === intervalloCorrente) {
+            applicaVisibilitaWeekend();
+            return;
+        }
+        intervalloCorrente = chiave;
+        const richiesta = ++ultimaRichiesta;
+
+        const memorizzati = periodiAnalizzati.get(chiave);
+        if (memorizzati) {
+            weekendConProduzione = memorizzati;
+            if (statoWeekend) statoWeekend.textContent = '';
+            applicaVisibilitaWeekend();
+            return;
+        }
+        // Durante il caricamento non mostrare giorni che potrebbero essere vuoti.
+        // Se la richiesta fallisce, invece, mostriamo entrambi i giorni per
+        // evitare di occultare per errore una lavorazione pianificata.
+        weekendConProduzione = new Set();
+        if (statoWeekend) statoWeekend.textContent = 'Verifica weekend…';
+        applicaVisibilitaWeekend();
+
+        const url = new URL(pianificazioneUrl, window.location.href);
+        url.searchParams.set('start', inizio);
+        url.searchParams.set('end', fine);
+        fetch(url.toString(), { credentials: 'same-origin' })
+            .then(risposta => {
+                if (!risposta.ok) throw new Error(`HTTP ${risposta.status}`);
+                return risposta.json();
+            })
+            .then(eventi => {
+                if (!Array.isArray(eventi)) throw new Error('Risposta calendario non valida');
+                const presenti = weekendConEventi(eventi);
+                periodiAnalizzati.set(chiave, presenti);
+                if (richiesta !== ultimaRichiesta || chiave !== intervalloCorrente) return;
+                weekendConProduzione = presenti;
+                if (statoWeekend) statoWeekend.textContent = '';
+                applicaVisibilitaWeekend();
+            })
+            .catch(errore => {
+                console.error('Impossibile verificare le lavorazioni del weekend', errore);
+                if (richiesta !== ultimaRichiesta || chiave !== intervalloCorrente) return;
+                weekendConProduzione = new Set([0, 6]);
+                if (statoWeekend) statoWeekend.textContent = 'Weekend visibili: verifica non disponibile';
+                applicaVisibilitaWeekend();
+            });
+    }
+
+    mostraWeekendCheckbox?.addEventListener('change', applicaVisibilitaWeekend);
 
     const calendario = new FullCalendar.Calendar(calendarEl, {
         themeSystem: 'classic',
-        datesSet() { allineaLegendaAlTitolo(); },
+        datesSet(info) {
+            aggiornaWeekendPerVista(info.view);
+        },
         initialView: 'timeGridWeek',
+        hiddenDays: [0, 6],
         locale: 'it',
         firstDay: 1,
         timeZone: 'local',
@@ -86,11 +186,12 @@
         expandRows: true,
         allDaySlot: true,
         eventDisplay: 'block',
-        displayEventEnd: true,
+        displayEventEnd: false,
+        displayEventTime: false,
         dayMaxEvents: false,
         dayMaxEventRows: false,
         slotEventOverlap: false,
-        slotMinTime: '06:00:00',
+        slotMinTime: '07:00:00',
         slotMaxTime: '18:00:00',
         slotDuration: '00:30:00',
         slotLabelInterval: '01:00:00',
@@ -98,33 +199,36 @@
         headerToolbar: {
             start: 'prev,next today',
             center: 'title',
-            end: 'timeGridWeek,dayGridWeek,dayGridMonth,timeGridDay',
+            end: 'timeGridWeek,dayGridWeek,dayGridMonth,dayGridDay',
         },
         buttonText: {
             today: 'Oggi',
-            timeGridWeek: 'Settimana',
+            timeGridWeek: 'Settimana (ore)',
             dayGridWeek: 'Riquadri',
             dayGridMonth: 'Mese',
-            timeGridDay: 'Giorno',
+            dayGridDay: 'Giorno',
         },
         views: {
             timeGridWeek: { dayHeaderFormat: { weekday: 'long', day: 'numeric', month: 'short' } },
             dayGridWeek: { dayHeaderFormat: { weekday: 'long', day: 'numeric', month: 'short' } },
         },
-        eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
         eventSources: [
             { id: 'scadenze', url: scadenzeUrl },
             { id: 'pianificazione', url: pianificazioneUrl },
         ],
         eventClassNames(info) {
-            const produzione = info.event.source?.id === 'pianificazione';
+            const produzione = info.event.source?.id === 'pianificazione' ||
+                (info.event.extendedProps.id_pianificazione != null &&
+                 info.event.extendedProps.tipo_evento !== 'scadenze_giorno');
             return produzione
                 ? ['evento-produzione', 'lavorazione-' + tipoLavorazione(info.event.extendedProps.lavorazione)]
                 : ['evento-scadenza', propsStato(info.event.extendedProps)];
         },
         eventContent(info) {
             const props = info.event.extendedProps;
-            const produzione = info.event.source?.id === 'pianificazione';
+            const produzione = info.event.source?.id === 'pianificazione' ||
+                (info.event.extendedProps.id_pianificazione != null &&
+                 info.event.extendedProps.tipo_evento !== 'scadenze_giorno');
             const scheda = document.createElement('div');
             scheda.className = 'cal-event-content';
 
@@ -138,12 +242,11 @@
                 if (typeof props.colore_fase === 'string' && /^#[0-9a-f]{6}$/i.test(props.colore_fase)) {
                     etichetta.dataset.coloreFase = 'personalizzato';
                     etichetta.style.setProperty('--fase-badge-bg', props.colore_fase);
-                    etichetta.style.setProperty('--fase-badge-fg', testoContrastoEsadecimale(props.colore_fase));
+                    etichetta.style.setProperty('--fase-badge-fg', '#000000');
                 }
             } else {
                 addText(scheda, 'cal-event-badge scadenza-badge', 'Scadenze del giorno');
             }
-            if (info.timeText && produzione) addText(scheda, 'cal-event-time', info.timeText);
             addText(scheda, 'cal-event-title',
                 produzione ? (props.descrizione_articolo || info.event.title || 'Articolo')
                            : (info.event.title || 'Scadenze cliente'));
@@ -160,11 +263,20 @@
         },
         eventDidMount(info) {
             const p = info.event.extendedProps;
-            const produzione = info.event.source?.id === 'pianificazione';
+            const produzione = info.event.source?.id === 'pianificazione' ||
+                (info.event.extendedProps.id_pianificazione != null &&
+                 info.event.extendedProps.tipo_evento !== 'scadenze_giorno');
             if (produzione) {
                 const [bordo, sfondo] = infoPiano(p.id_pianificazione);
+                // Applica il colore direttamente al riquadro FullCalendar.
+                // Le proprieta' inline con !important prevalgono sui temi e
+                // sulle regole che impostano background: ... !important.
                 info.el.style.setProperty('--piano-accent', bordo);
                 info.el.style.setProperty('--piano-bg', sfondo);
+                info.el.style.setProperty('background', sfondo, 'important');
+                info.el.style.setProperty('background-color', sfondo, 'important');
+                info.el.style.setProperty('border', `2px solid ${bordo}`, 'important');
+                info.el.style.setProperty('border-left', `6px solid ${bordo}`, 'important');
             }
             const righe = [info.event.title];
             if (produzione) {
@@ -202,6 +314,10 @@
 
     calendarEl.dataset.calendarInitialized = '1';
     calendario.render();
-    allineaLegendaAlTitolo();
-    document.body.addEventListener('pianificazioneSalvata', () => calendario.refetchEvents());
+    document.body.addEventListener('pianificazioneSalvata', () => {
+        periodiAnalizzati.clear();
+        intervalloCorrente = null;
+        calendario.refetchEvents();
+        aggiornaWeekendPerVista(calendario.view);
+    });
 })();

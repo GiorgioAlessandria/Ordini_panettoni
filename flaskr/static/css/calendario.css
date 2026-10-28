@@ -88,11 +88,15 @@
   color: #253346 !important; box-shadow: 0 1px 3px rgba(20,35,55,.12);
   opacity: 1 !important;
 }
-/* Il colore della pianificazione proviene da --piano-accent/--piano-bg. */
-#calendar .fc-event.evento-produzione {
-  background: var(--piano-bg, #eff6ff) !important;
-  border: 1px solid var(--piano-accent, #1d4ed8) !important;
-  border-left: 4px solid var(--piano-accent, #1d4ed8) !important;
+/* Riquadro intero colorato per IdPianificazione (non per fase).
+   Le variabili CSS fanno da supporto al colore inline impostato dal JS. */
+#calendar .fc-event.evento-produzione,
+#calendar .fc-event.evento-produzione.fc-timegrid-event,
+#calendar .fc-event.evento-produzione.fc-daygrid-event {
+  background: var(--piano-bg, #bfdbfe) !important;
+  background-color: var(--piano-bg, #bfdbfe) !important;
+  border: 2px solid var(--piano-accent, #1d4ed8) !important;
+  border-left: 6px solid var(--piano-accent, #1d4ed8) !important;
   color: #142b42 !important;
 }
 #calendar .fc-event.evento-scadenza {
@@ -199,24 +203,96 @@
   line-height: 1.35;
 }
 
-/* Legenda nella toolbar FullCalendar, a destra del mese/intervallo. */
-.calendario-shell #calendar .fc-toolbar-chunk:has(.fc-toolbar-title) {
-  display: flex; align-items: center; justify-content: center;
-  gap: .45rem .8rem; flex-wrap: wrap; min-width: 0;
+/* Barra permanente sopra FullCalendar: il calendario puo' ricreare la
+   propria toolbar senza rimuovere i controlli dei weekend. */
+.calendario-shell .calendario-barra-opzioni {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .35rem .8rem;
+  margin: .35rem 0 .6rem;
+  padding: .4rem .55rem;
+  border: 1px solid var(--pan-border, #dee2e6);
+  border-radius: .4rem;
+  background: #fff;
 }
-.calendario-shell #calendar .calendario-legenda--toolbar {
-  display: flex; align-items: center; justify-content: center;
-  flex-wrap: wrap; gap: .3rem .65rem; min-width: 0;
-  margin: 0; padding: 0; background: transparent;
-  border: 0; border-radius: 0; box-shadow: none;
-  font-size: .71rem; line-height: 1.2; color: var(--pan-muted, #64748b);
+.calendario-shell .calendario-barra-opzioni .calendario-legenda {
+  display: flex;
+  flex: 1 1 22rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .3rem .6rem;
+  border: 0;
+  background: transparent;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  font-size: .74rem;
 }
-.calendario-shell #calendar .calendario-legenda--toolbar span {gap:.2rem;white-space:nowrap;}
-.calendario-shell #calendar .calendario-legenda--toolbar .calendario-legenda-dot {
-  width: 9px; height: 9px; border-width: 1px; flex: 0 0 auto;
+.calendario-shell .calendario-controlli-weekend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .3rem .5rem;
+  flex: 0 1 auto;
 }
-.calendario-shell #calendar .calendario-legenda--toolbar .calendario-legenda-tipi {font-size: inherit;}
-@media (max-width: 920px) {
-  .calendario-shell #calendar .fc-toolbar-chunk:has(.fc-toolbar-title) {justify-content: flex-start;}
-  .calendario-shell #calendar .calendario-legenda--toolbar {justify-content:flex-start;gap:.2rem .45rem;}
+.calendario-shell .calendario-weekend-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  margin: 0;
+  padding: .35rem .55rem;
+  border: 1px solid #96adc7;
+  border-radius: .4rem;
+  background: #f1f7ff;
+  color: #173453;
+  font-weight: 650;
+  font-size: .8rem;
+  cursor: pointer;
+}
+.calendario-shell .calendario-weekend-toggle .form-check-input {
+  margin: 0;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+.calendario-shell .calendario-weekend-toggle span { white-space: normal; }
+.calendario-shell .calendario-weekend-toggle:focus-within {outline: 2px solid #2563eb;outline-offset:2px;}
+.calendario-shell .calendario-weekend-status { color: #64748b; font-size: .73rem; }
+@media (max-width: 700px) {
+  .calendario-shell .calendario-barra-opzioni {align-items:stretch;}
+  .calendario-shell .calendario-weekend-toggle {width:100%;justify-content:center;}
+  .calendario-shell .calendario-controlli-weekend {flex: 1 1 100%;}
+}
+
+
+/* Riepilogo senza vista oraria: testo nero e pienamente leggibile.
+   Il colore del riquadro continua a provenire da IdPianificazione,
+   quello dell'etichetta dalla singola fase configurata. */
+.calendario-shell .calendario-legenda,
+.calendario-shell .calendario-legenda span,
+.calendario-shell .calendario-weekend-toggle,
+.calendario-shell .calendario-weekend-status,
+#calendar .fc-toolbar-title,
+#calendar .fc-col-header-cell-cushion,
+#calendar .fc-daygrid-day-number,
+#calendar .fc-event.evento-produzione,
+#calendar .fc-event.evento-scadenza,
+#calendar .fc-event-main,
+#calendar .cal-event-content,
+#calendar .cal-event-title,
+#calendar .cal-event-summary,
+#calendar .cal-event-badge,
+#calendar .cal-event-warning {
+    color: #000 !important;
+}
+/* Il colore scelto per la fase rimane invariato; ombra chiara per
+   mantenere leggibile il nero anche su tinte particolarmente scure. */
+#calendar .cal-event-badge[data-colore-fase="personalizzato"] {
+    color: #000 !important;
+    text-shadow: 0 0 2px rgba(255, 255, 255, .95), 0 0 4px rgba(255, 255, 255, .7);
+}
+#calendar .fc-daygrid-event,
+#calendar .fc-daygrid-event .fc-event-main {
+    color: #000 !important;
 }

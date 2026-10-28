@@ -9,6 +9,7 @@ from flaskr.extensions import db
 from flaskr.models import OrdiniCliente
 from flaskr.models.model_ordini import (
     AnagraficaArticoli,
+    AnagraficaForni,
     AnagraficaImpastatrici,
     PianificazioneFasi,
     PianificazioneOrdini,
@@ -415,10 +416,12 @@ def calendario_riepilogo_piano(IdPianificazione: int):
         .where(PianificazioneOrdiniImpastatrici.IdPianificazione == IdPianificazione)
     ).scalars().all()
     articolo = db.session.get(AnagraficaArticoli, piano.CodArt)
+    forno = db.session.get(AnagraficaForni, piano.IdForno)
     return render_template(
         "ordini/_partials/_riepilogo_calendario_piano.j2",
         piano=piano, associazioni=associazioni, fasi=fasi,
-        macchine=macchine, descrizione=articolo.DesArt if articolo else piano.CodArt,
+        macchine=macchine, forno=forno,
+        descrizione=articolo.DesArt if articolo else piano.CodArt,
         totale_assegnato=sum(int(a.QtaPianificata or 0) for a, _ in associazioni),
         totale_da_stock=sum(int(a.QtaDaStock or 0) for a, _ in associazioni),
     )

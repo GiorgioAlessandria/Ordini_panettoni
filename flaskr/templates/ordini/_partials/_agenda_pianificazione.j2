@@ -2,7 +2,6 @@
 <div id="agenda-pianificazione" {% if agenda_oob|default(false) %}hx-swap-oob="outerHTML"{% endif %}>
   <div class="d-flex justify-content-between flex-wrap align-items-center gap-2 mb-2">
     <h6 class="pianificazione-titolo mb-0">Giornate della produzione</h6>
-    <span class="small text-secondary">M = mattina · P = pomeriggio</span>
   </div>
   {% if agenda and agenda.giorni %}
     <div class="d-flex flex-wrap align-items-center gap-2 small mb-2" aria-label="Legenda delle pianificazioni">
@@ -27,7 +26,7 @@
                       <div class="pan-agenda-event pan-agenda-proposta" role="note"
                            title="Bozza non ancora salvata · {{ evento.descrizione }} · {{ evento.cod_art }}">
                         <strong>Da pianificare</strong> · {{ evento.descrizione }}
-                        <small class="d-block">{{ evento.cod_art }} · fase ricetta {{ evento.fase_ricetta }}</small>
+                        <small class="d-block">{{ evento.descrizione_articolo }} · fase ricetta {{ evento.fase_ricetta }}</small>
                       </div>
                     {% else %}
                       <div class="pan-agenda-event pan-agenda-{{ evento.categoria }}"
@@ -35,7 +34,7 @@
                         <a href="{{ url_for('ordini_cliente.gestione_pianificazione', IdPianificazione=evento.id_pianificazione) }}"
                            target="_blank" rel="noopener noreferrer" class="text-decoration-none pan-agenda-event-link">
                           <strong>#{{ evento.id_pianificazione }}</strong> · {{ evento.descrizione }}
-                          <small class="d-block text-secondary">{{ evento.cod_art }}{% if evento.cotte is not none %} · {{ evento.cotte }} cotte · forno {{ evento.forno }}{% endif %}</small>
+                          <small class="d-block text-secondary">{{ evento.descrizione_articolo }}{% if evento.cotte is not none %} · {{ evento.cotte }} cotte · forno {{ evento.forno }}{% endif %}</small>
                         </a>
                       </div>
                     {% endif %}

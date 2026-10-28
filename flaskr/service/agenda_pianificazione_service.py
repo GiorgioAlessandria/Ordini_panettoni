@@ -12,6 +12,7 @@ from typing import Any
 
 from flaskr.extensions import db
 from flaskr.models.model_ordini import (
+    AnagraficaArticoli,
     PianificazioneFasi,
     PianificazioneProduzione,
     RicettaFasi,
@@ -54,12 +55,14 @@ def organizza_eventi_giorni_interessati(
     cod_art_proposto: str,
     *,
     mostra_articoli_cnf: bool = True,
+    descrizioni_articoli: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Mostra solo i giorni toccati dalle fasi proposte, incluse durate > 1.
 
     In ognuno mostra entrambi i blocchi per confrontare la bozza con le
     occupazioni già confermate. La bozza non possiede IdPianificazione.
     """
+    descrizioni_articoli = descrizioni_articoli or {}
     date_coinvolte: set[date] = set()
     for fase in fasi_proposte:
         lavorazione = lavorazioni_proposte[fase.IdLavorazione]
@@ -88,6 +91,7 @@ def organizza_eventi_giorni_interessati(
             "bozza": False,
             "id_pianificazione": piano.IdPianificazione,
             "cod_art": piano.CodArt or "",
+            "descrizione_articolo": descrizioni_articoli.get(piano.CodArt) or piano.CodArt or "Descrizione non disponibile",
             "descrizione": _descrizione_lavorazione(lavorazione),
             "categoria": categoria,
             "cotte": piano.NumeroCotte if categoria == "forno" else None,
@@ -105,6 +109,7 @@ def organizza_eventi_giorni_interessati(
             "bozza": True,
             "id_pianificazione": None,
             "cod_art": cod_art_proposto,
+            "descrizione_articolo": descrizioni_articoli.get(cod_art_proposto) or cod_art_proposto or "Descrizione non disponibile",
             "descrizione": _descrizione_lavorazione(lavorazione),
             "categoria": _categoria_lavorazione(lavorazione),
             "fase_ricetta": fase.IdRicettaFase,
@@ -176,10 +181,23 @@ def carica_agenda_giorni_interessati(
         )
     )
     righe = db.session.execute(stmt).all()
+    # Un'unica query per le descrizioni degli articoli dei piani presenti e della bozza.
+    codici = {piano.CodArt for _, piano, _ in righe if piano.CodArt}
+    if cod_art_proposto:
+        codici.add(cod_art_proposto)
+    descrizioni_articoli = {}
+    if codici:
+        descrizioni_articoli = {
+            a.CodArt: a.DesArt
+            for a in db.session.scalars(
+                db.select(AnagraficaArticoli).where(AnagraficaArticoli.CodArt.in_(codici))
+            ).all()
+        }
     return {
         "selezionata": min(fase.DataFase for fase in fasi_proposte),
         "giorni": organizza_eventi_giorni_interessati(
             fasi_proposte, lavorazioni, righe, cod_art_proposto,
             mostra_articoli_cnf=mostra_articoli_cnf,
+            descrizioni_articoli=descrizioni_articoli,
         ),
     }

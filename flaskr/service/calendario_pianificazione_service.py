@@ -10,8 +10,8 @@ from flaskr.models.model_ordini import (
 )
 
 ORARI_BLOCCHI = {
-    "M": {"start": time(6, 0), "end": time(12, 30)},
-    "P": {"start": time(13, 0), "end": time(17, 0)},
+    "M": {"start": time(7, 0), "end": time(12, 30)},
+    "P": {"start": time(13, 0), "end": time(18, 0)},
 }
 
 
