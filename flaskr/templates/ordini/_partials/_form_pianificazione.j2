@@ -1,3 +1,32 @@
+{% if not error %}
+<style>
+  /* Agenda limitata ai soli giorni attraversati dalle fasi da pianificare. */
+  #modal-pianificazione .modal-dialog { max-width: min(96vw, 1480px); }
+  #modal-pianificazione .pan-agenda-scroll { overflow-y: auto; max-height: min(63vh, 700px); padding-right: 3px; }
+  #modal-pianificazione .pan-agenda-day { border: 1px solid var(--bs-border-color, #dee2e6); border-radius: 8px; margin-bottom: 7px; padding: 7px; }
+  #modal-pianificazione .pan-agenda-day-selected { border-color: var(--bs-primary, #0d6efd); background: rgba(13,110,253,.055); }
+  #modal-pianificazione .pan-agenda-slot { display: flex; gap: 7px; align-items: flex-start; border-top: 1px solid var(--bs-border-color, #dee2e6); padding-top: 5px; margin-top: 5px; }
+  #modal-pianificazione .pan-agenda-slot-marker { flex: 0 0 22px; font-size: .75rem; font-weight: bold; color: var(--bs-secondary-color, #6c757d); }
+  #modal-pianificazione .pan-agenda-event { border-left: 3px solid var(--bs-secondary, #6c757d); border-radius: 3px; padding: 3px 6px; margin: 2px 0 5px; background: var(--bs-tertiary-bg, #f8f9fa); font-size: .75rem; overflow-wrap: anywhere; }
+  #modal-pianificazione .pan-agenda-impasto { border-left-color: #1976a2; }
+  #modal-pianificazione .pan-agenda-forno { border-left-color: #bb6f18; }
+  #modal-pianificazione .pan-agenda-event-link { color: inherit; }
+  #modal-pianificazione .pan-agenda-proposta {
+    border: 2px dashed #e58a00;
+    border-radius: 6px;
+    background: #fff3de;
+    color: #834d00;
+    padding: 4px 7px;
+  }
+  #modal-pianificazione .pan-agenda-proposta small { color: #85511a; }
+  #modal-pianificazione .pan-agenda-legend-confirmed { border-left: 3px solid #6c757d; padding-left: 5px; }
+  #modal-pianificazione .pan-agenda-legend-draft { border: 2px dashed #e58a00; border-radius: 4px; background: #fff3de; padding: 0px 5px; color: #834d00; }
+  @media (max-width: 991.98px) {
+    #modal-pianificazione .modal-dialog { max-width: calc(100% - 1rem); }
+    #modal-pianificazione .pan-agenda-scroll { max-height: 320px; }
+  }
+</style>
+{% endif %}
 {% if error %}
 <div class="modal-header pan-modal-header">
     <h5 class="modal-title">Pianificazione produzione</h5>
@@ -8,7 +37,7 @@
 <div class="modal-header">
     <div>
         <h5 class="modal-title">Pianificazione produzione</h5>
-        <small class="text-secondary">Impostazioni a sinistra; ordini, quantità e simulazione a destra</small>
+        <small class="text-secondary">Giornate coinvolte a sinistra; impostazioni al centro; simulazione a destra</small>
     </div>
     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
 </div>
@@ -19,7 +48,12 @@
       hx-disabled-elt="find button[type='submit']">
     <div class="modal-body">
         <div class="row g-3 align-items-start">
-            <section class="col-12 col-lg-5" aria-labelledby="pianificazione-settings-title">
+            <section class="col-12 col-lg-3" aria-label="Giornate della nuova pianificazione e produzioni già esistenti">
+                <div class="pianificazione-pannello pan-form-card">
+                    {% include 'ordini/_partials/_agenda_pianificazione.j2' %}
+                </div>
+            </section>
+            <section class="col-12 col-lg-4" aria-labelledby="pianificazione-settings-title">
                 <div class="pianificazione-pannello pianificazione-impostazioni pan-form-card">
                     <h6 id="pianificazione-settings-title" class="pianificazione-titolo">Impostazioni della produzione</h6>
                     <div class="mb-3">
@@ -27,7 +61,7 @@
                         <input class="form-control" type="date" id="data-inizio-produzione"
                                name="data_inizio_produzione" required
                                hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
-                               hx-trigger="change" hx-include="#form-pianificazione"
+                               hx-trigger="change" hx-sync="#form-pianificazione:replace" hx-include="#form-pianificazione"
                                hx-target="#riepilogo-pianificazione" hx-swap="innerHTML">
                     </div>
                     <fieldset class="mb-3">
@@ -35,30 +69,18 @@
                         <div class="d-flex flex-wrap gap-3">
                             <label class="form-check-label"><input class="form-check-input me-1" type="radio" name="blocco_inizio_produzione" value="0" required
                                            hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
-                                           hx-trigger="change" hx-include="#form-pianificazione"
+                                           hx-trigger="change" hx-sync="#form-pianificazione:replace" hx-include="#form-pianificazione"
                                            hx-target="#riepilogo-pianificazione" hx-swap="innerHTML"> Mattina</label>
                             <label class="form-check-label"><input class="form-check-input me-1" type="radio" name="blocco_inizio_produzione" value="1"
                                            hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
-                                           hx-trigger="change" hx-include="#form-pianificazione"
+                                           hx-trigger="change" hx-sync="#form-pianificazione:replace" hx-include="#form-pianificazione"
                                            hx-target="#riepilogo-pianificazione" hx-swap="innerHTML"> Pomeriggio</label>
                         </div>
                     </fieldset>
                     <fieldset class="mb-3">
                         <legend class="form-label fw-semibold fs-6">Impastatrici disponibili</legend>
                         <p class="small text-secondary mb-2">Seleziona le macchine candidate. Il programma distribuirà automaticamente il peso effettivo e prenoterà solo le macchine necessarie.</p>
-                        <div class="d-grid gap-2 pan-mixer-list">
-                            {% for impastatrice in impastatrici %}
-                            <label class="pianificazione-selettore">
-                                <input class="form-check-input flex-shrink-0 m-0" type="checkbox"
-                                       name="impastatrici_selezionate" value="{{ impastatrice.IdImpastatrice }}"
-                                       hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
-                                       hx-trigger="change" hx-include="#form-pianificazione"
-                                       hx-target="#riepilogo-pianificazione" hx-swap="innerHTML">
-                                <span class="flex-grow-1"><strong>{{ impastatrice.ModelloImpastatrice }}</strong><br><small class="text-secondary">{{ impastatrice.DescrizioneImpastatrice }}</small></span>
-                                <span class="badge bg-secondary flex-shrink-0">{{ impastatrice.CapienzaImpastatrice }} {{ impastatrice.UdM }}</span>
-                            </label>
-                            {% endfor %}
-                        </div>
+                        {% include 'ordini/_partials/_impastatrici_disponibili.j2' %}
                     </fieldset>
                     <div class="border rounded-3 p-3 bg-white mb-3">
                         <label class="form-label fw-semibold" for="quantita-da-stock">Preleva panettoni già a stock</label>
@@ -68,7 +90,7 @@
                                value="0" name="quantita_da_stock" required
                                hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
                                hx-trigger="change, keyup changed delay:450ms"
-                               hx-include="#form-pianificazione"
+                               hx-sync="#form-pianificazione:replace" hx-include="#form-pianificazione"
                                hx-target="#riepilogo-pianificazione" hx-swap="innerHTML">
                         <small class="text-secondary">Lo stock riduce i pezzi da produrre. Il rimanente viene pianificato con i coefficienti di peso.</small>
                     </div>
@@ -78,7 +100,7 @@
                                    name="ottimizza_infornate" value="1"
                                    hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
                                    hx-trigger="change"
-                                   hx-include="#form-pianificazione"
+                                   hx-sync="#form-pianificazione:replace" hx-include="#form-pianificazione"
                                    hx-target="#riepilogo-pianificazione"
                                    hx-swap="innerHTML"
                                    hx-indicator="#simulazione-attesa">
@@ -95,7 +117,7 @@
                     {% endfor %}
                 </div>
             </section>
-            <section class="col-12 col-lg-7" aria-labelledby="pianificazione-riepilogo-title">
+            <section class="col-12 col-lg-5" aria-labelledby="pianificazione-riepilogo-title">
                 <div class="pianificazione-pannello pianificazione-riepilogo pan-form-card">
                     <h6 id="pianificazione-riepilogo-title" class="pianificazione-titolo">Ordini selezionati e simulazione</h6>
                     <div id="riepilogo-pianificazione" aria-live="polite">

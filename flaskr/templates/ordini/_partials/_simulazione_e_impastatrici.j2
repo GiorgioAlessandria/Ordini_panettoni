@@ -1,0 +1,8 @@
+{# La risposta aggiorna il riepilogo (target normale) e la lista impastatrici (OOB). #}
+{% include 'ordini/_partials/_anteprima_ottimizzazione.j2' %}
+{% set impastatrici_oob = true %}
+{% include 'ordini/_partials/_impastatrici_disponibili.j2' %}
+
+{# Ricarica anche l'agenda dei giorni interessati quando cambiano data o blocco. #}
+{% set agenda_oob = true %}
+{% include 'ordini/_partials/_agenda_pianificazione.j2' %}

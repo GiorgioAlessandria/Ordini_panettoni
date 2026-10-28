@@ -1,0 +1,56 @@
+{# Agenda in sola lettura: le fasi con bozza=True NON sono salvate nel DB. #}
+<div id="agenda-pianificazione" {% if agenda_oob|default(false) %}hx-swap-oob="outerHTML"{% endif %}>
+  <div class="d-flex justify-content-between flex-wrap align-items-center gap-2 mb-2">
+    <h6 class="pianificazione-titolo mb-0">Giornate della produzione</h6>
+    <span class="small text-secondary">M = mattina · P = pomeriggio</span>
+  </div>
+  {% if agenda and agenda.giorni %}
+    <div class="d-flex flex-wrap align-items-center gap-2 small mb-2" aria-label="Legenda delle pianificazioni">
+      <span class="pan-agenda-legend-confirmed">Già pianificato</span>
+      <span class="pan-agenda-legend-draft">Da pianificare</span>
+    </div>
+    <p class="small text-secondary mb-2">Solo i {{ agenda.giorni|length }} giorni interessati dalle fasi della ricetta, inclusa la loro durata.</p>
+    <div class="pan-agenda-scroll" role="region" aria-label="Giornate interessate dalla nuova pianificazione" tabindex="0">
+      {% for giorno in agenda.giorni %}
+        <div class="pan-agenda-day {% if giorno.data == agenda.selezionata %}pan-agenda-day-selected{% endif %}">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <strong class="small">{{ giorno.giorno }} {{ giorno.data.day }} {{ giorno.mese }} {{ giorno.data.year }}</strong>
+            {% if giorno.data == agenda.selezionata %}<span class="badge bg-primary">Inizio</span>{% endif %}
+          </div>
+          {% for blocco in ['M', 'P'] %}
+            <div class="pan-agenda-slot">
+              <span class="pan-agenda-slot-marker">{{ blocco }}</span>
+              <div class="flex-grow-1 min-width-0">
+                {% if giorno.slot[blocco] %}
+                  {% for evento in giorno.slot[blocco] %}
+                    {% if evento.bozza %}
+                      <div class="pan-agenda-event pan-agenda-proposta" role="note"
+                           title="Bozza non ancora salvata · {{ evento.descrizione }} · {{ evento.cod_art }}">
+                        <strong>Da pianificare</strong> · {{ evento.descrizione }}
+                        <small class="d-block">{{ evento.cod_art }} · fase ricetta {{ evento.fase_ricetta }}</small>
+                      </div>
+                    {% else %}
+                      <div class="pan-agenda-event pan-agenda-{{ evento.categoria }}"
+                           title="Piano #{{ evento.id_pianificazione }} · {{ evento.descrizione }} · {{ evento.cod_art }}">
+                        <a href="{{ url_for('ordini_cliente.gestione_pianificazione', IdPianificazione=evento.id_pianificazione) }}"
+                           target="_blank" rel="noopener noreferrer" class="text-decoration-none pan-agenda-event-link">
+                          <strong>#{{ evento.id_pianificazione }}</strong> · {{ evento.descrizione }}
+                          <small class="d-block text-secondary">{{ evento.cod_art }}{% if evento.cotte is not none %} · {{ evento.cotte }} cotte · forno {{ evento.forno }}{% endif %}</small>
+                        </a>
+                      </div>
+                    {% endif %}
+                  {% endfor %}
+                {% else %}
+                  <span class="text-secondary small">Nessun evento</span>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+    <p class="small text-secondary mt-2 mb-0">Le fasi tratteggiate in arancione sono provvisorie e non occupano risorse finché non confermi la pianificazione.</p>
+  {% else %}
+    <div class="text-secondary small py-3 text-center" role="status">Seleziona data e blocco iniziale per visualizzare le giornate della ricetta e le pianificazioni esistenti.</div>
+  {% endif %}
+</div>

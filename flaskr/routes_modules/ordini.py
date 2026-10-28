@@ -53,9 +53,11 @@ from flaskr.service.pianificazione_service import (
 
 from flaskr.service.ottimizzazione_pianificazione_service import simula_ottimizzazione
 from flaskr.service.consumo_stock_service import distribuisci_stock_ordini
+from flaskr.service.agenda_pianificazione_service import carica_agenda_giorni_interessati
 
 from flaskr.service.risorse_produzione_service import (
     capacita_impastatrici_pezzi,
+    impastatrici_libere,
     disponibilita_forno,
     individua_fasi_risorse,
     verifica_capacita_forno,
@@ -265,6 +267,28 @@ def _simula_pianificazione_su_blocchi(
     return fasi, simulazione
 
 
+def _impastatrici_disponibili_su_blocchi(
+    fasi_ricetta,
+    data_produzione: date,
+    blocco_iniziale: int,
+    impastatrici,
+) -> set[int]:
+    """Macchine libere per OGNI fase di impasto e per tutti i blocchi occupati.
+
+    Riutilizza il controllo della conferma (anche per durata > 1 e piani legacy).
+    Nessun inserimento nel database.
+    """
+    piano_temporaneo = PianificazioneProduzione()
+    fasi = blocchi_fase(
+        fasi_ricetta, piano_temporaneo, data_produzione.isoformat(), blocco_iniziale
+    )
+    if not validazione_linearita_offset(fasi):
+        raise ErroreCalcoloPianificazione("Offset delle fasi non validi")
+    fasi_impasto, _ = individua_fasi_risorse(fasi)
+    disponibili, _ = impastatrici_libere(impastatrici, fasi_impasto)
+    return set(disponibili)
+
+
 @bp_ordini_cliente.post("/pianificazione/anteprima")
 @login_required
 def anteprima_pianificazione():
@@ -287,6 +311,10 @@ def anteprima_pianificazione():
     return render_template(
         template,
         impastatrici=impastatrici,
+        ids_impastatrici_disponibili=set(),
+        ids_impastatrici_selezionate=set(),
+        impastatrici_calcolate=False,
+        agenda=None,
         ordini_selezionati=ids_selezionati,
         riepilogo=riepilogo,
         simulazione=None,
@@ -299,12 +327,28 @@ def anteprima_pianificazione():
 @bp_ordini_cliente.post("/pianificazione/simulazione")
 @login_required
 def simulazione_pianificazione():
-    """Anteprima senza effetti collaterali: la checkbox non crea stock."""
-    ids_ordini = request.form.getlist("ordini_selezionati")
-    ottimizza = request.form.get("ottimizza_infornate") == "1"
-    template = "ordini/_partials/_anteprima_ottimizzazione.j2"
+    """Aggiorna simulazione e check delle impastatrici con HTMX/OOB.
+
+    Una macchina è selezionabile solo quando risulta libera in *tutte* le
+    fasi di impasto della ricetta, comprese le fasi di durata > 1 blocco.
+    """
+    template = "ordini/_partials/_simulazione_e_impastatrici.j2"
+    impastatrici = db.session.scalars(
+        db.select(AnagraficaImpastatrici).order_by(
+            AnagraficaImpastatrici.IdImpastatrice
+        )
+    ).all()
+    context = dict(
+        impastatrici=impastatrici,
+        ids_impastatrici_disponibili=set(),
+        ids_impastatrici_selezionate=set(),
+        impastatrici_calcolate=False,
+        agenda=None,
+        simulazione=None,
+        error=None,
+    )
     try:
-        ordini = recupera_ordini_selezionati(ids_ordini)
+        ordini = recupera_ordini_selezionati(request.form.getlist("ordini_selezionati"))
         _proteggi_ordini_cnf(ordini)
         riepilogo = calcolo_riepilogo_ordini(ordini)
         stock_disponibile = _stock_disponibile(riepilogo["codart_ordine"])
@@ -313,40 +357,66 @@ def simulazione_pianificazione():
             raise ErroreCalcoloPianificazione(
                 "Lo stock disponibile è diminuito: aggiornare la quantità"
             )
+        context.update(riepilogo=riepilogo, stock_disponibile=stock_disponibile)
 
         data_input = request.form.get("data_inizio_produzione")
         blocco_input = request.form.get("blocco_inizio_produzione")
-        ids_impastatrici = request.form.getlist("impastatrici_selezionate")
-        if not data_input or blocco_input not in ("0", "1") or not ids_impastatrici:
-            return render_template(
-                template, riepilogo=riepilogo, simulazione=None,
-                stock_disponibile=stock_disponibile,
-                messaggio="Seleziona data, blocco e almeno una impastatrice per la simulazione.",
-                error=None,
+        if not data_input or blocco_input not in ("0", "1"):
+            context["messaggio"] = (
+                "Seleziona data e blocco per conoscere le impastatrici libere."
             )
+            return render_template(template, **context)
+
         data_produzione = date.fromisoformat(data_input)
-        id_macchine = {int(value) for value in ids_impastatrici}
-        if any(id_macchina <= 0 for id_macchina in id_macchine):
-            raise ErroreCalcoloPianificazione("ID impastatrice non valido")
-        impastatrici = db.session.scalars(
-            db.select(AnagraficaImpastatrici).where(
-                AnagraficaImpastatrici.IdImpastatrice.in_(id_macchine)
-            )
-        ).all()
-        if {imp.IdImpastatrice for imp in impastatrici} != id_macchine:
-            raise ErroreCalcoloPianificazione("Una o più impastatrici non sono state trovate")
         _, ricetta = trova_capacita_forno(ordini[0], riepilogo["tipologia_panettone"])
         fasi = recupero_fasi_per_ricetta(ricetta)
+        # La bozza viene disegnata anche senza impastatrici selezionate:
+        # serve a scegliere data/blocco valutando gli eventi già presenti.
+        fasi_proposte = blocchi_fase(
+            fasi, PianificazioneProduzione(), data_produzione.isoformat(), int(blocco_input)
+        )
+        if not validazione_linearita_offset(fasi_proposte):
+            raise ErroreCalcoloPianificazione("Offset delle fasi non validi")
+        context["agenda"] = carica_agenda_giorni_interessati(
+            fasi_proposte, fasi, riepilogo["codart_ordine"],
+            mostra_articoli_cnf=(ruolo_attuale() != "utente_produzione"),
+        )
+        disponibili = _impastatrici_disponibili_su_blocchi(
+            fasi, data_produzione, int(blocco_input), impastatrici
+        )
+        context.update(
+            ids_impastatrici_disponibili=disponibili,
+            impastatrici_calcolate=True,
+        )
+
+        ids_richiesti = {int(value) for value in request.form.getlist("impastatrici_selezionate")}
+        ids_esistenti = {imp.IdImpastatrice for imp in impastatrici}
+        if any(i <= 0 for i in ids_richiesti) or not ids_richiesti.issubset(ids_esistenti):
+            raise ErroreCalcoloPianificazione("Una o più impastatrici non sono valide")
+        # Quando la data o il blocco cambiano, deseleziona quelle ora occupate.
+        ids_selezionati = ids_richiesti & disponibili
+        context["ids_impastatrici_selezionate"] = ids_selezionati
+        if not ids_selezionati:
+            context["messaggio"] = (
+                "Non ci sono impastatrici libere nei blocchi delle fasi di impasto."
+                if not disponibili
+                else "Seleziona almeno una delle impastatrici disponibili per la simulazione."
+            )
+            return render_template(template, **context)
+
+        impastatrici_scelte = [
+            imp for imp in impastatrici if imp.IdImpastatrice in ids_selezionati
+        ]
         _, simulazione = _simula_pianificazione_su_blocchi(
             riepilogo, fasi, data_produzione, int(blocco_input),
-            impastatrici, ottimizza, stock_da_usare,
+            impastatrici_scelte,
+            request.form.get("ottimizza_infornate") == "1", stock_da_usare,
         )
-        return render_template(
-            template, riepilogo=riepilogo, simulazione=simulazione,
-            stock_disponibile=stock_disponibile, error=None,
-        )
+        context["simulazione"] = simulazione
+        return render_template(template, **context)
     except (ErroreCalcoloPianificazione, ErroreCalcoloRiepilogo, ValueError) as errore:
-        return render_template(template, error=str(errore))
+        context["error"] = str(errore)
+        return render_template(template, **context)
 
 
 @bp_ordini_cliente.post("/pianificazione/conferma")
@@ -461,6 +531,15 @@ def conferma_pianificazione():
             risultato, fasi_ricetta, data_produzione, blocco_iniziale,
             list_impastatrici, ottimizza_infornate, stock_da_usare,
         )
+        # Non accettare un ID inviato manualmente o diventato occupato dopo
+        # l'anteprima: ogni macchina deve essere libera in TUTTE le fasi.
+        fasi_impasto, _ = individua_fasi_risorse(fasi)
+        libere, _ = impastatrici_libere(list_impastatrici, fasi_impasto)
+        if set(libere) != ids_impastatrici:
+            raise ErroreCalcoloPianificazione(
+                "Una o più impastatrici selezionate sono occupate in almeno "
+                "un blocco di impasto. Aggiorna data, blocco o selezione."
+            )
         panettoni_infornata = simulazione.pezzi_produzione
         panettoni_residui = simulazione.pezzi_residui
         panettoni_surplus = simulazione.pezzi_stock

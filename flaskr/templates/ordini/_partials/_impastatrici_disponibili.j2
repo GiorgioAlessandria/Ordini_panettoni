@@ -1,0 +1,42 @@
+{# Il contenitore viene anche sostituito fuori banda dalla risposta HTMX. #}
+<div id="impastatrici-candidate" {% if impastatrici_oob|default(false) %}hx-swap-oob="outerHTML"{% endif %}>
+    {% if not impastatrici_calcolate|default(false) %}
+    <p class="small text-secondary mb-2" role="status">Seleziona prima data e blocco: le macchine saranno abilitate solo se libere in tutte le fasi di impasto.</p>
+    {% else %}
+    <p class="small text-secondary mb-2" role="status">
+        Impastatrici libere per tutte le fasi: <strong>{{ ids_impastatrici_disponibili|length }} su {{ impastatrici|length }}</strong>.
+    </p>
+    {% endif %}
+    <div class="d-grid gap-2 pan-mixer-list">
+        {% for impastatrice in impastatrici %}
+        {% set libera = impastatrici_calcolate|default(false) and impastatrice.IdImpastatrice in ids_impastatrici_disponibili %}
+        <label class="pianificazione-selettore {% if not libera %}opacity-50{% endif %}">
+            <input class="form-check-input flex-shrink-0 m-0" type="checkbox"
+                   name="impastatrici_selezionate" value="{{ impastatrice.IdImpastatrice }}"
+                   {% if not libera %}disabled{% endif %}
+                   {% if libera and impastatrice.IdImpastatrice in ids_impastatrici_selezionate|default([]) %}checked{% endif %}
+                   hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
+                   hx-trigger="change" hx-sync="#form-pianificazione:replace"
+                   hx-include="#form-pianificazione"
+                   hx-target="#riepilogo-pianificazione" hx-swap="innerHTML">
+            <span class="flex-grow-1">
+                <strong>{{ impastatrice.ModelloImpastatrice }}</strong>
+                <small class="text-secondary d-block">{{ impastatrice.DescrizioneImpastatrice }}</small>
+            </span>
+            <span class="d-flex flex-column align-items-end gap-1">
+                <span class="badge bg-secondary">{{ impastatrice.CapienzaImpastatrice }} {{ impastatrice.UdM }}</span>
+                {% if libera %}
+                <span class="badge bg-success">Disponibile</span>
+                {% elif impastatrici_calcolate|default(false) %}
+                <span class="badge bg-secondary">Occupata in almeno una fase</span>
+                {% else %}
+                <span class="badge bg-secondary">Da verificare</span>
+                {% endif %}
+            </span>
+        </label>
+        {% endfor %}
+    </div>
+    {% if impastatrici_calcolate|default(false) and not ids_impastatrici_disponibili %}
+    <div class="alert alert-warning small mt-2 mb-0" role="status">Nessuna impastatrice libera in tutti i blocchi previsti. Scegli un'altra data o un altro blocco.</div>
+    {% endif %}
+</div>
