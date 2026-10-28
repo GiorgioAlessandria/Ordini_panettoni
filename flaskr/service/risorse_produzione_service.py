@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from itertools import combinations
 
 from flaskr.extensions import db
@@ -245,21 +245,18 @@ def _occupazioni_impastatrici_storiche(
     return occupate
 
 
-def verifica_e_distribuisci_impasti(
+def impastatrici_libere(
     impastatrici: Sequence[AnagraficaImpastatrici],
-    peso_totale_grammi: Decimal,
     fasi_impasto: Sequence[tuple[PianificazioneFasi, TipologieLavorazione]],
 ) -> tuple[dict[int, Decimal], list[tuple[PianificazioneFasi, list[tuple[date, str]]]]]:
-    """Prenota la *stessa* selezione di macchine per ogni fase di impasto.
+    """Capacita' in kg delle sole macchine libere in TUTTI i blocchi di impasto.
 
-    La massa viene verificata per OGNI passaggio, non sommata fra i passaggi:
-    lo stesso impasto puo' essere lavorato una seconda volta. Le occupazioni
-    vengono prenotate invece per ogni IdRicettaFase e per ogni blocco.
+    Mantiene esattamente la stessa regola di occupazione usata al salvataggio.
     """
     if not fasi_impasto:
         raise ErroreCalcoloPianificazione("La ricetta non contiene fasi di impasto")
 
-    ids = {m.IdImpastatrice for m in impastatrici}
+    ids = {macchina.IdImpastatrice for macchina in impastatrici}
     if not ids:
         raise ErroreCalcoloPianificazione("Seleziona almeno un'impastatrice")
 
@@ -277,8 +274,6 @@ def verifica_e_distribuisci_impasti(
         slots_usati.update(slots)
         blocchi_per_fase.append((fase, slots))
 
-    # Controlla l'intera finestra temporale PRIMA di assegnare le risorse,
-    # cosi' non cambia impastatrice dalla prima alla seconda fase.
     occupate = set(
         db.session.execute(
             db.select(
@@ -295,6 +290,40 @@ def verifica_e_distribuisci_impasti(
         if all((macchina.IdImpastatrice, giorno, blocco) not in occupate
                for giorno, blocco in slots_usati)
     }
+    return disponibili, blocchi_per_fase
+
+
+def capacita_impastatrici_pezzi(
+    impastatrici: Sequence[AnagraficaImpastatrici],
+    fasi_impasto: Sequence[tuple[PianificazioneFasi, TipologieLavorazione]],
+    peso_unitario_grammi: Decimal,
+) -> int:
+    """Numero massimo di pezzi lavorabili con le impastatrici selezionate e libere."""
+    peso_unitario = _decimale(peso_unitario_grammi)
+    if peso_unitario <= 0:
+        raise ErroreCalcoloPianificazione("Peso unitario non valido")
+    disponibili, _ = impastatrici_libere(impastatrici, fasi_impasto)
+    grammi_liberi = sum(disponibili.values(), Decimal(0)) * Decimal(1000)
+    # Nessun arrotondamento in eccesso: non superare i kg disponibili.
+    pezzi = int(grammi_liberi // peso_unitario)
+    # Il peso di piano e' arrotondato a 0,01 g: protegge anche dai casi limite.
+    while pezzi > 0 and (peso_unitario * pezzi).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) > grammi_liberi:
+        pezzi -= 1
+    return pezzi
+
+
+def verifica_e_distribuisci_impasti(
+    impastatrici: Sequence[AnagraficaImpastatrici],
+    peso_totale_grammi: Decimal,
+    fasi_impasto: Sequence[tuple[PianificazioneFasi, TipologieLavorazione]],
+) -> tuple[dict[int, Decimal], list[tuple[PianificazioneFasi, list[tuple[date, str]]]]]:
+    """Prenota la *stessa* selezione di macchine per ogni fase di impasto.
+
+    La massa viene verificata per OGNI passaggio, non sommata fra i passaggi:
+    lo stesso impasto puo' essere lavorato una seconda volta. Le occupazioni
+    vengono prenotate invece per ogni IdRicettaFase e per ogni blocco.
+    """
+    disponibili, blocchi_per_fase = impastatrici_libere(impastatrici, fasi_impasto)
     if not disponibili:
         raise ErroreCalcoloPianificazione(
             "Le impastatrici selezionate sono gia' occupate in uno dei blocchi "
@@ -317,6 +346,60 @@ def verifica_e_distribuisci_impasto(
         impastatrici, peso_totale_grammi, [(fase, lavorazione)]
     )
     return assegnazioni, blocchi[0][1]
+
+
+def disponibilita_forno(
+    fase_forno: PianificazioneFasi,
+    lavorazione_forno: TipologieLavorazione,
+    ricetta_fase_forno: RicettaFasi,
+    id_forno: int,
+) -> tuple[int, int]:
+    """Restituisce (cotte_libere, limite_condiviso) nel blocco piu' saturo.
+
+    Considera anche le occupazioni su piu' blocchi e le pianificazioni esistenti.
+    Deve essere invocata prima dell'INSERT e nuovamente prima del commit.
+    """
+    max_cotte = int(ricetta_fase_forno.CapacitaMax or 0)
+    if max_cotte <= 0:
+        raise ErroreCalcoloPianificazione("Limite cotte non valido")
+    slots_nuovi = set(_blocchi_occupati(
+        fase_forno.DataFase, fase_forno.Blocco, int(lavorazione_forno.DurataBlocchi)
+    ))
+    righe = db.session.execute(
+        db.select(
+            PianificazioneFasi.IdPianificazioneFase,
+            PianificazioneFasi.DataFase,
+            PianificazioneFasi.Blocco,
+            PianificazioneProduzione.NumeroCotte,
+            RicettaFasi.CapacitaMax,
+            TipologieLavorazione.DurataBlocchi,
+            TipologieLavorazione.TipologiaLavorazione,
+            TipologieLavorazione.CodiceLavorazione,
+            TipologieLavorazione.DescrizioneLavorazione,
+        )
+        .join(
+            PianificazioneProduzione,
+            PianificazioneProduzione.IdPianificazione == PianificazioneFasi.IdPianificazione,
+        )
+        .join(RicettaFasi, RicettaFasi.id == PianificazioneFasi.IdRicettaFase)
+        .join(TipologieLavorazione, TipologieLavorazione.IdLavorazione == PianificazioneFasi.IdLavorazione)
+        .where(
+            PianificazioneProduzione.IdForno == id_forno,
+            PianificazioneProduzione.StatoRigaOrdine != "Annullato",
+        )
+    ).all()
+    impiegate_per_slot = {slot: 0 for slot in slots_nuovi}
+    limite_effettivo = max_cotte
+    for _id, data_fase, blocco, cotte, limite_esistente, durata, categoria, codice, descrizione in righe:
+        nome = " ".join(str(v or "") for v in (categoria, codice, descrizione)).casefold()
+        if not any(s in nome for s in ("forno", "cottura", "inforn")):
+            continue
+        for slot in _blocchi_occupati(data_fase, blocco, int(durata)):
+            if slot in impiegate_per_slot:
+                impiegate_per_slot[slot] += int(cotte)
+                if limite_esistente is not None:
+                    limite_effettivo = min(limite_effettivo, int(limite_esistente))
+    return max(0, min(limite_effettivo - n for n in impiegate_per_slot.values())), limite_effettivo
 
 
 def verifica_capacita_forno(
@@ -348,57 +431,17 @@ def verifica_capacita_forno(
             f"Sono previste {numero_cotte} cotte ma il limite è {max_cotte} per blocco"
         )
 
-    # Il limite delle cotte è condiviso da TUTTI i piani sullo stesso forno/blocco.
-    righe = db.session.execute(
-        db.select(
-            PianificazioneFasi.IdPianificazioneFase,
-            PianificazioneFasi.DataFase,
-            PianificazioneFasi.Blocco,
-            PianificazioneProduzione.NumeroCotte,
-            RicettaFasi.CapacitaMax,
-            TipologieLavorazione.DurataBlocchi,
-            TipologieLavorazione.TipologiaLavorazione,
-            TipologieLavorazione.CodiceLavorazione,
-            TipologieLavorazione.DescrizioneLavorazione,
+    cotte_libere, limite_effettivo = disponibilita_forno(
+        fase_forno, lavorazione_forno, ricetta_fase_forno, id_forno
+    )
+    if numero_cotte > cotte_libere:
+        raise ErroreCalcoloPianificazione(
+            f"Forno {id_forno}: richieste {numero_cotte} cotte, "
+            f"disponibili {cotte_libere} nei blocchi previsti."
         )
-        .join(
-            PianificazioneProduzione,
-            PianificazioneProduzione.IdPianificazione == PianificazioneFasi.IdPianificazione,
-        )
-        .join(
-            RicettaFasi,
-            RicettaFasi.id == PianificazioneFasi.IdRicettaFase,
-        )
-        .join(
-            TipologieLavorazione,
-            TipologieLavorazione.IdLavorazione == PianificazioneFasi.IdLavorazione,
-        )
-        .where(
-            PianificazioneProduzione.IdForno == id_forno,
-            PianificazioneProduzione.StatoRigaOrdine != "Annullato",
-        )
-    ).all()
-    impiegate_per_slot = {slot: 0 for slot in slots_nuovi}
-    limite_effettivo = max_cotte
-    for _id, data_fase, blocco, cotte, limite_esistente, durata, categoria, codice, descrizione in righe:
-        nome = " ".join(str(v or "") for v in (categoria, codice, descrizione)).casefold()
-        if not any(s in nome for s in ("forno", "cottura", "inforn")):
-            continue
-        for slot in _blocchi_occupati(data_fase, blocco, int(durata)):
-            if slot in impiegate_per_slot:
-                impiegate_per_slot[slot] += int(cotte)
-                if limite_esistente is not None:
-                    limite_effettivo = min(limite_effettivo, int(limite_esistente))
-    for (data, blocco), gia_usate in sorted(impiegate_per_slot.items()):
-        if gia_usate + numero_cotte > limite_effettivo:
-            raise ErroreCalcoloPianificazione(
-                f"Forno {id_forno} occupato il {data:%d/%m/%Y} ({blocco}): "
-                f"{gia_usate} cotte già pianificate + {numero_cotte} richieste "
-                f"superano il massimo condiviso di {limite_effettivo}."
-            )
     return {
         "cotte_previste": numero_cotte,
         "max_cotte": limite_effettivo,
-        "cotte_libere": min(limite_effettivo - n for n in impiegate_per_slot.values()),
+        "cotte_libere": cotte_libere,
         "peso_max_grammi": capacita_peso_grammi,
     }

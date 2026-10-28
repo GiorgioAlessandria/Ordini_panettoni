@@ -2,37 +2,86 @@
 <div class="alert alert-danger mb-0" role="alert">{{ error }}</div>
 {% else %}
 {% include 'ordini/_partials/_riepilogo_contenuto.j2' %}
-<div class="mt-3 border-top pt-3 pan-simulation">
-    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-2">
-        <h6 class="mb-0 fw-semibold">Simulazione produttiva</h6>
+{% if not simulazione %}
+<div class="alert alert-info small mt-3 mb-0" role="status">
+    {{ messaggio or "Seleziona data, blocco e impastatrici per calcolare la capacità disponibile." }}
+</div>
+{% else %}
+{% set capacita_massima_effettiva = [simulazione.capacita_forno_pezzi, simulazione.capacita_impastatrici_pezzi]|min %}
+<div class="mt-3 border-top pt-3 pan-simulation" aria-live="polite">
+    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
+        <h6 class="mb-0 fw-semibold">Simulazione produttiva reale</h6>
         {% if simulazione.ottimizzata %}
-        <span class="badge bg-primary">Cotte ottimizzate</span>
+        <span class="badge bg-primary">Ottimizzazione cotte attiva</span>
         {% else %}
         <span class="badge bg-secondary">Produzione ordinaria</span>
         {% endif %}
     </div>
+
     <div class="row g-2">
-        <div class="col-6 col-xl-3"><div class="pianificazione-indicatore pan-kpi">
-            <small class="text-secondary d-block">Pezzi richiesti dagli ordini</small><strong>{{ simulazione.pezzi_ordine }}</strong>
-        </div></div>
-        <div class="col-6 col-xl-3"><div class="pianificazione-indicatore pan-kpi">
-            <small class="text-secondary d-block">Produzione effettiva</small><strong>{{ simulazione.pezzi_produzione }}</strong>
-        </div></div>
-        <div class="col-6 col-xl-3"><div class="pianificazione-indicatore pan-kpi">
-            <small class="text-secondary d-block">Cotte richieste</small><strong>{{ simulazione.numero_cotte }}</strong>
-            <small class="text-secondary">Max {{ simulazione.max_cotte }}</small>
-        </div></div>
-        <div class="col-6 col-xl-3"><div class="pianificazione-indicatore pan-kpi {% if simulazione.pezzi_stock %}border-primary{% endif %}">
-            <small class="text-secondary d-block">Surplus per stock</small><strong>{{ simulazione.pezzi_stock }}</strong>
-        </div></div>
+        <div class="col-6 col-xl-3">
+            <div class="pianificazione-indicatore pan-kpi">
+                <small class="text-secondary d-block">Pezzi richiesti</small>
+                <strong>{{ simulazione.pezzi_ordine }}</strong>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="pianificazione-indicatore pan-kpi border-success">
+                <small class="text-secondary d-block">Pezzi pianificabili</small>
+                <strong>{{ simulazione.pezzi_assegnati }}</strong>
+                <small class="text-secondary d-block">Produzione + stock impiegato</small>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="pianificazione-indicatore pan-kpi {% if simulazione.pezzi_residui %}border-warning{% endif %}">
+                <small class="text-secondary d-block">Residuo da pianificare</small>
+                <strong>{{ simulazione.pezzi_residui }}</strong>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="pianificazione-indicatore pan-kpi">
+                <small class="text-secondary d-block">Cotte da eseguire</small>
+                <strong>{{ simulazione.numero_cotte }}</strong>
+                <small class="text-secondary d-block">Su {{ simulazione.max_cotte }} cotte libere</small>
+            </div>
+        </div>
     </div>
-    <div class="alert alert-light border py-2 mt-2 mb-1 small pan-muted-box">
-        <strong>Ripartizione quantità:</strong>
-        {{ simulazione.pezzi_ordine }} ordinati − {{ simulazione.pezzi_stock_utilizzati }} da stock
-        = {{ simulazione.pezzi_da_produrre }} da produrre per gli ordini;
-        {{ simulazione.pezzi_stock }} pezzi extra da ottimizzazione.
-        <div>Stock prima della conferma: {{ stock_disponibile }} pezzi · Stock previsto dopo: {{ stock_disponibile - simulazione.pezzi_stock_utilizzati + simulazione.pezzi_stock }}.</div>
+
+    <div class="border rounded-3 p-3 mt-3 bg-white">
+        <h6 class="fw-semibold mb-2">Capacità realmente disponibili nei blocchi scelti</h6>
+        <div class="row g-2">
+            <div class="col-12 col-md-6">
+                <div class="small text-secondary">Forno (cotte ancora libere)</div>
+                <strong>{{ simulazione.capacita_forno_pezzi }} panettoni</strong>
+            </div>
+            <div class="col-12 col-md-6">
+                <div class="small text-secondary">Impastatrici selezionate e libere</div>
+                <strong>{{ simulazione.capacita_impastatrici_pezzi }} panettoni</strong>
+            </div>
+        </div>
+        <div class="small border-top mt-2 pt-2">
+            <strong>Capacità massima producibile: {{ capacita_massima_effettiva }} panettoni.</strong>
+            {% if simulazione.capacita_forno_pezzi < simulazione.capacita_impastatrici_pezzi %}
+            Limite determinato dal forno.
+            {% elif simulazione.capacita_impastatrici_pezzi < simulazione.capacita_forno_pezzi %}
+            Limite determinato dalle impastatrici disponibili.
+            {% else %}
+            Forno e impastatrici hanno la stessa capacità disponibile.
+            {% endif %}
+        </div>
     </div>
+
+    <div class="alert alert-light border py-2 mt-3 mb-1 small pan-muted-box">
+        <strong>Quantità che saranno salvate alla conferma:</strong>
+        <div>{{ simulazione.pezzi_produzione_ordini }} panettoni prodotti per gli ordini
+            + {{ simulazione.pezzi_stock_utilizzati }} già disponibili a stock
+            = <strong>{{ simulazione.pezzi_assegnati }} panettoni assegnati agli ordini</strong>.</div>
+        <div>Produzione fisica totale: <strong>{{ simulazione.pezzi_produzione }} pezzi</strong>
+            {% if simulazione.pezzi_stock %}(inclusi {{ simulazione.pezzi_stock }} pezzi extra per stock){% endif %}.</div>
+        <div>Residuo dell'ordine ancora da pianificare: <strong>{{ simulazione.pezzi_residui }} pezzi</strong>.</div>
+        <div>Stock prima: {{ stock_disponibile }} pezzi · Stock previsto dopo: {{ stock_disponibile - simulazione.pezzi_stock_utilizzati + simulazione.pezzi_stock }}.</div>
+    </div>
+
     <div class="small mt-2 d-flex flex-wrap gap-3">
         <span>Peso unitario con coefficienti: <strong>{{ '%.2f'|format(simulazione.peso_unitario_grammi) }} g</strong></span>
         <span>Peso totale dell'impasto: <strong>{{ '%.2f'|format(simulazione.peso_totale_kg) }} kg</strong></span>
@@ -40,10 +89,13 @@
     {% if simulazione.pezzi_stock %}
     <div class="alert alert-info small mt-2 mb-0">
         Articolo <strong>{{ riepilogo.codart_ordine }}</strong>: alla conferma verranno aggiunti
-        <strong>{{ simulazione.pezzi_stock }} pezzi</strong> alla riga Stock esistente, oppure ne sarà creata una nuova.
+        <strong>{{ simulazione.pezzi_stock }} pezzi</strong> allo stock.
     </div>
-    {% else %}
-    <p class="small text-secondary mt-2 mb-0">Nessuna quantità aggiuntiva per lo stock.</p>
+    {% elif simulazione.pezzi_residui %}
+    <div class="alert alert-secondary small mt-2 mb-0">
+        Il residuo rimane disponibile per una successiva pianificazione. Non viene generato surplus per stock.
+    </div>
     {% endif %}
 </div>
+{% endif %}
 {% endif %}

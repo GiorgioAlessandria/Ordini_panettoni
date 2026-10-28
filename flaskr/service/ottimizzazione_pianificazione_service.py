@@ -14,7 +14,6 @@ from flaskr.models.model_ordini import RicettaFasi
 from flaskr.service.ordini_service import calcolo_infornate
 from flaskr.service.pianificazione_service import (
     ErroreCalcoloPianificazione,
-    calcolo_max_panettoni,
 )
 
 
@@ -32,6 +31,11 @@ class SimulazioneProduzione:
     peso_totale_grammi: Decimal
     peso_totale_kg: Decimal
     ottimizzata: bool
+    pezzi_produzione_ordini: int
+    pezzi_assegnati: int
+    pezzi_residui: int
+    capacita_forno_pezzi: int
+    capacita_impastatrici_pezzi: int
 
 
 def simula_ottimizzazione(
@@ -39,6 +43,9 @@ def simula_ottimizzazione(
     fasi_ricetta: Sequence[RicettaFasi],
     ottimizza: bool,
     pezzi_stock_utilizzati: int = 0,
+    *,
+    cotte_libere: int,
+    capacita_impastatrici_pezzi: int,
 ) -> SimulazioneProduzione:
     """Calcola produzione + surplus con gli stessi coefficienti del riepilogo.
 
@@ -70,28 +77,41 @@ def simula_ottimizzazione(
         )
     if massimo_cotte <= 0 or capienza <= 0 or pezzi_ordine <= 0:
         raise ErroreCalcoloPianificazione("Capacità forno o quantità da pianificare non valide")
-    massimo_pezzi = massimo_cotte * capienza
-    if pezzi_da_produrre > massimo_pezzi:
+    if cotte_libere < 0 or capacita_impastatrici_pezzi < 0:
+        raise ErroreCalcoloPianificazione("Capacità disponibili non valide")
+
+    cotte_effettive = min(massimo_cotte, cotte_libere)
+    capacita_forno_pezzi = cotte_effettive * capienza
+    # Le quantità sono tutte espresse in PEZZI; il limite piu' restrittivo prevale.
+    massimo_producibile = min(capacita_forno_pezzi, capacita_impastatrici_pezzi)
+    pezzi_produzione_ordini = min(pezzi_da_produrre, massimo_producibile)
+    if pezzi_produzione_ordini <= 0:
         raise ErroreCalcoloPianificazione(
-            f"Sono da produrre {pezzi_da_produrre} pezzi; il forno ne può lavorare "
-            f"al massimo {massimo_pezzi} in {massimo_cotte} cotte. "
-            "Riduci la selezione degli ordini."
+            "Nessuna capacità produttiva disponibile nei blocchi selezionati "
+            "per il forno e le impastatrici."
         )
-    pezzi_produzione, pezzi_residui, pezzi_stock, _ = calcolo_max_panettoni(
-        massimo_cotte,
-        capienza,
-        pezzi_da_produrre,
-        ottimizza,
-    )
-    if pezzi_residui != 0 or pezzi_produzione < pezzi_da_produrre:
-        raise ErroreCalcoloPianificazione("Il piano non copre completamente gli ordini selezionati")
-    if pezzi_stock != pezzi_produzione - pezzi_da_produrre:
-        raise ErroreCalcoloPianificazione("Quantità extra di ottimizzazione incoerente")
+
+    # Non generare surplus mentre esistono ancora ordini da pianificare.
+    # Se gli ordini sono interamente coperti, una cotta completa e' ammessa
+    # solo se rispetta ENTRAMBI i limiti (forno e impastatrici).
+    pezzi_produzione = pezzi_produzione_ordini
+    if ottimizza and pezzi_produzione_ordini == pezzi_da_produrre:
+        cotte_ottimizzate, _ = calcolo_infornate(capienza, pezzi_produzione_ordini)
+        pezzi_cotta_completa = cotte_ottimizzate * capienza
+        if pezzi_cotta_completa <= massimo_producibile:
+            pezzi_produzione = pezzi_cotta_completa
+    pezzi_stock = pezzi_produzione - pezzi_produzione_ordini
+    pezzi_assegnati = pezzi_stock_utilizzati + pezzi_produzione_ordini
+    pezzi_residui = pezzi_ordine - pezzi_assegnati
+
     numero_cotte, _ = calcolo_infornate(capienza, pezzi_produzione)
-    if numero_cotte > massimo_cotte:
-        raise ErroreCalcoloPianificazione("Il numero di cotte supera il limite del blocco")
+    if numero_cotte > cotte_effettive:
+        raise ErroreCalcoloPianificazione("Il numero di cotte supera quelle disponibili")
+
     peso_base = Decimal(str(riepilogo["peso_totale_grammi"]))
     peso_unitario = peso_base / Decimal(pezzi_ordine)
+    if peso_unitario <= 0:
+        raise ErroreCalcoloPianificazione("Peso unitario non valido")
     peso_produzione = (peso_unitario * Decimal(pezzi_produzione)).quantize(
         Decimal("0.01"), rounding=ROUND_HALF_UP
     )
@@ -103,9 +123,14 @@ def simula_ottimizzazione(
         pezzi_stock=pezzi_stock if ottimizza else 0,
         numero_cotte=numero_cotte,
         capienza_cotta=capienza,
-        max_cotte=massimo_cotte,
+        max_cotte=cotte_effettive,
         peso_unitario_grammi=peso_unitario,
         peso_totale_grammi=peso_produzione,
         peso_totale_kg=(peso_produzione / Decimal(1000)).quantize(Decimal("0.01")),
         ottimizzata=ottimizza,
+        pezzi_produzione_ordini=pezzi_produzione_ordini,
+        pezzi_assegnati=pezzi_assegnati,
+        pezzi_residui=pezzi_residui,
+        capacita_forno_pezzi=capacita_forno_pezzi,
+        capacita_impastatrici_pezzi=capacita_impastatrici_pezzi,
     )

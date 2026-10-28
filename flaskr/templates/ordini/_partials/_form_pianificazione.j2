@@ -25,13 +25,22 @@
                     <div class="mb-3">
                         <label class="form-label fw-semibold" for="data-inizio-produzione">Data di inizio</label>
                         <input class="form-control" type="date" id="data-inizio-produzione"
-                               name="data_inizio_produzione" required>
+                               name="data_inizio_produzione" required
+                               hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
+                               hx-trigger="change" hx-include="#form-pianificazione"
+                               hx-target="#riepilogo-pianificazione" hx-swap="innerHTML">
                     </div>
                     <fieldset class="mb-3">
                         <legend class="form-label fw-semibold fs-6">Blocco iniziale</legend>
                         <div class="d-flex flex-wrap gap-3">
-                            <label class="form-check-label"><input class="form-check-input me-1" type="radio" name="blocco_inizio_produzione" value="0" required> Mattina</label>
-                            <label class="form-check-label"><input class="form-check-input me-1" type="radio" name="blocco_inizio_produzione" value="1"> Pomeriggio</label>
+                            <label class="form-check-label"><input class="form-check-input me-1" type="radio" name="blocco_inizio_produzione" value="0" required
+                                           hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
+                                           hx-trigger="change" hx-include="#form-pianificazione"
+                                           hx-target="#riepilogo-pianificazione" hx-swap="innerHTML"> Mattina</label>
+                            <label class="form-check-label"><input class="form-check-input me-1" type="radio" name="blocco_inizio_produzione" value="1"
+                                           hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
+                                           hx-trigger="change" hx-include="#form-pianificazione"
+                                           hx-target="#riepilogo-pianificazione" hx-swap="innerHTML"> Pomeriggio</label>
                         </div>
                     </fieldset>
                     <fieldset class="mb-3">
@@ -41,7 +50,10 @@
                             {% for impastatrice in impastatrici %}
                             <label class="pianificazione-selettore">
                                 <input class="form-check-input flex-shrink-0 m-0" type="checkbox"
-                                       name="impastatrici_selezionate" value="{{ impastatrice.IdImpastatrice }}">
+                                       name="impastatrici_selezionate" value="{{ impastatrice.IdImpastatrice }}"
+                                       hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
+                                       hx-trigger="change" hx-include="#form-pianificazione"
+                                       hx-target="#riepilogo-pianificazione" hx-swap="innerHTML">
                                 <span class="flex-grow-1"><strong>{{ impastatrice.ModelloImpastatrice }}</strong><br><small class="text-secondary">{{ impastatrice.DescrizioneImpastatrice }}</small></span>
                                 <span class="badge bg-secondary flex-shrink-0">{{ impastatrice.CapienzaImpastatrice }} {{ impastatrice.UdM }}</span>
                             </label>

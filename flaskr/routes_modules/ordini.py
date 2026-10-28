@@ -55,6 +55,8 @@ from flaskr.service.ottimizzazione_pianificazione_service import simula_ottimizz
 from flaskr.service.consumo_stock_service import distribuisci_stock_ordini
 
 from flaskr.service.risorse_produzione_service import (
+    capacita_impastatrici_pezzi,
+    disponibilita_forno,
     individua_fasi_risorse,
     verifica_capacita_forno,
     verifica_e_distribuisci_impasti,
@@ -223,6 +225,46 @@ def _quantita_stock_form() -> int:
     return quantita
 
 
+def _simula_pianificazione_su_blocchi(
+    riepilogo,
+    fasi_ricetta,
+    data_produzione: date,
+    blocco_iniziale: int,
+    impastatrici,
+    ottimizza: bool,
+    stock_da_usare: int,
+):
+    """Simulazione senza INSERT, con le stesse occupazioni usate nella conferma."""
+    piano_temporaneo = PianificazioneProduzione()
+    fasi = blocchi_fase(
+        fasi_ricetta, piano_temporaneo, data_produzione.isoformat(), blocco_iniziale
+    )
+    if not validazione_linearita_offset(fasi):
+        raise ErroreCalcoloPianificazione("Offset delle fasi non validi")
+    fasi_impasto, (fase_forno, lavoro_forno, ricetta_fase_forno) = (
+        individua_fasi_risorse(fasi)
+    )
+    cotte_libere, _ = disponibilita_forno(
+        fase_forno, lavoro_forno, ricetta_fase_forno, riepilogo["id_forno"]
+    )
+    qta_ordini = int(riepilogo["qta_panettoni"])
+    if qta_ordini <= 0:
+        raise ErroreCalcoloPianificazione("Nessun panettone residuo da pianificare")
+    peso_unitario = Decimal(str(riepilogo["peso_totale_grammi"])) / Decimal(qta_ordini)
+    pezzi_impastatrici = capacita_impastatrici_pezzi(
+        impastatrici, fasi_impasto, peso_unitario
+    )
+    simulazione = simula_ottimizzazione(
+        riepilogo,
+        fasi_ricetta,
+        ottimizza,
+        stock_da_usare,
+        cotte_libere=cotte_libere,
+        capacita_impastatrici_pezzi=pezzi_impastatrici,
+    )
+    return fasi, simulazione
+
+
 @bp_ordini_cliente.post("/pianificazione/anteprima")
 @login_required
 def anteprima_pianificazione():
@@ -242,18 +284,13 @@ def anteprima_pianificazione():
         AnagraficaImpastatrici.IdImpastatrice
     )
     impastatrici = db.session.scalars(stmt_impastatrici).all()
-    try:
-        _, ricetta = trova_capacita_forno(ordini[0], riepilogo["tipologia_panettone"])
-        fasi = recupero_fasi_per_ricetta(ricetta)
-        simulazione = simula_ottimizzazione(riepilogo, fasi, ottimizza=False, pezzi_stock_utilizzati=0)
-    except (ErroreCalcoloPianificazione, ErroreCalcoloRiepilogo, ValueError) as errore:
-        return render_template(template, error=str(errore))
     return render_template(
         template,
         impastatrici=impastatrici,
         ordini_selezionati=ids_selezionati,
         riepilogo=riepilogo,
-        simulazione=simulazione,
+        simulazione=None,
+        messaggio="Seleziona data, blocco e impastatrici per calcolare la capacità disponibile.",
         stock_disponibile=_stock_disponibile(riepilogo["codart_ordine"]),
         error=None,
     )
@@ -270,15 +307,44 @@ def simulazione_pianificazione():
         ordini = recupera_ordini_selezionati(ids_ordini)
         _proteggi_ordini_cnf(ordini)
         riepilogo = calcolo_riepilogo_ordini(ordini)
-        _, ricetta = trova_capacita_forno(ordini[0], riepilogo["tipologia_panettone"])
-        fasi = recupero_fasi_per_ricetta(ricetta)
         stock_disponibile = _stock_disponibile(riepilogo["codart_ordine"])
         stock_da_usare = _quantita_stock_form()
         if stock_da_usare > stock_disponibile:
-            raise ErroreCalcoloPianificazione("Lo stock disponibile è diminuito: aggiornare la quantità")
-        simulazione = simula_ottimizzazione(riepilogo, fasi, ottimizza, stock_da_usare)
-        return render_template(template, riepilogo=riepilogo, simulazione=simulazione,
-                               stock_disponibile=stock_disponibile, error=None)
+            raise ErroreCalcoloPianificazione(
+                "Lo stock disponibile è diminuito: aggiornare la quantità"
+            )
+
+        data_input = request.form.get("data_inizio_produzione")
+        blocco_input = request.form.get("blocco_inizio_produzione")
+        ids_impastatrici = request.form.getlist("impastatrici_selezionate")
+        if not data_input or blocco_input not in ("0", "1") or not ids_impastatrici:
+            return render_template(
+                template, riepilogo=riepilogo, simulazione=None,
+                stock_disponibile=stock_disponibile,
+                messaggio="Seleziona data, blocco e almeno una impastatrice per la simulazione.",
+                error=None,
+            )
+        data_produzione = date.fromisoformat(data_input)
+        id_macchine = {int(value) for value in ids_impastatrici}
+        if any(id_macchina <= 0 for id_macchina in id_macchine):
+            raise ErroreCalcoloPianificazione("ID impastatrice non valido")
+        impastatrici = db.session.scalars(
+            db.select(AnagraficaImpastatrici).where(
+                AnagraficaImpastatrici.IdImpastatrice.in_(id_macchine)
+            )
+        ).all()
+        if {imp.IdImpastatrice for imp in impastatrici} != id_macchine:
+            raise ErroreCalcoloPianificazione("Una o più impastatrici non sono state trovate")
+        _, ricetta = trova_capacita_forno(ordini[0], riepilogo["tipologia_panettone"])
+        fasi = recupero_fasi_per_ricetta(ricetta)
+        _, simulazione = _simula_pianificazione_su_blocchi(
+            riepilogo, fasi, data_produzione, int(blocco_input),
+            impastatrici, ottimizza, stock_da_usare,
+        )
+        return render_template(
+            template, riepilogo=riepilogo, simulazione=simulazione,
+            stock_disponibile=stock_disponibile, error=None,
+        )
     except (ErroreCalcoloPianificazione, ErroreCalcoloRiepilogo, ValueError) as errore:
         return render_template(template, error=str(errore))
 
@@ -389,18 +455,24 @@ def conferma_pianificazione():
                 f"Stock insufficiente per {risultato['codart_ordine']}: "
                 f"disponibili {disponibilita_stock}, richiesti {stock_da_usare}"
             )
-        simulazione = simula_ottimizzazione(risultato, fasi_ricetta,
-                                           ottimizza_infornate, stock_da_usare)
+        # Capacità effettiva nel blocco: min(forno libero, impastatrici libere).
+        # La simulazione tiene conto anche dei pezzi eventualmente prelevati da stock.
+        fasi, simulazione = _simula_pianificazione_su_blocchi(
+            risultato, fasi_ricetta, data_produzione, blocco_iniziale,
+            list_impastatrici, ottimizza_infornate, stock_da_usare,
+        )
         panettoni_infornata = simulazione.pezzi_produzione
-        panettoni_residui = 0
+        panettoni_residui = simulazione.pezzi_residui
         panettoni_surplus = simulazione.pezzi_stock
         numero_cotte = simulazione.numero_cotte
         peso_unitario = simulazione.peso_unitario_grammi
         peso_totale_pianificato = simulazione.peso_totale_grammi
 
         # FASE 5 - Distribuzione, prima di qualsiasi INSERT.
-        capacita_assegnabile = panettoni_previsti
-        assegnazioni = distribuisci_stock_ordini(ordini_disponibili, stock_da_usare)
+        capacita_assegnabile = simulazione.pezzi_assegnati
+        assegnazioni = distribuisci_stock_ordini(
+            ordini_disponibili, stock_da_usare, capacita_assegnabile
+        )
         totale_assegnato = sum(qta for _, qta, _ in assegnazioni)
         if not assegnazioni or (
             totale_assegnato != capacita_assegnabile
@@ -426,14 +498,9 @@ def conferma_pianificazione():
         db.session.add(pianificazione)
         db.session.flush()  # Genera IdPianificazione senza fare commit.
 
-        fasi = blocchi_fase(
-            fasi_ricetta,
-            pianificazione,
-            data_produzione.isoformat(),
-            blocco_iniziale,
-        )
-        if not validazione_linearita_offset(fasi):
-            raise ErroreCalcoloPianificazione("Offset delle fasi non validi")
+        # Le fasi sono state gia' calcolate senza scritture nella simulazione.
+        for fase in fasi:
+            fase.IdPianificazione = pianificazione.IdPianificazione
 
         # La concorrenza NON è più vietata per IdLavorazione.
         # Verifica la disponibilità delle risorse sulle fasi effettive
