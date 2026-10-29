@@ -117,6 +117,7 @@
                     {{ colonna('stato', 'Stato') }}
                     <th scope="col" class="pan-note-col-heading" data-col="commenti">Commenti vendite</th>
                      <th scope="col" class="pan-note-col-heading" data-col="commenti_produzione">Commenti produzione</th>
+                     <th scope="col" class="pan-note-col-heading" data-col="commenti_etichetta">Commento etichetta</th>
                     {% if not selezione_attiva %}<th scope="col" data-col="azioni">Azioni</th>{% endif %}
                 </tr>
             </thead>
@@ -259,6 +260,26 @@
                                 </div>
                             {% endif %}
                         </td>
+                         <td data-col="commenti_etichetta" class="pan-note-cell" onclick="event.stopPropagation()">
+                             {% if selezione_attiva %}
+                                 <a class="btn btn-sm btn-outline-secondary"
+                                    href="{{ url_for('ordini_cliente.commento_etichetta_ordine', id_documento=ordine.IdDocumento, id_riga=ordine.IdRigaDoc) }}"
+                                    onclick="event.stopPropagation()">Indicazione</a>
+                             {% else %}
+                                 <div class="pan-notes-group">
+                                 {% for voce in ordine.OrdiniDettaglio %}
+                                     <div class="pan-notes-group-item">
+                                         <span class="pan-note-order-label">Ordine {{ voce.IdDocumento }}-{{ voce.IdRigaDoc }}</span>
+                                         <a class="btn btn-sm btn-outline-secondary"
+                                            href="{{ url_for('ordini_cliente.commento_etichetta_ordine', id_documento=voce.IdDocumento, id_riga=voce.IdRigaDoc) }}"
+                                            onclick="event.stopPropagation()">Indicazione</a>
+                                     </div>
+                                 {% else %}
+                                     <span class="text-secondary small">Nessun ordine associato.</span>
+                                 {% endfor %}
+                                 </div>
+                             {% endif %}
+                         </td>
                         {% if not selezione_attiva %}
                         <td data-col="azioni">
                             {% if puo_gestire_produzione %}<a class="btn btn-outline-primary btn-sm"
@@ -268,7 +289,7 @@
                         {% endif %}
                     </tr>
                 {% else %}
-                    <tr data-no-data><td colspan="13" class="text-center py-4">Nessun ordine da visualizzare.</td></tr>
+                    <tr data-no-data><td colspan="14" class="text-center py-4">Nessun ordine da visualizzare.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
