@@ -17,6 +17,7 @@ from flaskr.models.model_ordini import (
     TipologieLavorazione,
 )
 from flaskr.models.model_accessi import NotaVenditeOrdine
+from flaskr.models.model_note_produzione import NotaProduzioneOrdine
 from flaskr.accessi import ruolo_attuale
 from flaskr.service.scadenze_giornaliere_service import (
     articolo_cnf, eseguito, raggruppa_per_giorno,
@@ -124,15 +125,15 @@ def _stato_scadenza(quantita_pianificata: int, ordine_eseguito: bool) -> str:
     return "Nuovo"
 
 
-def _note_del_giorno(ordini):
+def _note_del_giorno(ordini, modello=NotaVenditeOrdine):
     """Commenti in una query per blocco di ordini, non una query per riga."""
     chiavi = sorted({(o.IdDocumento, o.IdRigaDoc) for o in ordini})
     note = defaultdict(list)
     for start in range(0, len(chiavi), 250):
         stmt = (
-            db.select(NotaVenditeOrdine)
-            .where(tuple_(NotaVenditeOrdine.IdDocumento, NotaVenditeOrdine.IdRigaDoc).in_(chiavi[start:start + 250]))
-            .order_by(NotaVenditeOrdine.CreatoIl.desc(), NotaVenditeOrdine.Id.desc())
+            db.select(modello)
+            .where(tuple_(modello.IdDocumento, modello.IdRigaDoc).in_(chiavi[start:start + 250]))
+            .order_by(modello.CreatoIl.desc(), modello.Id.desc())
         )
         for nota in db.session.scalars(stmt):
             note[(nota.IdDocumento, nota.IdRigaDoc)].append(nota)
@@ -207,6 +208,7 @@ def calendario_riepilogo_giorno(data: str):
         giorno=giorno,
         righe=righe,
         note_per_ordine=_note_del_giorno(ordini),
+        note_produzione_per_ordine=_note_del_giorno(ordini, NotaProduzioneOrdine),
         eseguiti=sum(r["eseguito"] for r in righe),
     )
 

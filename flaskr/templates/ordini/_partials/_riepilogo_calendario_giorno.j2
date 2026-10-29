@@ -35,6 +35,7 @@
           <th scope="col" class="text-end">Q.tà da eseguire</th>
           <th scope="col">Stato</th>
           <th scope="col" class="scad-col-note">Commenti vendite</th>
+          <th scope="col" class="scad-col-note">Commenti produzione</th>
         </tr>
       </thead>
       <tbody>
@@ -44,6 +45,8 @@
           {% set id_riga = ordine.IdRigaDoc %}
           {% set note = note_per_ordine.get((id_documento, id_riga), []) %}
           {% set nota_corrente = note[0] if note else none %}
+          {% set note_produzione = note_produzione_per_ordine.get((id_documento, id_riga), []) %}
+          {% set nota_produzione_corrente = note_produzione[0] if note_produzione else none %}
           {% set stato = voce.stato_calendario %}
           <tr class="{{ 'scad-riga-eseguita' if voce.eseguito else 'scad-riga-da-eseguire' }}{{ ' scad-riga-carico' if stato == 'Preso in carico' else '' }}">
             <td class="text-nowrap fw-semibold">{{ id_documento }}-{{ id_riga }}</td>
@@ -64,9 +67,18 @@
                 <span class="text-secondary small">—</span>
               {% endif %}
             </td>
+            <td class="scad-col-note">
+              {% if nota_produzione_corrente %}
+                <div class="scad-commento-lettura" style="white-space:pre-wrap">{{ nota_produzione_corrente.Testo }}</div>
+                <small class="text-secondary">{{ nota_produzione_corrente.AutoreNome }}</small>
+              {% else %}
+                <span class="text-secondary small">—</span>
+              {% endif %}
+              <div class="mt-1"><a class="small" href="{{ url_for('ordini_cliente.note_produzione_ordine', id_documento=id_documento, id_riga=id_riga) }}">Apri commenti</a></div>
+            </td>
           </tr>
         {% else %}
-          <tr><td colspan="7" class="text-center text-secondary p-3">Nessuna scadenza per questa data.</td></tr>
+          <tr><td colspan="8" class="text-center text-secondary p-3">Nessuna scadenza per questa data.</td></tr>
         {% endfor %}
       </tbody>
     </table>

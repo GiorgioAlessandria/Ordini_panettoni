@@ -1,0 +1,7 @@
+{# Pannello HTMX: stessi comandi della cella, accessibile dalla pagina dettaglio. #}
+<section class="pan-notes-panel" aria-label="Commenti produzione">
+  <div class="mb-2 fw-semibold">Commenti produzione · ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}</div>
+  {% with id_documento=ordine.IdDocumento, id_riga=ordine.IdRigaDoc %}
+    {% include 'ordini/_partials/_note_produzione_cella.j2' %}
+  {% endwith %}
+</section>

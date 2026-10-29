@@ -1,0 +1,51 @@
+{# Un solo commento visibile per ordine: il piu' recente.
+   La cronologia resta nel DB e non viene mostrata in questo widget.
+   Nessun <form> annidato: il widget puo' comparire dentro form-ordini. #}
+{% set nota_corrente = note[0] if note else none %}
+{% set puo_modificare_corrente = nota_corrente and (ruolo_corrente == 'utente_produzione' and nota_corrente.AutoreId == g.user.id) %}
+<div class="pan-note-inline pan-note-single" data-pan-note-order="{{ id_documento }}:{{ id_riga }}"
+     onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">
+    <div class="pan-note-current">
+        {% if puo_scrivere_note_produzione %}
+            <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
+            <input type="hidden" name="vista_note" value="riga">
+            <textarea name="testo" class="form-control form-control-sm pan-note-single-field"
+                      data-pan-note-draft="{{ 'modifica:' ~ nota_corrente.Id if puo_modificare_corrente else 'nuovo:' ~ id_documento ~ ':' ~ id_riga }}"
+                      rows="2" maxlength="2000" required
+                      placeholder="Scrivi il commento dell'ordine..."
+                      aria-label="Commento produzione ordine {{ id_documento }}-{{ id_riga }}">{{ nota_corrente.Testo if puo_modificare_corrente else '' }}</textarea>
+            <div class="pan-note-single-actions">
+                {% if puo_modificare_corrente %}
+                <button type="button" class="btn btn-primary btn-sm"
+                        hx-post="{{ url_for('ordini_cliente.modifica_nota_produzione', nota_id=nota_corrente.Id) }}"
+                        hx-include="closest .pan-note-current"
+                        hx-target="closest .pan-note-inline" hx-swap="outerHTML"
+                        hx-disabled-elt="this">Salva</button>
+                <button type="button" class="btn btn-outline-danger btn-sm"
+                        hx-post="{{ url_for('ordini_cliente.elimina_nota_produzione', nota_id=nota_corrente.Id) }}"
+                        hx-include="closest .pan-note-current"
+                        hx-target="closest .pan-note-inline" hx-swap="outerHTML"
+                        hx-confirm="Eliminare questo commento? L'operazione non e' reversibile."
+                        hx-validate="false"
+                        hx-disabled-elt="this">Elimina</button>
+                {% else %}
+                <button type="button" class="btn btn-primary btn-sm"
+                        hx-post="{{ url_for('ordini_cliente.aggiungi_nota_produzione', id_documento=id_documento, id_riga=id_riga) }}"
+                        hx-include="closest .pan-note-current"
+                        hx-target="closest .pan-note-inline" hx-swap="outerHTML"
+                        hx-disabled-elt="this">{{ 'Pubblica nuovo' if nota_corrente else 'Salva' }}</button>
+                {% endif %}
+                {% if nota_corrente %}
+                <small class="pan-note-current-author" title="{{ nota_corrente.CreatoIl.strftime('%d/%m/%Y %H:%M') }}">
+                    {{ nota_corrente.AutoreNome }}{% if nota_corrente.ModificatoIl %} · modificato{% endif %}
+                </small>
+                {% endif %}
+            </div>
+        {% else %}
+            <textarea class="form-control form-control-sm pan-note-single-field" rows="2" readonly
+                      aria-label="Commento produzione ordine {{ id_documento }}-{{ id_riga }}">{{ nota_corrente.Testo if nota_corrente else '' }}</textarea>
+            {% if nota_corrente %}<small class="pan-note-current-author">{{ nota_corrente.AutoreNome }}</small>{% endif %}
+        {% endif %}
+    </div>
+    <div class="pan-note-feedback" role="status" aria-live="polite"></div>
+</div>
