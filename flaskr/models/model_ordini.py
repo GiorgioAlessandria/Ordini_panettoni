@@ -327,6 +327,21 @@ class PianificazioneOperazioni(db.Model):
     )
 
 
+class StoricoRipianificazioni(db.Model):
+    """Storico degli spostamenti senza modificare il registro di chiusura/annullamento."""
+    __tablename__ = "storico_ripianificazioni"
+    Id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    IdPianificazione: Mapped[int] = mapped_column(
+        ForeignKey("pianificazione_produzione.IdPianificazione"), nullable=False
+    )
+    DataPrecedente: Mapped[date] = mapped_column(nullable=False)
+    DataNuova: Mapped[date] = mapped_column(nullable=False)
+    BloccoIniziale: Mapped[str] = mapped_column(nullable=False)
+    Operatore: Mapped[str] = mapped_column(nullable=False)
+    DataOperazione: Mapped[datetime] = mapped_column(nullable=False)
+    Motivo: Mapped[str] = mapped_column(nullable=False)
+
+
 class OrdiniPriorita(db.Model):
     __tablename__ = "ordini_priorita"
     IdDocumento: Mapped[int] = mapped_column(primary_key=True)
@@ -335,4 +350,38 @@ class OrdiniPriorita(db.Model):
 
     __table_args__ = (
         CheckConstraint("Livello BETWEEN 1 AND 3", name="ck_ordini_priorita_livello"),
+    )
+
+
+class CommentoEtichettaConfigurazione(db.Model):
+    """Solo i due modelli di testo globali, entrambi con segnaposto."""
+    __tablename__ = "commenti_etichetta_configurazione"
+    Id: Mapped[int] = mapped_column(primary_key=True)
+    Testo: Mapped[str] = mapped_column(db.Text, nullable=False)
+    ModificatoIl: Mapped[datetime | None] = mapped_column(nullable=True)
+    __table_args__ = (CheckConstraint("Id IN (1, 2)", name="ck_commento_etichetta_due_testi"),)
+
+
+class CommentoEtichettaClienteScelta(db.Model):
+    """Scelta iniziale per cliente ERP, gestita in locale senza modificare clienti_fornitori."""
+    __tablename__ = "commenti_etichetta_cliente_scelta"
+    CodCliFor: Mapped[int] = mapped_column(primary_key=True)
+    TipoCommento: Mapped[int] = mapped_column(nullable=False, default=1)
+    ModificatoIl: Mapped[datetime] = mapped_column(nullable=False)
+    Operatore: Mapped[str] = mapped_column(nullable=False)
+    __table_args__ = (
+        CheckConstraint("TipoCommento IN (1, 2)", name="ck_commento_etichetta_cliente_scelta_tipo"),
+    )
+
+
+class CommentoEtichettaOrdine(db.Model):
+    """Solo eccezioni manuali; senza riga prevale la scelta del cliente."""
+    __tablename__ = "commenti_etichetta_ordine"
+    IdDocumento: Mapped[int] = mapped_column(primary_key=True)
+    IdRigaDoc: Mapped[int] = mapped_column(primary_key=True)
+    TipoCommento: Mapped[int] = mapped_column(nullable=False)
+    ModificatoIl: Mapped[datetime] = mapped_column(nullable=False)
+    Operatore: Mapped[str] = mapped_column(nullable=False)
+    __table_args__ = (
+        CheckConstraint("TipoCommento IN (1, 2)", name="ck_commento_etichetta_ordine_tipo"),
     )

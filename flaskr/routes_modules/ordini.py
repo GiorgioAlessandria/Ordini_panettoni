@@ -751,13 +751,82 @@ def gestione_pianificazione(IdPianificazione: int):
         .where(PianificazioneOperazioni.IdPianificazione == IdPianificazione)
         .order_by(PianificazioneOperazioni.Id.desc())
     ).all()
+    storico_spostamenti = db.session.scalars(
+        db.select(StoricoRipianificazioni)
+        .where(StoricoRipianificazioni.IdPianificazione == IdPianificazione)
+        .order_by(StoricoRipianificazioni.Id.desc())
+    ).all()
     # QtaStockGenerata=NULL e' previsto per i piani creati prima della migrazione.
     surplus_teorico = calcola_surplus_teorico_storico(piano, [a for a, _ in assoc])
     return render_template("ordini/gestione_pianificazione.j2", piano=piano,
                            associazioni=assoc, registro=log,
+                           storico_spostamenti=storico_spostamenti,
+                           puo_ripianificare=ruolo_attuale() in ("admin", "utente_produzione"),
                            surplus_teorico=surplus_teorico,
                            puo_riconciliare=g.user.username in current_app.config.get("STOCK_RECONCILIATION_USERS", ()),
                            totale_da_stock=sum(int(a.QtaDaStock or 0) for a, _ in assoc))
+
+
+# --- Ripianificazione senza cambiare ordini, impastatrici, kg o stock ---
+from flaskr.accessi import verifica_csrf
+from flaskr.models.model_ordini import StoricoRipianificazioni
+from flaskr.service.ripianificazione_service import (
+    anteprima_visuale_ripianificazione, salva_ripianificazione,
+)
+
+
+def _proteggi_ripianificazione(id_piano: int):
+    if ruolo_attuale() not in ("utente_produzione", "admin"):
+        abort(403)
+    _proteggi_piano_cnf(id_piano)
+
+
+@bp_ordini_cliente.get("/pianificazioni/<int:IdPianificazione>/ripianifica/anteprima")
+@login_required
+def anteprima_ripianificazione(IdPianificazione: int):
+    _proteggi_ripianificazione(IdPianificazione)
+    data_input = (request.args.get("nuova_data") or "").strip()
+    try:
+        if not data_input:
+            raise ErroreCalcoloPianificazione("Seleziona la nuova data")
+        nuova_data = date.fromisoformat(data_input)
+        anteprima = anteprima_visuale_ripianificazione(
+            IdPianificazione, nuova_data,
+            mostra_articoli_cnf=(ruolo_attuale() != "utente_produzione"),
+        )
+        return render_template(
+            "ordini/_partials/_anteprima_ripianificazione.j2",
+            anteprima=anteprima, errore=None,
+        )
+    except (ValueError, ErroreCalcoloPianificazione) as eccezione:
+        return render_template(
+            "ordini/_partials/_anteprima_ripianificazione.j2",
+            anteprima=None, errore=str(eccezione),
+        )
+
+
+@bp_ordini_cliente.post("/pianificazioni/<int:IdPianificazione>/ripianifica")
+@login_required
+def conferma_ripianificazione(IdPianificazione: int):
+    _proteggi_ripianificazione(IdPianificazione)
+    verifica_csrf()
+    motivo = (request.form.get("motivo_ripianificazione") or "").strip()
+    try:
+        nuova_data = date.fromisoformat(request.form.get("nuova_data") or "")
+        salva_ripianificazione(IdPianificazione, nuova_data, g.user.username, motivo)
+    except (ValueError, ErroreCalcoloPianificazione) as errore:
+        db.session.rollback()
+        flash(str(errore), "danger")
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("Errore durante la ripianificazione #%s", IdPianificazione)
+        flash("Ripianificazione non salvata: errore nel database", "danger")
+    else:
+        flash(f"Pianificazione #{IdPianificazione} spostata al {nuova_data:%d/%m/%Y}", "success")
+    return redirect(
+        url_for("ordini_cliente.gestione_pianificazione", IdPianificazione=IdPianificazione),
+        code=303,
+    )
 
 
 @bp_ordini_cliente.post("/pianificazioni/<int:IdPianificazione>/riconcilia-stock")

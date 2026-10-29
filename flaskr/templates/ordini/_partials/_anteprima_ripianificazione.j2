@@ -1,0 +1,155 @@
+{# Anteprima sola lettura: ogni richiesta GET ricalcola le disponibilità, senza prenotare. #}
+{% if errore %}
+<div class="alert alert-warning mb-0" role="alert">{{ errore }}</div>
+{% elif anteprima %}
+<style>
+  .rip-grid {display:grid;grid-template-columns:minmax(240px, .85fr) minmax(0,1.5fr);gap:1rem;align-items:start}
+  .rip-machines{max-height:420px;overflow-y:auto}
+  .rip-machine{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.6rem;padding:.65rem;margin-bottom:.45rem;background:#fff}
+  .rip-machine[data-assigned="true"]{border-left:4px solid var(--bs-primary,#0d6efd)}
+  .rip-status{font-size:.75rem;white-space:nowrap}
+  .rip-days{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.6rem}
+  .rip-day{background:#fff;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.65rem;padding:.65rem;min-width:0}
+  .rip-day.rip-day-start{border-color:var(--bs-primary,#0d6efd);box-shadow:0 0 0 1px var(--bs-primary,#0d6efd)}
+  .rip-slot{display:grid;grid-template-columns:26px minmax(0,1fr);gap:.5rem;padding:.55rem 0;border-top:1px solid var(--bs-border-color,#dee2e6)}
+  .rip-slot-label{font-weight:700;color:var(--bs-secondary-color,#6c757d)}
+  .rip-event{padding:.4rem .55rem;border-radius:.45rem;margin-bottom:.35rem;border:1px solid #ced4da;background:#f6f7f9;font-size:.82rem;overflow-wrap:anywhere}
+  .rip-event-new{border-color:#d99932;background:#fff0d6;border-style:dashed}
+  .rip-event-impasto{border-left:3px solid #3d87be}
+  .rip-event-forno{border-left:3px solid #b96666}
+  .rip-event-altro{border-left:3px solid #858b95}
+  @media (max-width:992px){.rip-grid{grid-template-columns:1fr}}
+</style>
+<div class="rip-grid">
+  <section class="border rounded-3 p-3" aria-label="Impiego impastatrici">
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
+      <h3 class="h6 mb-0">Impastatrici</h3>
+      <span class="badge bg-secondary">Sola lettura</span>
+    </div>
+    <p class="small text-secondary mb-2">Gli stati si riferiscono a <strong>tutti i blocchi di impasto</strong> richiesti dalla nuova data. Le prenotazioni di questo stesso piano non vengono considerate occupazioni esterne.</p>
+    <div class="rip-machines" aria-label="Impastatrici disponibili e occupate">
+      {% for riga in anteprima.stati_macchine %}
+      {% set macchina = riga.macchina %}
+      <div class="rip-machine" data-assigned="{{ 'true' if riga.assegnata else 'false' }}">
+        <div class="d-flex gap-2 align-items-start">
+          <input type="checkbox" class="form-check-input mt-1 flex-shrink-0"
+                 {% if riga.assegnata %}checked{% endif %} disabled
+                 aria-label="{{ macchina.ModelloImpastatrice }}: {{ 'assegnata' if riga.assegnata else 'non assegnata' }}">
+          <div class="flex-grow-1 min-width-0">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-1">
+              <strong class="small">{{ macchina.ModelloImpastatrice }}</strong>
+              <span class="badge rip-status {{ 'bg-success' if riga.libera else 'bg-danger' }}">
+                {{ 'Libera' if riga.libera else 'Occupata' }}
+              </span>
+            </div>
+            {% if macchina.DescrizioneImpastatrice %}<div class="text-secondary small">{{ macchina.DescrizioneImpastatrice }}</div>{% endif %}
+            <div class="small text-secondary">{{ macchina.CapienzaImpastatrice }} {{ macchina.UdM }}</div>
+            {% if riga.assegnata %}
+            <span class="badge bg-primary mt-1">Già assegnata al piano</span>
+            {% else %}
+            <span class="badge bg-light text-dark border mt-1">Non assegnata</span>
+            {% endif %}
+            {% if riga.conflitti %}
+            <div class="text-danger small mt-1">Occupata in:
+              {% for giorno, blocco in riga.conflitti %}
+              <span class="d-inline-block text-nowrap">{{ giorno.strftime('%d/%m') }} {{ blocco }}{% if not loop.last %},{% endif %}</span>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <p class="small text-secondary">Nessuna impastatrice presente nell'anagrafica.</p>
+      {% endfor %}
+    </div>
+    <p class="small text-secondary mt-2 mb-0">Le impastatrici <strong>non assegnate</strong> vengono mostrate per orientamento, ma non possono essere scelte in ripianificazione.</p>
+  </section>
+  <section class="border rounded-3 p-3" aria-label="Calendario nuove fasi">
+    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-2">
+      <h3 class="h6 mb-0">Giornate della nuova pianificazione</h3>
+      <span class="small text-secondary">M = mattina · P = pomeriggio</span>
+    </div>
+    <div class="d-flex flex-wrap gap-2 small mb-2">
+      <span class="badge text-dark" style="background:#fff0d6;border:1px dashed #d99932">Nuova collocazione · bozza</span>
+      <span class="badge bg-light text-dark border">Già pianificato</span>
+    </div>
+    <p class="small text-secondary mb-2">Sono visualizzati soltanto i giorni interessati dalle nuove fasi, comprese le durate maggiori di un blocco. Il piano #{{ anteprima.piano.IdPianificazione }} non è duplicato fra quelli già prenotati.</p>
+    <div class="rip-days" role="region" aria-label="Anteprima giorni e fasce di lavoro">
+      {% for giorno in anteprima.agenda.giorni %}
+      <div class="rip-day {% if giorno.data == anteprima.agenda.selezionata %}rip-day-start{% endif %}">
+        <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+          <strong class="small">{{ giorno.giorno }} {{ giorno.data.day }} {{ giorno.mese }} {{ giorno.data.year }}</strong>
+          {% if giorno.data == anteprima.agenda.selezionata %}<span class="badge bg-primary">Inizio</span>{% endif %}
+        </div>
+        {% for blocco in ['M','P'] %}
+        <div class="rip-slot">
+          <span class="rip-slot-label">{{ blocco }}</span>
+          <div>
+            {% if giorno.slot[blocco] %}
+              {% for evento in giorno.slot[blocco] %}
+              {% if evento.bozza %}
+              <div class="rip-event rip-event-new" role="note">
+                <strong>Nuova fase</strong> · {{ evento.descrizione }}
+                <span class="d-block text-secondary">#{{ anteprima.piano.IdPianificazione }} · {{ evento.cod_art }} · fase {{ evento.fase_ricetta }}</span>
+                {% if evento.cotte is not none %}<small class="d-block">Forno #{{ evento.forno }} · {{ evento.cotte }} cotte</small>{% endif %}
+              </div>
+              {% else %}
+              <div class="rip-event rip-event-{{ evento.categoria }}">
+                <a class="text-decoration-none" href="{{ url_for('ordini_cliente.gestione_pianificazione', IdPianificazione=evento.id_pianificazione) }}" target="_blank" rel="noopener noreferrer">
+                  <strong>#{{ evento.id_pianificazione }}</strong> · {{ evento.descrizione }}
+                </a>
+                <span class="d-block text-secondary">{{ evento.cod_art }}</span>
+                {% if evento.cotte is not none %}<small class="d-block text-secondary">Forno #{{ evento.forno }} · {{ evento.cotte }} cotte</small>{% endif %}
+              </div>
+              {% endif %}
+              {% endfor %}
+            {% else %}<span class="small text-secondary">Nessuna lavorazione</span>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="border rounded-3 p-2 mt-3 bg-light small">
+      <strong>Forno #{{ anteprima.piano.IdForno }}</strong> · {{ anteprima.piano.NumeroCotte }} cotte richieste
+      {% if anteprima.cotte_libere is not none %}
+      <span class="badge {{ 'bg-success' if anteprima.cotte_libere >= anteprima.piano.NumeroCotte else 'bg-danger' }} ms-1">
+        {{ anteprima.cotte_libere }} cotte disponibili
+      </span>
+      {% else %}<span class="badge bg-warning text-dark ms-1">Non verificabile</span>{% endif %}
+      {% if anteprima.errore_forno %}<div class="text-danger mt-1">{{ anteprima.errore_forno }}</div>{% endif %}
+    </div>
+    <details class="mt-3 small">
+      <summary class="fw-semibold" style="cursor:pointer">Confronta le date delle singole fasi</summary>
+      <div class="table-responsive mt-2">
+        <table class="table table-sm table-bordered align-middle mb-0">
+          <thead><tr><th>Fase</th><th>Attuale</th><th>Nuova</th></tr></thead>
+          <tbody>
+          {% for originale, nuova in anteprima.fasi %}
+          <tr><td>{{ originale.IdRicettaFase }}</td>
+              <td>{{ originale.DataFase.strftime('%d/%m/%Y') }} · {{ originale.Blocco }}</td>
+              <td>{{ nuova.DataFase.strftime('%d/%m/%Y') }} · {{ nuova.Blocco }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+</div>
+<div class="mt-3 pt-3 border-top d-flex flex-wrap justify-content-between align-items-center gap-3">
+  <div class="flex-grow-1">
+  {% if anteprima.valido %}
+    <div class="alert alert-success mb-0" role="status"><strong>Ripianificazione possibile.</strong> Le impastatrici già assegnate e il forno sono liberi nei blocchi previsti per la data {{ anteprima.nuova_data.strftime('%d/%m/%Y') }}.</div>
+  {% else %}
+    <div class="alert alert-danger mb-0" role="alert"><strong>Ripianificazione non possibile.</strong> {{ anteprima.errore }}</div>
+  {% endif %}
+  </div>
+  <button type="submit" form="form-ripianificazione" class="btn btn-primary"
+          {% if not anteprima.valido %}disabled{% endif %}
+          onclick="return confirm('Confermare lo spostamento della pianificazione #{{ anteprima.piano.IdPianificazione }}? Verranno ricontrollate le risorse.')">
+    Conferma ripianificazione
+  </button>
+</div>
+<p class="small text-secondary mt-2 mb-0">L'anteprima non effettua prenotazioni. Alla conferma la disponibilità verrà verificata nuovamente, prima di salvare.</p>
+{% endif %}

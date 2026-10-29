@@ -1,0 +1,31 @@
+{% extends 'base.j2' %}
+{% block title %}Indicazione etichetta ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}{% endblock %}
+{% block content %}
+<main class="container py-3" style="max-width:880px">
+  <a href="{{ url_for('ordini_cliente.ordini_cliente') }}" class="btn btn-outline-secondary btn-sm mb-3">Torna agli ordini</a>
+  <section class="card shadow-sm"><div class="card-body">
+    <h1 class="h4">Commento etichetta · ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}</h1>
+    <p class="text-secondary">{{ ordine.Cliente.RagioneSociale if ordine.Cliente else '' }} · {{ ordine.CodArt }} · Solo indicazione a video</p>
+    <div class="alert alert-info small">Commento iniziale del cliente: <strong>{{ predefinito }}</strong>
+    {% if not configurato %}(valore provvisorio: il cliente non è ancora configurato){% endif %}.
+    {% if scelta_manuale %}Questo ordine ha una scelta manuale salvata.{% else %}Questo ordine eredita la scelta del cliente.{% endif %}</div>
+    <form method="post" action="{{ url_for('ordini_cliente.commento_etichetta_ordine', id_documento=ordine.IdDocumento, id_riga=ordine.IdRigaDoc) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
+      <div class="form-check mb-3"><input class="form-check-input" id="comm-et-1" type="radio" name="tipo_commento" value="1" {{ 'checked' if tipo == 1 else '' }} {{ 'disabled' if not puo_modificare else '' }}>
+        <label class="form-check-label fw-semibold" for="comm-et-1">Commento 1</label>
+        <div class="border rounded bg-light p-2 mt-1 small" style="white-space:pre-wrap">{{ alternativa1 }}</div>
+      </div>
+      <div class="form-check mb-3"><input class="form-check-input" id="comm-et-2" type="radio" name="tipo_commento" value="2" {{ 'checked' if tipo == 2 else '' }} {{ 'disabled' if not puo_modificare else '' }}>
+        <label class="form-check-label fw-semibold" for="comm-et-2">Commento 2</label>
+        <div class="border rounded bg-light p-2 mt-1 small" style="white-space:pre-wrap">{{ alternativa2 }}</div>
+      </div>
+      {% if puo_modificare %}
+        <div class="d-flex gap-2 flex-wrap"><button class="btn btn-primary" type="submit">Salva scelta</button>
+        {% if scelta_manuale %}<button class="btn btn-outline-secondary" type="submit" name="ripristina_predefinito" value="1" formnovalidate>Ripristina scelta del cliente</button>{% endif %}</div>
+      {% endif %}
+    </form>
+    <hr><h2 class="h6">Indicazione attuale</h2>
+    <div class="border rounded p-3" style="white-space:pre-wrap">{{ testo }}</div>
+  </div></section>
+</main>
+{% endblock %}

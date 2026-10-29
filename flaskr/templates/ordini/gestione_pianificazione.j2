@@ -34,6 +34,66 @@
     </table>
   </div>
 </section>
+{% if piano.StatoRigaOrdine == 'In produzione' and puo_ripianificare %}
+<section class="card mb-4 border-primary" aria-labelledby="titolo-ripianificazione">
+  <div class="card-body">
+    <div class="d-flex flex-wrap gap-2 align-items-start justify-content-between mb-2">
+      <div>
+        <h2 class="h5 mb-1" id="titolo-ripianificazione">Ripianifica produzione</h2>
+        <p class="text-secondary small mb-0">Come nella nuova pianificazione: scegli la data per visualizzare giornate, occupazioni e disponibilità. Impastatrici e assegnazioni sono in sola lettura.</p>
+      </div>
+      <span class="badge bg-primary">Piano #{{ piano.IdPianificazione }}</span>
+    </div>
+    <form id="form-ripianificazione" method="post"
+          action="{{ url_for('ordini_cliente.conferma_ripianificazione', IdPianificazione=piano.IdPianificazione) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
+      <div class="row g-3 p-3 border rounded-3 bg-light mb-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label fw-semibold" for="nuova-data-ripianificazione">Nuova data di inizio</label>
+          <input class="form-control" id="nuova-data-ripianificazione" type="date"
+                 name="nuova_data" required
+                 hx-get="{{ url_for('ordini_cliente.anteprima_ripianificazione', IdPianificazione=piano.IdPianificazione) }}"
+                 hx-trigger="change"
+                 hx-target="#esito-ripianificazione" hx-swap="innerHTML"
+                 hx-indicator="#ripianificazione-caricamento">
+          <small class="text-secondary">Attuale: {{ piano.DataProduzione.strftime('%d/%m/%Y') }}</small>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Blocco iniziale (fisso)</label>
+          <div class="form-control bg-white" aria-label="Blocco iniziale non modificabile">
+            {{ 'Mattina (M)' if piano.BloccoIniziale == 'M' else 'Pomeriggio (P)' }}
+            <span class="float-end text-secondary" aria-hidden="true">&#128274;</span>
+          </div>
+          <small class="text-secondary">Rimangono invariati anche gli offset.</small>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label fw-semibold" for="motivo-ripianificazione">Motivazione (obbligatoria)</label>
+          <input class="form-control" id="motivo-ripianificazione"
+                 name="motivo_ripianificazione" minlength="5" maxlength="500"
+                 required placeholder="Es. posticipo della lavorazione">
+          <small class="text-secondary">Sarà registrata nello storico del piano.</small>
+        </div>
+        <div class="col-12 d-flex flex-wrap align-items-center gap-2">
+          <button class="btn btn-outline-primary btn-sm" type="button"
+                  hx-get="{{ url_for('ordini_cliente.anteprima_ripianificazione', IdPianificazione=piano.IdPianificazione) }}"
+                  hx-include="#nuova-data-ripianificazione"
+                  hx-target="#esito-ripianificazione" hx-swap="innerHTML"
+                  hx-indicator="#ripianificazione-caricamento">
+            <span class="me-1" aria-hidden="true">&#8635;</span>Verifica disponibilità
+          </button>
+          <span id="ripianificazione-caricamento" class="htmx-indicator small text-secondary" role="status">Aggiornamento calendario e disponibilità…</span>
+        </div>
+      </div>
+      <div id="esito-ripianificazione" aria-live="polite">
+        <div class="border rounded-3 text-center p-4 text-secondary">
+          Seleziona la nuova data: vedrai l'occupazione delle impastatrici e il calendario delle fasi e degli altri piani.
+          La data non viene salvata finché non confermi.
+        </div>
+      </div>
+    </form>
+  </div>
+</section>
+{% endif %}
 {% if piano.StatoRigaOrdine == 'In produzione' %}
 <div class="row g-3">
   <div class="col-lg-6">
@@ -91,6 +151,20 @@
 </div>
 {% else %}
 <div class="alert alert-info">Questa pianificazione non è più in produzione: non è possibile eseguire nuovamente chiusura o annullamento.</div>
+{% endif %}
+{% if storico_spostamenti %}
+<section class="mt-4">
+  <h2 class="h5">Storico ripianificazioni</h2>
+  <div class="table-responsive"><table class="table table-sm table-bordered align-middle">
+    <thead><tr><th>Data operazione</th><th>Prima</th><th>Dopo</th><th>Operatore</th><th>Motivo</th></tr></thead>
+    <tbody>{% for evento in storico_spostamenti %}
+      <tr><td>{{ evento.DataOperazione.strftime('%d/%m/%Y %H:%M') }}</td>
+      <td>{{ evento.DataPrecedente.strftime('%d/%m/%Y') }} · {{ evento.BloccoIniziale }}</td>
+      <td>{{ evento.DataNuova.strftime('%d/%m/%Y') }} · {{ evento.BloccoIniziale }}</td>
+      <td>{{ evento.Operatore }}</td><td>{{ evento.Motivo }}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+</section>
 {% endif %}
 {% if registro %}
 <section class="mt-4"><h2 class="h5">Registro operazioni</h2><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Data</th><th>Evento</th><th>Operatore</th><th>Motivo</th><th>Stock restituito</th><th>Stock stornato</th></tr></thead><tbody>{% for e in registro %}<tr><td>{{ e.DataOperazione.strftime('%d/%m/%Y %H:%M') }}</td><td>{{ e.Azione }}</td><td>{{ e.Operatore }}</td><td>{{ e.Motivo or '—' }}</td><td>{{ e.StockRestituito }}</td><td>{{ e.StockStornato }}</td></tr>{% endfor %}</tbody></table></div></section>

@@ -22,6 +22,17 @@ from flaskr.service.impostazioni_service import (
 )
 
 
+from datetime import datetime, timezone
+from flaskr.models.model_ordini import (
+    AnagraficaClienti, OrdiniCliente,
+    CommentoEtichettaConfigurazione, CommentoEtichettaClienteScelta, CommentoEtichettaOrdine,
+)
+from flaskr.service.commenti_etichetta_service import (
+    ErroreCommentoEtichetta, SEGNAPOSTO, indicazione_ordine,
+    testi_globali, valida_testo, tipo_per_ordine, tipo_predefinito_cliente,
+)
+from flaskr.accessi import solo_ruoli, verifica_csrf
+
 PAGE_SIZE = 12
 COLORE_FASE_PREDEFINITO = '#64748b'
 
@@ -256,3 +267,153 @@ def impostazioni_elimina(sezione):
         current_app.logger.exception('Errore durante eliminazione impostazioni: %s', sezione)
         flash('Errore database. Nessuna modifica registrata.', 'danger')
     return redirect(_link_di_ritorno(sezione))
+
+
+# --- Commenti etichette: modelli globali e scelta predefinita per cliente ---
+@bp_ordini_cliente.get('/impostazioni/commenti-etichette', endpoint='impostazioni_commenti_etichette')
+@login_required
+@solo_configuratori
+def impostazioni_commenti_etichette():
+    q = request.args.get('q', '').strip()[:80]
+    try:
+        pagina = max(1, int(request.args.get('pagina', '1')))
+    except ValueError:
+        pagina = 1
+    query = db.select(AnagraficaClienti).where(AnagraficaClienti.TipoAnagrafica == 1)
+    if q:
+        query = query.where(or_(
+            cast(AnagraficaClienti.CodCliFor, String).ilike(f'%{q}%'),
+            AnagraficaClienti.RagioneSociale.ilike(f'%{q}%'),
+        ))
+    totale = db.session.scalar(db.select(db.func.count()).select_from(query.subquery())) or 0
+    pagine = max(1, ceil(totale / PAGE_SIZE))
+    pagina = min(pagina, pagine)
+    clienti = db.session.scalars(
+        query.order_by(AnagraficaClienti.RagioneSociale, AnagraficaClienti.CodCliFor)
+        .offset((pagina - 1) * PAGE_SIZE).limit(PAGE_SIZE)
+    ).all()
+    codici = [c.CodCliFor for c in clienti]
+    scelte = {r.CodCliFor: r.TipoCommento for r in db.session.scalars(
+        db.select(CommentoEtichettaClienteScelta).where(
+            CommentoEtichettaClienteScelta.CodCliFor.in_(codici))
+    ).all()} if codici else {}
+    return render_template('ordini/impostazioni_commenti_etichette.j2',
+        testi=testi_globali(), clienti=clienti, scelte=scelte,
+        segnaposto=sorted(SEGNAPOSTO), q=q, pagina=pagina,
+        pagine=pagine, totale=totale, csrf_token=_csrf_token(),
+    )
+
+
+@bp_ordini_cliente.post('/impostazioni/commenti-etichette/salva', endpoint='salva_commenti_etichette')
+@login_required
+@solo_configuratori
+def salva_commenti_etichette():
+    _verifica_csrf()
+    try:
+        t1 = valida_testo(request.form.get('testo1', ''))
+        t2 = valida_testo(request.form.get('testo2', ''))
+    except ErroreCommentoEtichetta as errore:
+        flash(str(errore), 'danger')
+        return redirect(url_for('ordini_cliente.impostazioni_commenti_etichette'))
+    try:
+        for tipo, testo in ((1, t1), (2, t2)):
+            record = db.session.get(CommentoEtichettaConfigurazione, tipo)
+            if record is None:
+                record = CommentoEtichettaConfigurazione(Id=tipo, Testo=testo)
+                db.session.add(record)
+            record.Testo = testo
+            record.ModificatoIl = datetime.now(timezone.utc)
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Salvataggio dei commenti etichette fallito')
+        flash('Impossibile salvare i commenti.', 'danger')
+    else:
+        flash('I due commenti sono stati aggiornati.', 'success')
+    return redirect(url_for('ordini_cliente.impostazioni_commenti_etichette'))
+
+
+@bp_ordini_cliente.post('/impostazioni/commenti-etichette/cliente/salva', endpoint='salva_commento_etichetta_cliente')
+@login_required
+@solo_configuratori
+def salva_commento_etichetta_cliente():
+    _verifica_csrf()
+    try:
+        cod_cliente = int(request.form.get('cod_cliente', ''))
+    except (TypeError, ValueError):
+        abort(400, description='Codice cliente non valido.')
+    cliente = db.session.get(AnagraficaClienti, cod_cliente)
+    if cliente is None or cliente.TipoAnagrafica != 1:
+        abort(404, description='Cliente non trovato.')
+    if request.form.get('tipo_commento') not in ('1', '2'):
+        abort(400, description='Selezione commento non valida.')
+    try:
+        record = db.session.get(CommentoEtichettaClienteScelta, cod_cliente)
+        if record is None:
+            record = CommentoEtichettaClienteScelta(CodCliFor=cod_cliente)
+            db.session.add(record)
+        record.TipoCommento = int(request.form['tipo_commento'])
+        record.ModificatoIl = datetime.now(timezone.utc)
+        record.Operatore = getattr(g.user, 'username', 'admin')
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Errore commento predefinito cliente %s', cod_cliente)
+        flash('Impossibile salvare il commento predefinito.', 'danger')
+    else:
+        flash(f'Commento iniziale aggiornato per il cliente {cod_cliente}.', 'success')
+    q = request.form.get('q', '')[:80]
+    pagina = request.form.get('pagina', '1')
+    return redirect(url_for('ordini_cliente.impostazioni_commenti_etichette', q=q, pagina=pagina))
+
+
+@bp_ordini_cliente.route('/ordine/<int:id_documento>/<int:id_riga>/commento-etichetta',
+    methods=['GET', 'POST'], endpoint='commento_etichetta_ordine')
+@solo_ruoli('admin', 'utente_produzione', 'utente_vendite')
+def commento_etichetta_ordine(id_documento: int, id_riga: int):
+    ordine = db.session.get(OrdiniCliente, (id_documento, id_riga))
+    if ordine is None:
+        abort(404)
+    from flaskr.service.scadenze_giornaliere_service import articolo_cnf
+    if ruolo_attuale() == 'utente_produzione' and articolo_cnf(ordine.CodArt):
+        abort(404)
+    puo_modificare = ruolo_attuale() in ('admin', 'utente_produzione')
+    if request.method == 'POST':
+        if not puo_modificare:
+            abort(403)
+        verifica_csrf()
+        predefinito = request.form.get('ripristina_predefinito') == '1'
+        tipo = request.form.get('tipo_commento', '')
+        if not predefinito and tipo not in ('1', '2'):
+            abort(400, description='Commento non valido.')
+        try:
+            record = db.session.get(CommentoEtichettaOrdine, (id_documento, id_riga))
+            if predefinito:
+                if record is not None:
+                    db.session.delete(record)
+            else:
+                if record is None:
+                    record = CommentoEtichettaOrdine(IdDocumento=id_documento, IdRigaDoc=id_riga)
+                    db.session.add(record)
+                record.TipoCommento = int(tipo)
+                record.ModificatoIl = datetime.now(timezone.utc)
+                record.Operatore = getattr(g.user, 'username', 'operatore')
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            current_app.logger.exception('Salvataggio indicazione ordine %s-%s fallito', id_documento, id_riga)
+            flash('Indicazione non salvata.', 'danger')
+        else:
+            flash('Indicazione aggiornata.', 'success')
+        return redirect(url_for('ordini_cliente.commento_etichetta_ordine',
+                                id_documento=id_documento, id_riga=id_riga))
+    tipo, scelta_manuale = tipo_per_ordine(ordine)
+    predefinito, configurato = tipo_predefinito_cliente(ordine.CodCliFor)
+    return render_template('ordini/commento_etichetta_ordine.j2',
+        ordine=ordine, tipo=tipo, scelta_manuale=scelta_manuale,
+        predefinito=predefinito, configurato=configurato,
+        testo=indicazione_ordine(ordine)[1],
+        alternativa1=indicazione_ordine(ordine, tipo=1)[1],
+        alternativa2=indicazione_ordine(ordine, tipo=2)[1],
+        puo_modificare=puo_modificare,
+    )

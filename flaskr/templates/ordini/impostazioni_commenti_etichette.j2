@@ -1,0 +1,65 @@
+{% extends 'base.j2' %}
+{% block title %}Commenti etichette · Impostazioni{% endblock %}
+{% block content %}
+<main class="container-fluid py-3" style="max-width:1350px">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div><h1 class="h3 mb-1">Commenti etichette</h1>
+      <p class="text-muted mb-0">Solo indicazioni per gli operatori: nessuna generazione o stampa di etichette.</p></div>
+    <a href="{{ url_for('ordini_cliente.impostazioni_index') }}" class="btn btn-outline-secondary">Torna alle impostazioni</a>
+  </div>
+  <div class="row g-3">
+    <div class="col-lg-5"><section class="card shadow-sm h-100"><div class="card-body">
+      <h2 class="h5">Due commenti globali</h2>
+      <p class="small text-secondary">Entrambi accettano segnaposto. Se modifichi un modello, cambia anche l'indicazione mostrata sugli ordini che lo utilizzano.</p>
+      <form method="post" action="{{ url_for('ordini_cliente.salva_commenti_etichette') }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <label class="form-label fw-semibold" for="etichetta-testo1">Commento 1</label>
+        <textarea class="form-control mb-3" rows="4" maxlength="1500" id="etichetta-testo1" name="testo1" required>{{ testi[1] }}</textarea>
+        <label class="form-label fw-semibold" for="etichetta-testo2">Commento 2</label>
+        <textarea class="form-control" rows="4" maxlength="1500" id="etichetta-testo2" name="testo2" required>{{ testi[2] }}</textarea>
+        <div class="mt-3 small"><strong>Segnaposto disponibili</strong>
+          <div class="d-flex flex-wrap gap-2 mt-2">{% for nome in segnaposto %}<code class="border rounded px-2 py-1">{{ '{{' ~ nome ~ '}}' }}</code>{% endfor %}</div>
+        </div>
+        <button type="submit" class="btn btn-primary mt-3">Salva commenti</button>
+      </form>
+    </div></section></div>
+    <div class="col-lg-7"><section class="card shadow-sm h-100"><div class="card-body">
+      <h2 class="h5">Anagrafica clienti · commento iniziale</h2>
+      <p class="small text-secondary">La scelta 1 o 2 è salvata localmente per cliente. I dati ERP rimangono in sola lettura. I nuovi clienti ricevono inizialmente il commento 1.</p>
+      <form class="d-flex gap-2 mb-3" method="get" action="{{ url_for('ordini_cliente.impostazioni_commenti_etichette') }}">
+        <input class="form-control" type="search" name="q" value="{{ q }}" placeholder="Cerca codice cliente o ragione sociale" aria-label="Ricerca cliente">
+        <button class="btn btn-outline-primary" type="submit">Cerca</button>
+      </form>
+      <div class="table-responsive"><table class="table table-sm align-middle">
+        <thead><tr><th>CodCliFor</th><th>Ragione sociale</th><th>Commento iniziale</th><th></th></tr></thead>
+        <tbody>{% for cliente in clienti %}
+          {% set impostato = scelte.get(cliente.CodCliFor) %}
+          <tr><td class="fw-semibold">{{ cliente.CodCliFor }}</td><td>{{ cliente.RagioneSociale }}</td>
+          <td>
+            <select name="tipo_commento" form="cli-{{ loop.index }}" class="form-select form-select-sm" aria-label="Commento per {{ cliente.RagioneSociale }}">
+              <option value="1" {{ 'selected' if (impostato or 1) == 1 else '' }}>Commento 1</option>
+              <option value="2" {{ 'selected' if impostato == 2 else '' }}>Commento 2</option>
+            </select>
+            {% if not impostato %}<small class="text-muted">Scelta non ancora registrata · usa Commento 1</small>{% endif %}
+          </td>
+          <td>
+            <form id="cli-{{ loop.index }}" method="post" action="{{ url_for('ordini_cliente.salva_commento_etichetta_cliente') }}">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="cod_cliente" value="{{ cliente.CodCliFor }}">
+              <input type="hidden" name="q" value="{{ q }}">
+              <input type="hidden" name="pagina" value="{{ pagina }}">
+              <button class="btn btn-sm btn-outline-primary" type="submit">Salva</button>
+            </form>
+          </td></tr>
+        {% else %}<tr><td colspan="4" class="text-muted">Nessun cliente trovato.</td></tr>{% endfor %}</tbody>
+      </table></div>
+      <div class="d-flex align-items-center justify-content-between"><small class="text-muted">{{ totale }} clienti · Pagina {{ pagina }} / {{ pagine }}</small>
+        <div class="d-flex gap-2">
+          {% if pagina > 1 %}<a href="{{ url_for('ordini_cliente.impostazioni_commenti_etichette', q=q, pagina=pagina-1) }}" class="btn btn-outline-secondary btn-sm">Precedente</a>{% endif %}
+          {% if pagina < pagine %}<a href="{{ url_for('ordini_cliente.impostazioni_commenti_etichette', q=q, pagina=pagina+1) }}" class="btn btn-outline-secondary btn-sm">Successiva</a>{% endif %}
+        </div>
+      </div>
+    </div></section></div>
+  </div>
+</main>
+{% endblock %}

@@ -202,6 +202,7 @@ def distribuisci_peso_impastatrici(
 
 def _occupazioni_impastatrici_storiche(
     ids_macchine: set[int],
+    escludi_id_pianificazione: int | None = None,
 ) -> set[tuple[int, date, str]]:
     """Protegge le pianificazioni precedenti prive di prenotazioni dettagliate.
 
@@ -233,6 +234,8 @@ def _occupazioni_impastatrici_storiche(
         .where(
             PianificazioneOrdiniImpastatrici.IdImpastatrice.in_(ids_macchine),
             PianificazioneProduzione.StatoRigaOrdine != "Annullato",
+            *([PianificazioneProduzione.IdPianificazione != escludi_id_pianificazione]
+              if escludi_id_pianificazione is not None else []),
         )
     ).all()
     occupate = set()
@@ -248,6 +251,7 @@ def _occupazioni_impastatrici_storiche(
 def impastatrici_libere(
     impastatrici: Sequence[AnagraficaImpastatrici],
     fasi_impasto: Sequence[tuple[PianificazioneFasi, TipologieLavorazione]],
+    escludi_id_pianificazione: int | None = None,
 ) -> tuple[dict[int, Decimal], list[tuple[PianificazioneFasi, list[tuple[date, str]]]]]:
     """Capacita' in kg delle sole macchine libere in TUTTI i blocchi di impasto.
 
@@ -280,10 +284,17 @@ def impastatrici_libere(
                 PianificazioneImpastatriceFase.IdImpastatrice,
                 PianificazioneImpastatriceFase.DataFase,
                 PianificazioneImpastatriceFase.Blocco,
-            ).where(PianificazioneImpastatriceFase.IdImpastatrice.in_(ids))
+            )
+            .join(PianificazioneFasi,
+                  PianificazioneFasi.IdPianificazioneFase == PianificazioneImpastatriceFase.IdPianificazioneFase)
+            .where(
+                PianificazioneImpastatriceFase.IdImpastatrice.in_(ids),
+                *([PianificazioneFasi.IdPianificazione != escludi_id_pianificazione]
+                  if escludi_id_pianificazione is not None else []),
+            )
         ).all()
     )
-    occupate |= _occupazioni_impastatrici_storiche(ids)
+    occupate |= _occupazioni_impastatrici_storiche(ids, escludi_id_pianificazione)
     disponibili = {
         macchina.IdImpastatrice: _capacita_kg(macchina)
         for macchina in impastatrici
@@ -353,6 +364,7 @@ def disponibilita_forno(
     lavorazione_forno: TipologieLavorazione,
     ricetta_fase_forno: RicettaFasi,
     id_forno: int,
+    escludi_id_pianificazione: int | None = None,
 ) -> tuple[int, int]:
     """Restituisce (cotte_libere, limite_condiviso) nel blocco piu' saturo.
 
@@ -386,6 +398,8 @@ def disponibilita_forno(
         .where(
             PianificazioneProduzione.IdForno == id_forno,
             PianificazioneProduzione.StatoRigaOrdine != "Annullato",
+            *([PianificazioneProduzione.IdPianificazione != escludi_id_pianificazione]
+              if escludi_id_pianificazione is not None else []),
         )
     ).all()
     impiegate_per_slot = {slot: 0 for slot in slots_nuovi}
