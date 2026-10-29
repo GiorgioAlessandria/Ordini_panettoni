@@ -9,13 +9,11 @@ from flaskr.extensions import db
 from flaskr.models import OrdiniCliente
 from flaskr.models.model_ordini import (
     AnagraficaArticoli,
-    AnagraficaForni,
     AnagraficaImpastatrici,
     PianificazioneFasi,
     PianificazioneOrdini,
     PianificazioneOrdiniImpastatrici,
     PianificazioneProduzione,
-    RicettaFasi,
     TipologieLavorazione,
 )
 from flaskr.models.model_accessi import NotaVenditeOrdine
@@ -232,13 +230,6 @@ def eventi_fase_calendario():
 
     ids_piani = {fase.IdPianificazione for fase in fasi}
     ids_lavorazioni = {fase.IdLavorazione for fase in fasi}
-    ids_ricetta_fasi = {fase.IdRicettaFase for fase in fasi if fase.IdRicettaFase is not None}
-    # Una sola query per gli attributi delle specifiche fasi di ricetta.
-    ricetta_fasi = {
-        rf.id: rf for rf in db.session.scalars(
-            db.select(RicettaFasi).where(RicettaFasi.id.in_(ids_ricetta_fasi))
-        ).all()
-    } if ids_ricetta_fasi else {}
 
     # Recuperi in blocco: nessuna query per ogni ordine o ogni fase.
     piani = {
@@ -318,10 +309,6 @@ def eventi_fase_calendario():
             lavorazione=lavorazione,
             associazioni=righe,
             descrizione_articolo=descrizioni_articoli.get(piano.CodArt) or "Articolo senza descrizione",
-            colore_fase=(ricetta_fasi[fase.IdRicettaFase].Colore
-                         if fase.IdRicettaFase in ricetta_fasi else None),
-            numero_fase=(ricetta_fasi[fase.IdRicettaFase].IdFase
-                         if fase.IdRicettaFase in ricetta_fasi else None),
         )
         evento["extendedProps"]["impastatrici"] = impastatrici_per_piano[fase.IdPianificazione]
         evento["extendedProps"]["detailUrl"] = url_for(
@@ -416,12 +403,52 @@ def calendario_riepilogo_piano(IdPianificazione: int):
         .where(PianificazioneOrdiniImpastatrici.IdPianificazione == IdPianificazione)
     ).scalars().all()
     articolo = db.session.get(AnagraficaArticoli, piano.CodArt)
-    forno = db.session.get(AnagraficaForni, piano.IdForno)
     return render_template(
         "ordini/_partials/_riepilogo_calendario_piano.j2",
         piano=piano, associazioni=associazioni, fasi=fasi,
-        macchine=macchine, forno=forno,
-        descrizione=articolo.DesArt if articolo else piano.CodArt,
+        macchine=macchine, descrizione=articolo.DesArt if articolo else piano.CodArt,
         totale_assegnato=sum(int(a.QtaPianificata or 0) for a, _ in associazioni),
         totale_da_stock=sum(int(a.QtaDaStock or 0) for a, _ in associazioni),
     )
+
+
+@bp_ordini_cliente.get("/calendario/pdf-settimana")
+@login_required
+def calendario_pdf_settimana():
+    """Scarica la settimana della vista Ore su UNA pagina A3 orizzontale.
+
+    Usa dati DB, non cattura DOM: esporta anche tutte le schede presenti nei
+    blocchi a scorrimento. Il filtro weekend replica il calendario HTML.
+    """
+    from io import BytesIO
+    from flask import send_file
+    from flaskr.service.calendario_pdf_service import (
+        crea_pdf_settimana, leggi_fasi_settimana,
+    )
+
+    try:
+        data_richiesta = date.fromisoformat(request.args["settimana"])
+    except (KeyError, ValueError):
+        abort(400, description="Data settimana non valida (YYYY-MM-DD).")
+    inizio = data_richiesta - timedelta(days=data_richiesta.weekday())
+    fine = inizio + timedelta(days=7)
+    mostra_weekend = request.args.get("mostra_weekend") == "1"
+    nascondi_cottura = request.args.get("nascondi_cottura") == "1"
+
+    fasi = leggi_fasi_settimana(inizio, fine, ruolo_attuale())
+    # Le scadenze sono aggregate con la stessa logica della vista HTML e
+    # rispettano il filtro CNF del ruolo produzione.
+    ordini = _ordini_scadenti(inizio, fine)
+    scadenze = raggruppa_per_giorno(ordini, _quantita_chiuse(ordini))
+    pdf = crea_pdf_settimana(
+        inizio, fasi, scadenze, mostra_weekend,
+        nascondi_cottura=nascondi_cottura,
+    )
+    risposta = send_file(
+        BytesIO(pdf),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"calendario_produzione_{inizio:%Y-%m-%d}.pdf",
+    )
+    risposta.headers["Cache-Control"] = "private, no-store"
+    return risposta

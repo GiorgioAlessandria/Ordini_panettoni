@@ -448,3 +448,74 @@
   color: #000 !important;
   text-shadow: 0 0 2px rgba(255,255,255,.85), 0 0 4px rgba(255,255,255,.65);
 }
+
+
+/* Limita la griglia dei blocchi di produzione all'area oraria assegnata.
+   Quando ci sono molte fasi, lo scorrimento avviene solo dentro il blocco,
+   senza far uscire le schede dal calendario o sovrapporle al giorno dopo. */
+#calendar .fc-timeGridWeek-view .fc-event.evento-blocco-piani {
+  overflow: hidden !important;
+  contain: layout paint;
+}
+#calendar .fc-timeGridWeek-view .evento-blocco-piani .fc-event-main,
+#calendar .fc-timeGridWeek-view .evento-blocco-piani .fc-event-main-frame {
+  position: relative;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+}
+#calendar .fc-timeGridWeek-view .evento-blocco-piani .cal-blocco-griglia {
+  position: absolute;
+  inset: 0;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  align-content: start;
+  grid-auto-rows: minmax(64px, auto);
+  scrollbar-width: thin;
+  scrollbar-color: #526b82 transparent;
+}
+#calendar .fc-timeGridWeek-view .cal-blocco-scheda { min-height: 64px; }
+
+/* Correzione v6: il contenitore del gruppo prende l'altezza esatta
+   del blocco FullCalendar, le righe eccedenti scorrono al suo interno. */
+#calendar .fc-timeGridWeek-view .fc-event.evento-blocco-piani,
+#calendar .fc-timeGridWeek-view .fc-timegrid-event-harness .evento-blocco-piani {
+    min-height: 0 !important;
+    overflow: hidden !important;
+}
+#calendar .fc-timeGridWeek-view .cal-blocco-griglia {
+    box-sizing: border-box;
+    min-height: 0 !important;
+    align-content: start !important;
+    grid-auto-rows: max-content !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+#calendar .fc-timeGridWeek-view .cal-blocco-scheda {
+    min-height: 0;
+    height: auto;
+    overflow-wrap: normal;
+}
+
+/* Esportazione PDF dalla toolbar permanente: non interferisce con le viste. */
+.calendario-shell .calendario-toolbar-viste .calendario-pdf-btn {
+  margin-left: .55rem;
+  border-radius: .3rem;
+  border-color: #1d4ed8;
+  background: #eff6ff;
+  color: #173c78;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.calendario-shell .calendario-toolbar-viste .calendario-pdf-btn:hover {
+  background: #dbeafe;
+  color: #173c78;
+}
+
+/* Checkbox aggiuntiva per la cottura, accanto al filtro weekend. */
+.calendario-shell .calendario-toolbar .calendario-controlli-weekend { flex-wrap: wrap; }
+.calendario-shell #calendar-hide-cottura { accent-color: #2563eb; }

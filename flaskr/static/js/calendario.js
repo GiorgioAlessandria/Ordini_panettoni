@@ -39,6 +39,22 @@
         return 'altro';
     }
 
+    // Filtro solamente visivo: le pianificazioni restano nel database.
+    // IdLavorazione=2 e' il forno in questa applicazione; il nome gestisce
+    // anche eventuali lavorazioni di cottura con un identificativo diverso.
+    function faseDiCottura(evento) {
+        const props = evento?.extendedProps || {};
+        return Number(props.id_lavorazione) === 2 ||
+            tipoLavorazione(props.lavorazione) === 'cottura';
+    }
+
+    function fasiFiltrate(eventi) {
+        if (!Array.isArray(eventi)) return [];
+        return nascondiCotturaCheckbox?.checked
+            ? eventi.filter(evento => !faseDiCottura(evento))
+            : eventi;
+    }
+
     function addText(parent, className, value) {
         const nodo = document.createElement('div');
         nodo.className = className;
@@ -170,9 +186,11 @@
     // Le scadenze cliente non obbligano a mostrare la colonna: chi consulta il
     // calendario puo' scegliere di visualizzarle tramite il comando dedicato.
     const mostraWeekendCheckbox = document.getElementById('calendar-show-weekends');
+    const nascondiCotturaCheckbox = document.getElementById('calendar-hide-cottura');
     const statoWeekend = document.getElementById('calendar-weekend-status');
     const periodiAnalizzati = new Map();
     let weekendConProduzione = new Set();
+    let fasiPerGiorno = new Map();
     let intervalloCorrente = null;
     let vistaCorrente = null;
     let ultimaRichiesta = 0;
@@ -204,6 +222,133 @@
         return giorni;
     }
 
+    // Distribuzione proporzionale della larghezza nella SOLA settimana oraria.
+    // Il giorno senza produzione conserva spazio per intestazione e scadenze;
+    // i giorni con tante fasi ricevono più spazio per le schede.
+    function contaFasiPerGiorno(eventi) {
+        const conteggi = new Map();
+        for (const fase of eventi) {
+            if (typeof fase?.start !== 'string') continue;
+            const data = fase.start.slice(0, 10);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) continue;
+            conteggi.set(data, (conteggi.get(data) || 0) + 1);
+        }
+        return conteggi;
+    }
+
+    // FullCalendar e' libero di usare un unico <col span="N"> per tutti i giorni.
+    // In quel caso impostare width sui <th> non cambia la larghezza effettiva:
+    // e' necessario espandere il COLGROUP in N colonne reali prima di pesarlo.
+    function applicaPercentualiTabella(tabella, classeCella, date, percentuali) {
+        if (!tabella) return false;
+        const celle = Array.from(tabella.querySelectorAll(classeCella));
+        if (celle.length !== date.length ||
+            celle.some((cella, i) => cella.dataset.date !== date[i])) return false;
+
+        const gruppo = Array.from(tabella.children).find(el => el.tagName === 'COLGROUP');
+        if (!gruppo) return false;
+        let colonne = Array.from(gruppo.children).filter(el => el.tagName === 'COL');
+        // Il COLGROUP puo' avere una sola colonna con span=N; altre versioni
+        // possono avere un col per giorno. Supportiamo entrambe.
+        const espanse = [];
+        for (const colonna of colonne) {
+            const ripetizioni = Math.max(1, Number(colonna.getAttribute('span')) || 1);
+            if (ripetizioni > 32) return false;
+            for (let indice = 0; indice < ripetizioni; indice++) {
+                const clone = colonna.cloneNode(false);
+                clone.removeAttribute('span');
+                espanse.push(clone);
+            }
+        }
+        // Normalmente non esiste l'asse orario in queste tre tabelle.
+        // Se e' presente, preserviamone la prima colonna e pesiamo i giorni.
+        const asse = espanse.length === date.length + 1 ? 1 : 0;
+        if (espanse.length - asse !== date.length) return false;
+        if (colonne.length !== espanse.length || colonne.some(c => c.hasAttribute('span'))) {
+            gruppo.replaceChildren(...espanse);
+            colonne = espanse;
+        }
+        colonne.slice(asse).forEach((colonna, i) => {
+            colonna.style.setProperty('width', percentuali[i], 'important');
+            colonna.style.setProperty('min-width', '0', 'important');
+        });
+        // Proprieta' sul col hanno priorita' sul th in una tabella a layout fisso.
+        tabella.style.setProperty('table-layout', 'fixed', 'important');
+        celle.forEach((cella, i) => {
+            cella.style.setProperty('width', percentuali[i], 'important');
+            cella.style.setProperty('min-width', '0', 'important');
+        });
+        return true;
+    }
+
+    function applicaLarghezzeGiorni() {
+        if (calendario.view?.type !== 'timeGridWeek') return;
+        const vista = calendarEl.querySelector('.fc-timeGridWeek-view');
+        if (!vista) return;
+        const intestazioni = [...vista.querySelectorAll('.fc-col-header-cell[data-date]')];
+        if (!intestazioni.length) return;
+        const date = intestazioni.map(cell => cell.dataset.date);
+        const totaleFasi = date.reduce((somma, data) => somma + (fasiPerGiorno.get(data) || 0), 0);
+        if (!totaleFasi) return;
+        if (vista.getBoundingClientRect().width < 900) return;
+
+        // I giorni vuoti hanno una larghezza minima, i giorni affollati ricevono
+        // spazio aggiuntivo senza crescere indefinitamente.
+        const pesi = date.map(data => {
+            const n = fasiPerGiorno.get(data) || 0;
+            return n === 0 ? 0.68 : Math.min(1.25 + 0.35 * Math.sqrt(n), 3.0);
+        });
+        const totale = pesi.reduce((somma, peso) => somma + peso, 0);
+        const percentuali = pesi.map(peso => `${(100 * peso / totale).toFixed(5)}%`);
+
+        // FullCalendar usa 3 tabelle separate per header, all-day e ore.
+        // Devono essere modificate nello stesso frame con le stesse proporzioni.
+        const tabelle = [
+            ...vista.querySelectorAll('table.fc-col-header'),
+            ...vista.querySelectorAll('.fc-timegrid-cols > table'),
+            ...vista.querySelectorAll('.fc-daygrid-body > table'),
+        ];
+        for (const tabella of tabelle) {
+            let cella = null;
+            if (tabella.matches('.fc-col-header')) cella = '.fc-col-header-cell[data-date]';
+            else if (tabella.closest('.fc-timegrid-cols')) cella = '.fc-timegrid-col[data-date]';
+            else if (tabella.closest('.fc-daygrid-body')) cella = '.fc-daygrid-day[data-date]';
+            if (cella) applicaPercentualiTabella(tabella, cella, date, percentuali);
+        }
+    }
+
+    let ricalcoloPend = false;
+    function pianificaLarghezzeGiorni() {
+        if (ricalcoloPend) return;
+        ricalcoloPend = true;
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            ricalcoloPend = false;
+            applicaLarghezzeGiorni();
+        }));
+    }
+
+    // L'altezza delle fasi raggruppate deve restare quella assegnata da
+    // FullCalendar per 07–12:30 e 13–18, non crescere con il numero di schede.
+    function limitaAltezzaGruppo(elemento) {
+        const harness = elemento.closest('.fc-timegrid-event-harness');
+        const griglia = elemento.querySelector('.cal-blocco-griglia');
+        if (!harness || !griglia) return;
+        const altezza = Math.floor(harness.getBoundingClientRect().height);
+        if (altezza < 25) return;
+        elemento.style.setProperty('height', `${altezza}px`, 'important');
+        elemento.style.setProperty('max-height', `${altezza}px`, 'important');
+        for (const main of elemento.querySelectorAll('.fc-event-main, .fc-event-main-frame')) {
+            main.style.setProperty('height', `${altezza}px`, 'important');
+            main.style.setProperty('max-height', `${altezza}px`, 'important');
+            main.style.setProperty('min-height', '0', 'important');
+            main.style.setProperty('overflow', 'hidden', 'important');
+        }
+        griglia.style.setProperty('height', `${altezza - 2}px`, 'important');
+        griglia.style.setProperty('max-height', `${altezza - 2}px`, 'important');
+        griglia.style.setProperty('overflow-y', 'auto', 'important');
+        griglia.style.setProperty('overflow-x', 'hidden', 'important');
+    }
+
     function applicaVisibilitaWeekend() {
         // La vista giornaliera non ha colonne da comprimere: mantenere il giorno
         // scelto dall'utente, anche quando e' sabato o domenica.
@@ -214,6 +359,7 @@
         if (nuovi.join(',') === giorniNascosti.join(',')) return;
         giorniNascosti = nuovi;
         calendario.setOption('hiddenDays', nuovi);
+        pianificaLarghezzeGiorni();
     }
 
     function aggiornaWeekendPerVista(view) {
@@ -235,6 +381,7 @@
         const chiave = `${inizio}|${fine}`;
         if (chiave === intervalloCorrente) {
             applicaVisibilitaWeekend();
+            pianificaLarghezzeGiorni();
             return;
         }
         intervalloCorrente = chiave;
@@ -242,9 +389,11 @@
 
         const memorizzati = periodiAnalizzati.get(chiave);
         if (memorizzati) {
-            weekendConProduzione = memorizzati;
+            weekendConProduzione = memorizzati.weekend;
+            fasiPerGiorno = memorizzati.conteggi;
             if (statoWeekend) statoWeekend.textContent = '';
             applicaVisibilitaWeekend();
+            pianificaLarghezzeGiorni();
             return;
         }
         // Durante il caricamento non mostrare giorni che potrebbero essere vuoti.
@@ -264,29 +413,47 @@
             })
             .then(eventi => {
                 if (!Array.isArray(eventi)) throw new Error('Risposta calendario non valida');
-                const presenti = weekendConEventi(eventi);
-                periodiAnalizzati.set(chiave, presenti);
+                // Calcolare larghezze e weekend solo sulle fasi effettivamente visibili.
+                const visibili = fasiFiltrate(eventi);
+                const presenti = weekendConEventi(visibili);
+                const conteggi = contaFasiPerGiorno(visibili);
+                periodiAnalizzati.set(chiave, { weekend: presenti, conteggi });
                 if (richiesta !== ultimaRichiesta || chiave !== intervalloCorrente) return;
                 weekendConProduzione = presenti;
+                fasiPerGiorno = conteggi;
                 if (statoWeekend) statoWeekend.textContent = '';
                 applicaVisibilitaWeekend();
+                pianificaLarghezzeGiorni();
             })
             .catch(errore => {
                 console.error('Impossibile verificare le lavorazioni del weekend', errore);
                 if (richiesta !== ultimaRichiesta || chiave !== intervalloCorrente) return;
                 weekendConProduzione = new Set([0, 6]);
+                fasiPerGiorno = new Map();
                 if (statoWeekend) statoWeekend.textContent = 'Weekend visibili: verifica non disponibile';
                 applicaVisibilitaWeekend();
+                pianificaLarghezzeGiorni();
             });
     }
 
     mostraWeekendCheckbox?.addEventListener('change', applicaVisibilitaWeekend);
+    nascondiCotturaCheckbox?.addEventListener('change', () => {
+        // La sorgente viene rifiltrata PRIMA del raggruppamento in righe.
+        // Invalidare anche conteggi e weekend, che devono riflettere le sole
+        // fasi visibili. Ignorare eventuali risposte asincrone precedenti.
+        ++ultimaRichiesta;
+        periodiAnalizzati.clear();
+        intervalloCorrente = null;
+        calendario.refetchEvents();
+        aggiornaWeekendPerVista(calendario.view);
+    });
 
     const calendario = new FullCalendar.Calendar(calendarEl, {
         themeSystem: 'classic',
         datesSet(info) {
             aggiornaIntestazione(info.view);
             aggiornaWeekendPerVista(info.view);
+            pianificaLarghezzeGiorni();
         },
         initialView: 'timeGridWeek',
         hiddenDays: [0, 6],
@@ -323,9 +490,10 @@
                 // NON `eventSourceSuccess` (che è un'opzione globale).
                 // Questo è il punto che impediva il precedente raggruppamento.
                 success(eventi) {
+                    const visibili = fasiFiltrate(eventi);
                     return calendario.view?.type === 'timeGridWeek'
-                        ? raggruppaFasiPerBlocco(eventi)
-                        : eventi;
+                        ? raggruppaFasiPerBlocco(visibili)
+                        : visibili;
                 },
             },
         ],
@@ -385,7 +553,20 @@
         },
         eventDidMount(info) {
             const p = info.event.extendedProps;
-            if (p.tipo_evento === 'gruppo_fasi') return;
+            if (p.tipo_evento === 'gruppo_fasi') {
+                // Aspettiamo che il posizionamento assoluto della libreria sia terminato.
+                const aggiorna = () => limitaAltezzaGruppo(info.el);
+                requestAnimationFrame(aggiorna);
+                if (typeof ResizeObserver !== 'undefined') {
+                    const harness = info.el.closest('.fc-timegrid-event-harness');
+                    if (harness) {
+                        const osservatore = new ResizeObserver(aggiorna);
+                        osservatore.observe(harness);
+                        info.el._bloccoResizeObserver = osservatore;
+                    }
+                }
+                return;
+            }
             const produzione = info.event.source?.id === 'pianificazione' ||
                 (info.event.extendedProps.id_pianificazione != null &&
                  info.event.extendedProps.tipo_evento !== 'scadenze_giorno');
@@ -425,6 +606,13 @@
             }
             info.el.title = righe.join('\n');
         },
+        eventWillUnmount(info) {
+            if (info.el._bloccoResizeObserver) {
+                info.el._bloccoResizeObserver.disconnect();
+                delete info.el._bloccoResizeObserver;
+            }
+        },
+        eventsSet() { pianificaLarghezzeGiorni(); },
         eventClick(info) {
             const url = info.event.extendedProps.detailUrl;
             if (url && window.apriRiepilogoCalendario) {
@@ -439,11 +627,32 @@
     document.getElementById('calendar-prev')?.addEventListener('click', () => calendario.prev());
     document.getElementById('calendar-next')?.addEventListener('click', () => calendario.next());
     document.getElementById('calendar-today')?.addEventListener('click', () => calendario.today());
+
+    // Il PDF usa la stessa settimana che l'utente sta visualizzando.
+    // Anche dalla vista Mese/Giorno viene esportata la settimana della data attiva.
+    document.getElementById('calendar-pdf-export')?.addEventListener('click', () => {
+        const endpoint = calendarEl.dataset.exportPdfUrl;
+        if (!endpoint) {
+            console.error('URL esportazione PDF non configurato.');
+            return;
+        }
+        const url = new URL(endpoint, window.location.href);
+        url.searchParams.set('settimana', dataLocale(calendario.getDate()));
+        url.searchParams.set('mostra_weekend', mostraWeekendCheckbox?.checked ? '1' : '0');
+        url.searchParams.set('nascondi_cottura', nascondiCotturaCheckbox?.checked ? '1' : '0');
+        window.location.assign(url.toString());
+    });
     for (const pulsante of pulsantiVista) {
         pulsante.addEventListener('click', () => {
             const nomeVista = pulsante.dataset.calendarView;
             if (nomeVista && calendario.view.type !== nomeVista) calendario.changeView(nomeVista);
         });
+    }
+
+    // Ricalcola la proporzione se cambia la larghezza del contenitore.
+    if (typeof ResizeObserver !== 'undefined') {
+        const osservatore = new ResizeObserver(pianificaLarghezzeGiorni);
+        osservatore.observe(calendarEl);
     }
 
     calendarEl.dataset.calendarInitialized = '1';

@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/skeleton.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/classic/theme.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/classic/palette.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/calendario.css', v='20261028-griglia-testata-unica-v4') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/calendario.css', v='20261029-filtro-cottura-v1') }}">
 {% endblock %}
 
 {% block content %}
@@ -34,6 +34,10 @@
                     <input id="calendar-show-weekends" type="checkbox" class="form-check-input">
                     <span>Mostra sabato e domenica</span>
                 </label>
+                <label class="calendario-weekend-toggle" for="calendar-hide-cottura" title="Nasconde le fasi di cottura dal calendario e dal PDF; nessuna pianificazione viene modificata">
+                    <input id="calendar-hide-cottura" type="checkbox" class="form-check-input">
+                    <span>Nascondi cottura</span>
+                </label>
                 <small class="calendario-weekend-status" id="calendar-weekend-status" role="status" aria-live="polite"></small>
             </div>
             <div class="calendario-toolbar-viste" role="group" aria-label="Seleziona la vista">
@@ -41,11 +45,13 @@
                 <button type="button" class="calendario-toolbar-btn" data-calendar-view="dayGridWeek" aria-pressed="false" title="Settimana a riquadri">Riquadri</button>
                 <button type="button" class="calendario-toolbar-btn" data-calendar-view="dayGridMonth" aria-pressed="false">Mese</button>
                 <button type="button" class="calendario-toolbar-btn" data-calendar-view="dayGridDay" aria-pressed="false">Giorno</button>
+                <button type="button" class="calendario-toolbar-btn calendario-pdf-btn" id="calendar-pdf-export" title="Esporta tutte le fasi della settimana su un unico foglio PDF A3 orizzontale">PDF settimana</button>
             </div>
         </div>
         <div id="calendar"
              data-events-scadenze-url="{{ url_for('ordini_cliente.ordini_calendario_scadenze') }}"
-             data-events-pianificazione-url="{{ url_for('ordini_cliente.eventi_fase_calendario') }}">
+             data-events-pianificazione-url="{{ url_for('ordini_cliente.eventi_fase_calendario') }}"
+             data-export-pdf-url="{{ url_for('ordini_cliente.calendario_pdf_settimana') }}">
         </div>
     </div>
 </section>
@@ -68,5 +74,5 @@
        Questo plugin registra il tema classic prima che il calendario venga creato. #}
     <script src="{{ url_for('static', filename='vendor/fullcalendar-7.1.0/dist/themes/classic/global.js') }}"></script>
     <script src="{{ url_for('static', filename='js/riepilogo_calendari.js', v='20261020-2') }}"></script>
-    <script src="{{ url_for('static', filename='js/calendario.js', v='20261028-griglia-testata-unica-v4') }}"></script>
+    <script src="{{ url_for('static', filename='js/calendario.js', v='20261029-filtro-cottura-v1') }}"></script>
 {% endblock %}
