@@ -374,6 +374,23 @@ class CommentoEtichettaClienteScelta(db.Model):
     )
 
 
+class CommentoEtichettaOrdineTesto(db.Model):
+    """Testo specifico di un solo tipo (1/2) e di una sola riga d'ordine.
+
+    Le impostazioni globali e le preferenze dei clienti restano inalterate.
+    """
+    __tablename__ = "commenti_etichetta_ordine_testi"
+    IdDocumento: Mapped[int] = mapped_column(primary_key=True)
+    IdRigaDoc: Mapped[int] = mapped_column(primary_key=True)
+    TipoCommento: Mapped[int] = mapped_column(primary_key=True)
+    Testo: Mapped[str] = mapped_column(db.Text, nullable=False)
+    ModificatoIl: Mapped[datetime] = mapped_column(nullable=False)
+    Operatore: Mapped[str] = mapped_column(nullable=False)
+    __table_args__ = (
+        CheckConstraint("TipoCommento IN (1, 2)", name="ck_commento_etichetta_ordine_testo_tipo"),
+    )
+
+
 class CommentoEtichettaOrdine(db.Model):
     """Solo eccezioni manuali; senza riga prevale la scelta del cliente."""
     __tablename__ = "commenti_etichetta_ordine"

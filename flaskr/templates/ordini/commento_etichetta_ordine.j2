@@ -25,7 +25,27 @@
       {% endif %}
     </form>
     <hr><h2 class="h6">Indicazione attuale</h2>
-    <div class="border rounded p-3" style="white-space:pre-wrap">{{ testo }}</div>
+    <div class="border rounded p-3 mb-3" style="white-space:pre-wrap">{{ testo }}</div>
+    {% if puo_modificare %}
+      <form method="post" action="{{ url_for('ordini_cliente.commento_etichetta_ordine', id_documento=ordine.IdDocumento, id_riga=ordine.IdRigaDoc) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
+        <input type="hidden" name="azione" value="salva_testo">
+        <input type="hidden" name="tipo_testo" value="{{ tipo }}">
+        <label class="form-label fw-semibold" for="testo-etichetta-ordine">Modifica soltanto il Commento {{ tipo }} di questo ordine</label>
+        <textarea class="form-control mb-2" id="testo-etichetta-ordine" name="testo_commento"
+                  rows="4" maxlength="1500" required>{{ testo }}</textarea>
+        <div class="form-text mb-2">Gli altri ordini e i modelli nelle Impostazioni rimangono invariati.</div>
+        <button class="btn btn-primary" type="submit">Salva testo personalizzato</button>
+      </form>
+      {% if personalizzato %}
+      <form method="post" class="mt-2" action="{{ url_for('ordini_cliente.commento_etichetta_ordine', id_documento=ordine.IdDocumento, id_riga=ordine.IdRigaDoc) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
+        <input type="hidden" name="azione" value="ripristina_testo">
+        <input type="hidden" name="tipo_testo" value="{{ tipo }}">
+        <button class="btn btn-outline-secondary" type="submit">Ripristina testo del Commento {{ tipo }}</button>
+      </form>
+      {% endif %}
+    {% endif %}
   </div></section>
 </main>
 {% endblock %}

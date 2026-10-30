@@ -3,11 +3,16 @@ from __future__ import annotations
 
 import re
 from datetime import date, datetime
+from collections.abc import Mapping, Sequence
+from sqlalchemy import tuple_
+from sqlalchemy.orm import selectinload
 from flaskr.extensions import db
 from flaskr.models.model_ordini import (
     CommentoEtichettaConfigurazione, CommentoEtichettaClienteScelta,
-    CommentoEtichettaOrdine, OrdiniCliente,
+    CommentoEtichettaOrdine, CommentoEtichettaOrdineTesto, OrdiniCliente,
 )
+
+_NON_CARICATO = object()
 
 TESTO_1_DEFAULT = "Prodotto per: {{ragione_sociale}}"
 TESTO_2_DEFAULT = "Ordine {{numero_ordine}} - {{descrizione_articolo}}"
@@ -85,4 +90,121 @@ def indicazione_ordine(ordine: OrdiniCliente, *, tipo: int | None = None) -> tup
     selezione = tipo if tipo is not None else tipo_per_ordine(ordine)[0]
     if selezione not in (1, 2):
         raise ErroreCommentoEtichetta("Commento non valido")
-    return selezione, risolvi_testo(testi_globali()[selezione], ordine)
+    override = db.session.get(
+        CommentoEtichettaOrdineTesto,
+        (ordine.IdDocumento, ordine.IdRigaDoc, selezione),
+    )
+    originale = override.Testo if override is not None else testi_globali()[selezione]
+    return selezione, risolvi_testo(originale, ordine)
+
+
+# Dati per la cella della tabella, senza modificare le selezioni presenti.
+def dati_cella_ordine(
+    ordine: OrdiniCliente,
+    *,
+    testi: dict[int, str] | None = None,
+    predefinito: int | None = None,
+    scelta_manuale: int | None = None,
+    testo_personalizzato: str | None | object = _NON_CARICATO,
+) -> dict:
+    if testi is None:
+        testi = testi_globali()
+    if predefinito is None:
+        predefinito = tipo_predefinito_cliente(ordine.CodCliFor)[0]
+    if scelta_manuale is None:
+        # Solo per il rendering di una cella singola (non per le tabelle).
+        scelta = db.session.get(CommentoEtichettaOrdine, (ordine.IdDocumento, ordine.IdRigaDoc))
+        scelta_manuale = int(scelta.TipoCommento) if scelta else 0
+    tipo = scelta_manuale or predefinito
+    if testo_personalizzato is _NON_CARICATO:
+        personalizzazione = db.session.get(
+            CommentoEtichettaOrdineTesto,
+            (ordine.IdDocumento, ordine.IdRigaDoc, tipo),
+        )
+        testo_personalizzato = personalizzazione.Testo if personalizzazione else None
+    personalizzato = testo_personalizzato is not None
+    contenuto = testo_personalizzato if personalizzato else testi[tipo]
+    return {
+        "tipo": tipo,
+        "predefinito": predefinito,
+        "manuale": bool(scelta_manuale),
+        "personalizzato": personalizzato,
+        "testo": risolvi_testo(contenuto, ordine),
+    }
+
+
+def _chiave_riga(ordine) -> tuple[int, int] | None:
+    def campo(nome):
+        return ordine.get(nome) if isinstance(ordine, Mapping) else getattr(ordine, nome, None)
+    try:
+        return int(campo("IdDocumento")), int(campo("IdRigaDoc"))
+    except (ValueError, TypeError):
+        return None
+
+
+def commenti_etichette_per_righe(ordini_cliente: Sequence, selezione_attiva: bool) -> dict[tuple[int,int], dict]:
+    """Recupero batch per le due tabelle ordini (righe singole o piani raggruppati)."""
+    chiavi: set[tuple[int, int]] = set()
+    for riga in ordini_cliente:
+        ordini = (riga,) if selezione_attiva else (
+            riga.get("OrdiniDettaglio", ()) if isinstance(riga, Mapping)
+            else getattr(riga, "OrdiniDettaglio", ())
+        )
+        for ordine in ordini or ():
+            chiave = _chiave_riga(ordine)
+            if chiave is not None:
+                chiavi.add(chiave)
+    if not chiavi:
+        return {}
+
+    # Le impostazioni sono globali; tutte le scelte sono lette in batch.
+    testi = testi_globali()
+    risultato = {}
+    elenco = sorted(chiavi)
+    for inizio in range(0, len(elenco), 200):
+        gruppo = elenco[inizio:inizio + 200]
+        ordini = db.session.scalars(
+            db.select(OrdiniCliente)
+            .options(selectinload(OrdiniCliente.Cliente))
+            .where(tuple_(OrdiniCliente.IdDocumento, OrdiniCliente.IdRigaDoc).in_(gruppo))
+        ).all()
+        if not ordini:
+            continue
+        clienti = {o.CodCliFor for o in ordini}
+        scelte_clienti = {
+            x.CodCliFor: int(x.TipoCommento)
+            for x in db.session.scalars(
+                db.select(CommentoEtichettaClienteScelta)
+                .where(CommentoEtichettaClienteScelta.CodCliFor.in_(clienti))
+            ).all()
+        }
+        scelte_ordini = {
+            (x.IdDocumento, x.IdRigaDoc): int(x.TipoCommento)
+            for x in db.session.scalars(
+                db.select(CommentoEtichettaOrdine)
+                .where(tuple_(CommentoEtichettaOrdine.IdDocumento, CommentoEtichettaOrdine.IdRigaDoc).in_(gruppo))
+            ).all()
+        }
+        testi_personalizzati = {
+            (r.IdDocumento, r.IdRigaDoc, int(r.TipoCommento)): r.Testo
+            for r in db.session.scalars(
+                db.select(CommentoEtichettaOrdineTesto)
+                .where(tuple_(CommentoEtichettaOrdineTesto.IdDocumento,
+                              CommentoEtichettaOrdineTesto.IdRigaDoc).in_(gruppo))
+            ).all()
+        }
+        for ordine in ordini:
+            chiave = ordine.IdDocumento, ordine.IdRigaDoc
+            tipo_effettivo = scelte_ordini.get(
+                chiave, scelte_clienti.get(ordine.CodCliFor, TIPO_CLIENTE_NON_CONFIGURATO)
+            )
+            risultato[chiave] = dati_cella_ordine(
+                ordine,
+                testi=testi,
+                predefinito=scelte_clienti.get(ordine.CodCliFor, TIPO_CLIENTE_NON_CONFIGURATO),
+                scelta_manuale=scelte_ordini.get(chiave, 0),
+                testo_personalizzato=testi_personalizzati.get(
+                    (chiave[0], chiave[1], tipo_effettivo)
+                ),
+            )
+    return risultato

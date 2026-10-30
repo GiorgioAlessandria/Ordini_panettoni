@@ -1,0 +1,70 @@
+{# Stesso componente nelle due tabelle. Modifica il testo solo per quest'ordine e per il tipo attivo. #}
+<div class="pan-note-inline pan-note-single pan-label-comment"
+     data-label-comment-order="{{ id_documento }}:{{ id_riga }}"
+     onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">
+    {% if item %}
+    <div class="pan-note-current">
+        <div class="small text-secondary mb-1">
+            Commento {{ item.tipo }} · {{ 'Scelta ordine' if item.manuale else 'Predefinito cliente' }}
+            {% if item.personalizzato %} · <strong>Testo personalizzato</strong>{% endif %}
+        </div>
+        <div class="form-control form-control-sm pan-note-single-field"
+             style="white-space:pre-wrap;overflow-wrap:anywhere;min-height:3.5rem;height:auto"
+             role="note" aria-label="Commento etichetta ordine {{ id_documento }}-{{ id_riga }}">{{ item.testo }}</div>
+        {% if errore %}<div class="alert alert-danger small p-2 mt-2 mb-1" role="alert">{{ errore }}</div>{% endif %}
+        {% if puo_modificare_commenti_etichette %}
+            <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
+            <div class="pan-note-single-actions mt-2">
+                <label class="visually-hidden" for="commento-et-{{ id_documento }}-{{ id_riga }}">Scegli commento etichetta</label>
+                <select id="commento-et-{{ id_documento }}-{{ id_riga }}"
+                        class="form-select form-select-sm" name="tipo_commento"
+                        aria-label="Seleziona commento etichetta ordine {{ id_documento }}-{{ id_riga }}">
+                    <option value="1" {{ 'selected' if item.tipo == 1 else '' }}>Commento 1</option>
+                    <option value="2" {{ 'selected' if item.tipo == 2 else '' }}>Commento 2</option>
+                </select>
+                <button type="button" class="btn btn-outline-primary btn-sm"
+                        hx-post="{{ url_for('ordini_cliente.commento_etichetta_cella', id_documento=id_documento, id_riga=id_riga) }}"
+                        hx-vals='{"azione":"salva_scelta"}'
+                        hx-include="closest .pan-note-current"
+                        hx-target="closest .pan-label-comment" hx-swap="outerHTML"
+                        hx-disabled-elt="this">Salva scelta</button>
+                {% if item.manuale %}
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        hx-post="{{ url_for('ordini_cliente.commento_etichetta_cella', id_documento=id_documento, id_riga=id_riga) }}"
+                        hx-vals='{"azione":"ripristina_scelta"}'
+                        hx-include="closest .pan-note-current"
+                        hx-target="closest .pan-label-comment" hx-swap="outerHTML"
+                        hx-disabled-elt="this">Ripristina scelta cliente</button>
+                {% endif %}
+            </div>
+            <details class="mt-2" {% if testo_form is defined and testo_form is not none %}open{% endif %}>
+                <summary class="small text-primary" style="cursor:pointer">Modifica testo di questo ordine</summary>
+                <label class="form-label small fw-semibold mt-2"
+                       for="testo-et-{{ id_documento }}-{{ id_riga }}">Testo del Commento {{ item.tipo }}</label>
+                <textarea id="testo-et-{{ id_documento }}-{{ id_riga }}" name="testo_commento"
+                          class="form-control form-control-sm" rows="4" maxlength="1500"
+                          aria-label="Modifica solo il commento {{ item.tipo }} dell'ordine {{ id_documento }}-{{ id_riga }}">{{ testo_form if testo_form is defined and testo_form is not none else item.testo }}</textarea>
+                <div class="form-text">La modifica riguarda esclusivamente questo ordine e il Commento {{ item.tipo }}. Gli altri ordini e i modelli globali non cambiano.</div>
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    <button type="button" class="btn btn-primary btn-sm"
+                            hx-post="{{ url_for('ordini_cliente.commento_etichetta_cella', id_documento=id_documento, id_riga=id_riga) }}"
+                            hx-vals='{"azione":"salva_testo","tipo_testo":"{{ item.tipo }}"}'
+                            hx-include="closest .pan-note-current"
+                            hx-target="closest .pan-label-comment" hx-swap="outerHTML"
+                            hx-disabled-elt="this">Salva testo</button>
+                    {% if item.personalizzato %}
+                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                            hx-post="{{ url_for('ordini_cliente.commento_etichetta_cella', id_documento=id_documento, id_riga=id_riga) }}"
+                            hx-vals='{"azione":"ripristina_testo","tipo_testo":"{{ item.tipo }}"}'
+                            hx-include="closest .pan-note-current"
+                            hx-target="closest .pan-label-comment" hx-swap="outerHTML"
+                            hx-disabled-elt="this">Ripristina testo originale</button>
+                    {% endif %}
+                </div>
+            </details>
+        {% endif %}
+    </div>
+    {% else %}
+        <span class="text-secondary small">Indicazione non disponibile</span>
+    {% endif %}
+</div>

@@ -25,11 +25,12 @@ from flaskr.service.impostazioni_service import (
 from datetime import datetime, timezone
 from flaskr.models.model_ordini import (
     AnagraficaClienti, OrdiniCliente,
-    CommentoEtichettaConfigurazione, CommentoEtichettaClienteScelta, CommentoEtichettaOrdine,
+    CommentoEtichettaConfigurazione, CommentoEtichettaClienteScelta, CommentoEtichettaOrdine, CommentoEtichettaOrdineTesto,
 )
 from flaskr.service.commenti_etichetta_service import (
     ErroreCommentoEtichetta, SEGNAPOSTO, indicazione_ordine,
     testi_globali, valida_testo, tipo_per_ordine, tipo_predefinito_cliente,
+    dati_cella_ordine, commenti_etichette_per_righe,
 )
 from flaskr.accessi import solo_ruoli, verifica_csrf
 
@@ -367,6 +368,72 @@ def salva_commento_etichetta_cliente():
     return redirect(url_for('ordini_cliente.impostazioni_commenti_etichette', q=q, pagina=pagina))
 
 
+def _modifica_commento_etichetta_ordine(ordine: OrdiniCliente) -> None:
+    """Una sola procedura per pagina dettaglio e tabella HTMX.
+
+    La personalizzazione del testo riguarda SOLO (IdDocumento, IdRigaDoc, TipoCommento).
+    """
+    id_documento, id_riga = ordine.IdDocumento, ordine.IdRigaDoc
+    azione = request.form.get('azione')
+    if not azione:
+        azione = ('ripristina_scelta' if request.form.get('ripristina_predefinito') == '1'
+                  else 'salva_scelta')
+    if azione not in ('salva_scelta', 'ripristina_scelta', 'salva_testo', 'ripristina_testo'):
+        raise ErroreCommentoEtichetta('Operazione non valida.')
+
+    if azione in ('salva_scelta', 'ripristina_scelta'):
+        record = db.session.get(CommentoEtichettaOrdine, (id_documento, id_riga))
+        if azione == 'ripristina_scelta':
+            if record is not None:
+                db.session.delete(record)
+        else:
+            tipo = request.form.get('tipo_commento')
+            if tipo not in ('1', '2'):
+                raise ErroreCommentoEtichetta('Selezione del commento non valida.')
+            if record is None:
+                record = CommentoEtichettaOrdine(IdDocumento=id_documento, IdRigaDoc=id_riga)
+                db.session.add(record)
+            record.TipoCommento = int(tipo)
+            record.ModificatoIl = datetime.now(timezone.utc)
+            record.Operatore = getattr(g.user, 'username', 'operatore')
+    else:
+        tipo = request.form.get('tipo_testo')
+        if tipo not in ('1', '2') or int(tipo) != tipo_per_ordine(ordine)[0]:
+            raise ErroreCommentoEtichetta(
+                'Il commento selezionato è cambiato: aggiorna la riga e riprova.'
+            )
+        key = (id_documento, id_riga, int(tipo))
+        record = db.session.get(CommentoEtichettaOrdineTesto, key)
+        if azione == 'ripristina_testo':
+            if record is not None:
+                db.session.delete(record)
+        else:
+            testo = valida_testo(request.form.get('testo_commento', ''))
+            # Se coincide con il modello attuale, non creare inutilmente
+            # una copia che impedirebbe di ereditare future modifiche globali.
+            testo_originale = indicazione_testo_globale(ordine, int(tipo))
+            if testo == testo_originale:
+                if record is not None:
+                    db.session.delete(record)
+            else:
+                if record is None:
+                    record = CommentoEtichettaOrdineTesto(
+                        IdDocumento=id_documento, IdRigaDoc=id_riga,
+                        TipoCommento=int(tipo),
+                    )
+                    db.session.add(record)
+                record.Testo = testo
+                record.ModificatoIl = datetime.now(timezone.utc)
+                record.Operatore = getattr(g.user, 'username', 'operatore')
+    db.session.commit()
+
+
+def indicazione_testo_globale(ordine: OrdiniCliente, tipo: int) -> str:
+    """Versione del testo globale senza le eventuali personalizzazioni dell'ordine."""
+    from flaskr.service.commenti_etichetta_service import risolvi_testo
+    return risolvi_testo(testi_globali()[tipo], ordine)
+
+
 @bp_ordini_cliente.route('/ordine/<int:id_documento>/<int:id_riga>/commento-etichetta',
     methods=['GET', 'POST'], endpoint='commento_etichetta_ordine')
 @solo_ruoli('admin', 'utente_produzione', 'utente_vendite')
@@ -382,26 +449,16 @@ def commento_etichetta_ordine(id_documento: int, id_riga: int):
         if not puo_modificare:
             abort(403)
         verifica_csrf()
-        predefinito = request.form.get('ripristina_predefinito') == '1'
-        tipo = request.form.get('tipo_commento', '')
-        if not predefinito and tipo not in ('1', '2'):
-            abort(400, description='Commento non valido.')
         try:
-            record = db.session.get(CommentoEtichettaOrdine, (id_documento, id_riga))
-            if predefinito:
-                if record is not None:
-                    db.session.delete(record)
-            else:
-                if record is None:
-                    record = CommentoEtichettaOrdine(IdDocumento=id_documento, IdRigaDoc=id_riga)
-                    db.session.add(record)
-                record.TipoCommento = int(tipo)
-                record.ModificatoIl = datetime.now(timezone.utc)
-                record.Operatore = getattr(g.user, 'username', 'operatore')
-            db.session.commit()
+            _modifica_commento_etichetta_ordine(ordine)
+        except ErroreCommentoEtichetta as errore:
+            db.session.rollback()
+            flash(str(errore), 'danger')
         except SQLAlchemyError:
             db.session.rollback()
-            current_app.logger.exception('Salvataggio indicazione ordine %s-%s fallito', id_documento, id_riga)
+            current_app.logger.exception(
+                'Errore indicazione ordine %s-%s', id_documento, id_riga
+            )
             flash('Indicazione non salvata.', 'danger')
         else:
             flash('Indicazione aggiornata.', 'success')
@@ -409,11 +466,59 @@ def commento_etichetta_ordine(id_documento: int, id_riga: int):
                                 id_documento=id_documento, id_riga=id_riga))
     tipo, scelta_manuale = tipo_per_ordine(ordine)
     predefinito, configurato = tipo_predefinito_cliente(ordine.CodCliFor)
+    item = dati_cella_ordine(ordine)
     return render_template('ordini/commento_etichetta_ordine.j2',
         ordine=ordine, tipo=tipo, scelta_manuale=scelta_manuale,
         predefinito=predefinito, configurato=configurato,
-        testo=indicazione_ordine(ordine)[1],
+        testo=item['testo'], personalizzato=item['personalizzato'],
         alternativa1=indicazione_ordine(ordine, tipo=1)[1],
         alternativa2=indicazione_ordine(ordine, tipo=2)[1],
         puo_modificare=puo_modificare,
+    )
+
+
+# La stessa cella viene usata in "Da produrre" e nei gruppi "In produzione".
+@bp_ordini_cliente.app_context_processor
+def _context_celle_commenti_etichette():
+    return {
+        'commenti_etichette_per_righe': commenti_etichette_per_righe,
+        'puo_modificare_commenti_etichette': ruolo_attuale() in ('admin', 'utente_produzione'),
+    }
+
+
+@bp_ordini_cliente.post(
+    '/ordine/<int:id_documento>/<int:id_riga>/commento-etichetta/cella',
+    endpoint='commento_etichetta_cella',
+)
+@solo_ruoli('admin', 'utente_produzione')
+def commento_etichetta_cella(id_documento: int, id_riga: int):
+    """Cambia scelta o testo del solo commento selezionato, in una riga HTMX."""
+    verifica_csrf()
+    ordine = db.session.get(OrdiniCliente, (id_documento, id_riga))
+    if ordine is None:
+        abort(404)
+    from flaskr.service.scadenze_giornaliere_service import articolo_cnf
+    if ruolo_attuale() == 'utente_produzione' and articolo_cnf(ordine.CodArt):
+        abort(404)
+
+    errore = None
+    try:
+        _modifica_commento_etichetta_ordine(ordine)
+    except ErroreCommentoEtichetta as exc:
+        db.session.rollback()
+        errore = str(exc)
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Errore commento etichetta %s-%s', id_documento, id_riga)
+        errore = 'Impossibile salvare il commento. Nessuna modifica registrata.'
+
+    return render_template(
+        'ordini/_partials/_commento_etichetta_cella.j2',
+        id_documento=id_documento,
+        id_riga=id_riga,
+        item=dati_cella_ordine(ordine),
+        errore=errore,
+        testo_form=(request.form.get('testo_commento', '')
+                    if errore and request.form.get('azione') == 'salva_testo' else None),
+        puo_modificare_commenti_etichette=True,
     )
