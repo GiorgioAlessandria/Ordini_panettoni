@@ -1,0 +1,119 @@
+{% extends 'base.j2' %}
+{% block title %}Ordini clienti · Vendite{% endblock %}
+{% block content %}
+<style>
+/* Vista vendite: una sola tabella a tutta altezza. Nessuna navigazione interna. */
+body:has(.ordini-vendite-workspace) { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+body:has(.ordini-vendite-workspace) > main.container,
+body:has(.ordini-vendite-workspace) > main.container-fluid,
+body.pan-app-body:has(.ordini-vendite-workspace) > .pan-main {
+    flex: 1 1 auto; min-height: 0; min-width: 0; height: auto !important;
+    overflow: hidden; display: flex; flex-direction: column;
+    max-height: none !important; padding-top: .35rem !important; padding-bottom: .35rem !important;
+}
+.ordini-vendite-workspace { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; min-width: 0; width: 100%; }
+.ordini-vendite-workspace > .ordini-panel { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; background: var(--bs-body-bg, #fff); }
+.ordini-vendite-workspace .ordini-panel-body,
+.ordini-vendite-workspace #ordini_cliente_da_produrre,
+.ordini-vendite-workspace .ordini-form { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+.ordini-vendite-workspace .ordini-panel-body { padding: .45rem .6rem .35rem; }
+.ordini-vendite-workspace .ordini-table-scroll {
+    flex: 1 1 auto; min-height: 0 !important; height: auto !important;
+    max-height: none !important; width: 100%; overflow: auto !important;
+    overscroll-behavior: contain; scrollbar-gutter: stable;
+}
+.ordini-vendite-workspace .ordini-table { width: 100%; margin-bottom: 0; }
+.ordini-vendite-workspace .ordini-table thead th {
+    position: sticky; top: 0; z-index: 2; border: 0 !important;
+    box-shadow: none !important; background: var(--bs-tertiary-bg, #f1f5f9) !important;
+    padding: .45rem .4rem;
+}
+.ordini-vendite-workspace .ordini-sort { border: 0 !important; background: transparent !important; box-shadow: none !important; padding: .1rem 0; }
+.ordini-vendite-workspace .ordini-paginazione { display: none !important; }
+.ordini-vendite-legenda {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .9rem;
+    padding: .25rem .45rem .5rem; font-size: .8rem; color: var(--bs-secondary-color, #64748b);
+}
+.ordini-vendite-legenda > span { display: inline-flex; align-items: center; gap: .32rem; }
+.ordini-vendite-legenda .punto { width: .65rem; height: .65rem; border-radius: 50%; display: inline-block; }
+.ordini-vendite-legenda .nuovo { background: #64748b; }
+.ordini-vendite-legenda .preso { background: #2563eb; }
+.ordini-vendite-legenda .parziale { background: #d97706; }
+.ordini-vendite-legenda .eseguito { background: #15803d; }
+/* L'intera riga, commenti inclusi, segue lo stato dell'ordine.
+   I colori si applicano direttamente alle celle: Bootstrap colora i td,
+   non il tr, usando anche ombre inset per striped/hover. */
+.ordini-vendite-riga { border-left: 4px solid transparent; }
+.ordini-vendite-riga--nuovo {
+    border-left-color: #64748b;
+    --ordini-vendite-bg: #e8edf3;
+    --ordini-vendite-hover-bg: #d8e0e9;
+}
+.ordini-vendite-riga--preso {
+    border-left-color: #2563eb;
+    --ordini-vendite-bg: #d9e9ff;
+    --ordini-vendite-hover-bg: #c6ddff;
+}
+.ordini-vendite-riga--parziale {
+    border-left-color: #d97706;
+    --ordini-vendite-bg: #fff0bd;
+    --ordini-vendite-hover-bg: #ffe5a0;
+}
+.ordini-vendite-riga--eseguito {
+    border-left-color: #15803d;
+    --ordini-vendite-bg: #daf3e3;
+    --ordini-vendite-hover-bg: #c4e9d1;
+}
+.ordini-vendite-workspace .ordini-table tbody tr.ordini-vendite-riga > td {
+    --bs-table-bg: var(--ordini-vendite-bg);
+    --bs-table-bg-type: transparent;
+    --bs-table-bg-state: transparent;
+    --bs-table-accent-bg: transparent;
+    background: var(--ordini-vendite-bg) !important;
+    box-shadow: none !important;
+}
+/* Non perdere la codifica dello stato su hover, anche con table-hover. */
+.ordini-vendite-workspace .ordini-table tbody tr.ordini-vendite-riga:hover > td,
+.ordini-vendite-workspace .ordini-table tbody tr.ordini-vendite-riga:focus-within > td {
+    --bs-table-bg: var(--ordini-vendite-hover-bg);
+    background: var(--ordini-vendite-hover-bg) !important;
+    box-shadow: none !important;
+}
+.ordini-vendite-stato { display: inline-block; font-weight: 650; padding: .23rem .48rem; border-radius: .4rem; line-height: 1.2; font-size: .77rem; white-space: nowrap; }
+.ordini-vendite-stato--nuovo { background: #f1f5f9; color: #334155; }
+.ordini-vendite-stato--preso { background: #dbeafe; color: #1e40af; }
+.ordini-vendite-stato--parziale { background: #fef3c7; color: #92400e; }
+.ordini-vendite-stato--eseguito { background: #dcfce7; color: #166534; }
+.ordini-vendite-workspace .ordini-etichetta-lettura { display: flex; align-items: start; gap: .25rem; font-size: .76rem; line-height: 1.25; }
+.ordini-vendite-workspace .ordini-etichetta-tipo { color: var(--bs-secondary-color, #64748b); font-weight: 700; white-space: nowrap; }
+.ordini-vendite-workspace .ordini-etichetta-testo { overflow-wrap: anywhere; white-space: pre-wrap; }
+.ordini-vendite-workspace td[data-col^="commenti"] { vertical-align: top; min-width: 11rem; }
+.ordini-vendite-workspace tr[data-record]:focus-visible { outline: 2px solid var(--bs-primary); outline-offset: -2px; }
+@media (max-width: 767.98px) {
+    .ordini-vendite-workspace .ordini-table { min-width: 1150px; }
+    .ordini-vendite-workspace .ordini-panel-body { padding: .2rem .25rem; }
+}
+</style>
+<div class="ordini-workspace ordini-vendite-workspace">
+    <div class="ordini-vendite-legenda" aria-label="Legenda degli stati degli ordini">
+        <span><i class="punto nuovo" aria-hidden="true"></i>Nuovo</span>
+        <span><i class="punto preso" aria-hidden="true"></i>Preso in carico</span>
+        <span><i class="punto parziale" aria-hidden="true"></i>Preso in carico parzialmente</span>
+        <span><i class="punto eseguito" aria-hidden="true"></i>Eseguito</span>
+    </div>
+    <section class="ordini-panel" aria-label="Elenco completo degli ordini clienti">
+        <div class="ordini-panel-body">
+            <div id="ordini_cliente_da_produrre"
+                 hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_da_produrre') }}"
+                 hx-trigger="load, every 30s, pianificazioneSalvata from:body, pianificazioneChiusa from:body, pianificazioneAnnullata from:body"
+                 hx-swap="innerHTML" hx-sync="this:replace" aria-live="off">
+                <p class="text-muted p-3">Caricamento ordini...</p>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+{% block scripts %}
+    {{ super() }}
+    <script src="{{ url_for('static', filename='js/ordini_scorrimento.js', v='20261030-2') }}" defer></script>
+{% endblock %}

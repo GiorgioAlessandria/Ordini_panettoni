@@ -101,6 +101,15 @@ def stock_articoli_tabella():
 @bp_ordini_cliente.route("/tabella_ordini_da_produrre")
 @login_required
 def tabella_ordini_cliente_da_produrre():
+    # Vendite: un unico elenco di ordini, indipendente dallo stato della pianificazione.
+    if ruolo_attuale() == "utente_vendite":
+        from flaskr.service.ordini_vendite_service import righe_ordini_vendite
+
+        return render_template(
+            "ordini/_partials/_tabella_ordini_vendite.j2",
+            ordini_cliente=righe_ordini_vendite(),
+        )
+
 
     ordini_cliente_assegnati = dati_tabella_produzione(stato="Nuovo")
     if ruolo_attuale() == "utente_produzione":

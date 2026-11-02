@@ -16,7 +16,6 @@ from flaskr.models.model_ordini import (
     AnagraficaArticoli,
     OrdiniCliente,
     PianificazioneFasi,
-    PianificazioneOrdini,
     PianificazioneProduzione,
     RicettaFasi,
     TipologiaRicette,

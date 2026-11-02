@@ -1,0 +1,38 @@
+{#
+  Blocco in sola lettura usato nei riepiloghi del calendario.
+  Variabili richieste:
+    id_documento, id_riga
+    note_vendite_map, note_produzione_map, commenti_etichette_map
+  Le tre mappe sono lette in batch una volta per riepilogo.
+#}
+{% set chiave_commenti = (id_documento, id_riga) %}
+{% set vendite = note_vendite_map.get(chiave_commenti, []) %}
+{% set produzione = note_produzione_map.get(chiave_commenti, []) %}
+{% set etichetta = commenti_etichette_map.get(chiave_commenti) %}
+<div class="small d-flex flex-column gap-2" style="min-width: 210px; overflow-wrap: anywhere;">
+  {% if vendite %}
+    <div>
+      <div class="fw-semibold text-secondary">Commenti vendite</div>
+      {% for nota in vendite %}
+        <div class="mb-1" style="white-space: pre-wrap;">{{ nota.Testo | e }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% if produzione %}
+    <div>
+      <div class="fw-semibold text-secondary">Commenti produzione</div>
+      {% for nota in produzione %}
+        <div class="mb-1" style="white-space: pre-wrap;">{{ nota.Testo | e }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% if etichetta and etichetta.testo %}
+    <div>
+      <div class="fw-semibold text-secondary">Commento etichetta C{{ etichetta.tipo }}</div>
+      <div style="white-space: pre-wrap;">{{ etichetta.testo | e }}</div>
+    </div>
+  {% endif %}
+  {% if not vendite and not produzione and not (etichetta and etichetta.testo) %}
+    <span class="text-secondary">Nessun commento associato.</span>
+  {% endif %}
+</div>

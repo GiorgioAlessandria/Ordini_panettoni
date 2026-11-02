@@ -1,40 +1,52 @@
+{# Caricamento in batch, una sola volta per i tre tipi di commento. #}
+{% set ordini_associati = associazioni | map(attribute=1) | list %}
+{% set note_vendite_map = note_vendite_per_righe(ordini_associati, true) %}
+{% set note_produzione_map = note_produzione_per_righe(ordini_associati, true) %}
+{% set commenti_etichette_map = commenti_etichette_per_righe(ordini_associati, true) %}
 <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
 <div><span class="badge bg-primary">Produzione #{{ piano.IdPianificazione }}</span><h4 class="mt-2 mb-1">{{ descrizione }}</h4><p class="text-muted mb-0">{{ piano.CodArt }} · {{ piano.DataProduzione.strftime('%d/%m/%Y') }} · Blocco {{ piano.BloccoIniziale }}</p></div>
 <div class="text-end"><div><strong>{{ piano.PanettoniPianificati }}</strong> pezzi da produrre</div><div><strong>{{ piano.NumeroCotte }}</strong> cotte</div><div><strong>{{ '%.2f'|format(piano.PesoTotale|float / 1000) }}</strong> kg impasto</div></div>
 </div>
 <div class="row g-2 mb-3"><div class="col-sm-4"><div class="border rounded p-2">Ordini impegnati <strong>{{ totale_assegnato }}</strong></div></div><div class="col-sm-4"><div class="border rounded p-2">Prelievo stock <strong>{{ totale_da_stock }}</strong></div></div><div class="col-sm-4"><div class="border rounded p-2">Macchine <strong>{{ macchine|length }}</strong></div></div></div>
-<div class="row g-3 mb-4" aria-label="Risorse della pianificazione">
-  <div class="col-12 col-lg-6">
-    <section class="h-100 rounded-3 border border-primary border-2 bg-light p-3" aria-label="Forno utilizzato">
-      <div class="text-primary text-uppercase small fw-bold mb-2">Forno assegnato</div>
-      <div class="fs-4 fw-bold lh-sm">{{ (forno.DescrizioneForno or forno.ModelloForno) if forno else 'Forno non disponibile' }}</div>
-      {% if forno and forno.ModelloForno and forno.ModelloForno != forno.DescrizioneForno %}
-        <div class="fs-6 text-secondary mt-1">{{ forno.ModelloForno }}</div>
-      {% endif %}
-      <div class="small text-secondary mt-2">Identificativo forno: {{ piano.IdForno }}</div>
-    </section>
-  </div>
-  <div class="col-12 col-lg-6">
-    <section class="h-100 rounded-3 border border-primary border-2 bg-light p-3" aria-label="Impastatrici utilizzate">
-      <div class="text-primary text-uppercase small fw-bold mb-2">Impastatrici assegnate · {{ macchine|length }}</div>
-      {% if macchine %}
-        <div class="d-flex flex-column gap-2">
-          {% for m in macchine %}
-            <div class="fs-4 fw-bold lh-sm">{{ m.DescrizioneImpastatrice or m.ModelloImpastatrice or ('Macchina #' ~ m.IdImpastatrice) }}</div>
-            {% if m.ModelloImpastatrice and m.ModelloImpastatrice != m.DescrizioneImpastatrice %}
-              <div class="small text-secondary">{{ m.ModelloImpastatrice }}</div>
-            {% endif %}
-          {% endfor %}
-        </div>
+<h6>Ordini associati</h6>
+<div class="table-responsive" style="max-height: 420px; overflow: auto;">
+  <table class="table table-sm table-bordered table-striped align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>Ordine</th>
+        <th>Cliente</th>
+        <th>Consegna</th>
+        <th>Quantità impegnata</th>
+        <th>Da stock</th>
+        <th>Da produrre</th>
+        <th>Stato</th>
+        <th style="min-width: 260px;">Commenti associati</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a, o in associazioni %}
+        <tr>
+          <td>{{ a.IdDocumento }}-{{ a.IdRiga }}</td>
+          <td>{{ o.Cliente.RagioneSociale }}</td>
+          <td>{{ o.DataConsegna.strftime('%d/%m/%Y') }}</td>
+          <td>{{ a.QtaPianificata }}</td>
+          <td>{{ a.QtaDaStock or 0 }}</td>
+          <td>{{ a.QtaPianificata - (a.QtaDaStock or 0) }}</td>
+          <td>{{ a.Stato }}</td>
+          <td>
+            {% set id_documento = a.IdDocumento %}
+            {% set id_riga = a.IdRiga %}
+            {% include 'ordini/_partials/_commenti_riepilogo_ordine.j2' %}
+          </td>
+        </tr>
       {% else %}
-        <div class="fs-5 text-secondary">Nessuna impastatrice associata</div>
-      {% endif %}
-    </section>
-  </div>
+        <tr><td colspan="8">Nessun ordine associato.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
-<h6>Ordini associati</h6><div class="table-responsive" style="max-height:300px;overflow:auto"><table class="table table-sm table-bordered table-striped align-middle"><thead class="table-light"><tr><th>Ordine</th><th>Cliente</th><th>Consegna</th><th>Quantità impegnata</th><th>Da stock</th><th>Da produrre</th><th>Stato</th></tr></thead><tbody>
-{% for a, o in associazioni %}<tr><td>{{ a.IdDocumento }}-{{ a.IdRiga }}</td><td>{{ o.Cliente.RagioneSociale }}</td><td>{{ o.DataConsegna.strftime('%d/%m/%Y') }}</td><td>{{ a.QtaPianificata }}</td><td>{{ a.QtaDaStock or 0 }}</td><td>{{ a.QtaPianificata - (a.QtaDaStock or 0) }}</td><td>{{ a.Stato }}</td></tr>{% else %}<tr><td colspan="7">Nessun ordine associato.</td></tr>{% endfor %}</tbody></table></div>
 <h6 class="mt-3">Fasi della pianificazione</h6><div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Giorno</th><th>Blocco</th><th>Lavorazione</th></tr></thead><tbody>{% for fase, lavorazione in fasi %}<tr><td>{{ fase.DataFase.strftime('%d/%m/%Y') }}</td><td>{{ fase.Blocco }}</td><td>{{ lavorazione.DescrizioneLavorazione }}</td></tr>{% else %}<tr><td colspan="3">Nessuna fase.</td></tr>{% endfor %}</tbody></table></div>
+{% if macchine %}<p class="small text-muted mb-0"><strong>Impastatrici:</strong> {% for m in macchine %}{{ m.DescrizioneImpastatrice or m.ModelloImpastatrice }}{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
 
 <div class="d-flex align-items-center gap-2 border-top mt-3 pt-3">
   <span class="badge {{ 'bg-success' if piano.StatoRigaOrdine == 'Chiuso' else ('bg-secondary' if piano.StatoRigaOrdine == 'Annullato' else 'bg-primary') }}">{{ piano.StatoRigaOrdine }}</span>
