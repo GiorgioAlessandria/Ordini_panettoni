@@ -6,6 +6,19 @@
 {% set note_per_ordine = note_vendite_per_righe(ordini_cliente, selezione_attiva) %}
 {% set note_produzione_per_ordine = note_produzione_per_righe(ordini_cliente, selezione_attiva) %}
 {% set commenti_etichetta_per_ordine = commenti_etichette_per_righe(ordini_cliente, selezione_attiva) %}
+{# Sola lettura in tabella; l'editor esistente resta disponibile nelle altre viste. #}
+{% macro testo_etichetta(id_documento, id_riga) %}
+    {% set item = commenti_etichetta_per_ordine.get((id_documento, id_riga)) %}
+    {% if item and item.testo %}
+        <div class="ordini-etichetta-lettura" role="note"
+             aria-label="Commento etichetta {{ item.tipo }}">
+            <span class="ordini-etichetta-tipo" aria-hidden="true">C{{ item.tipo }}</span>
+            <span class="ordini-etichetta-testo">{{ item.testo }}</span>
+        </div>
+    {% else %}
+        <span class="text-secondary small">—</span>
+    {% endif %}
+{% endmacro %}
 {% macro colonna(key, nome, tipo='text') %}
     <th scope="col" aria-sort="none" data-sort-column="{{ key }}" data-col="{{ key }}">
         <button type="button" class="ordini-sort" data-sort-key="{{ key }}" data-sort-type="{{ tipo }}"
@@ -230,7 +243,7 @@
                                 <div class="pan-notes-group">
                                 {% for voce in ordine.OrdiniDettaglio %}
                                     <div class="pan-notes-group-item">
-                                        <span class="pan-note-order-label">Ordine {{ voce.IdDocumento }}-{{ voce.IdRigaDoc }}</span>
+                                        <span class="pan-note-order-label" title="Ordine {{ voce.IdDocumento }}-{{ voce.IdRigaDoc }}">{{ voce.Cliente }}</span>
                                         {% with id_documento=voce.IdDocumento, id_riga=voce.IdRigaDoc, note=note_per_ordine.get((voce.IdDocumento, voce.IdRigaDoc), []) %}
                                             {% include 'ordini/_partials/_note_vendite_cella.j2' %}
                                         {% endwith %}
@@ -250,7 +263,7 @@
                                 <div class="pan-notes-group">
                                 {% for voce in ordine.OrdiniDettaglio %}
                                     <div class="pan-notes-group-item">
-                                        <span class="pan-note-order-label">Ordine {{ voce.IdDocumento }}-{{ voce.IdRigaDoc }}</span>
+                                        <span class="pan-note-order-label" title="Ordine {{ voce.IdDocumento }}-{{ voce.IdRigaDoc }}">{{ voce.Cliente }}</span>
                                         {% with id_documento=voce.IdDocumento, id_riga=voce.IdRigaDoc, note=note_produzione_per_ordine.get((voce.IdDocumento, voce.IdRigaDoc), []) %}
                                             {% include 'ordini/_partials/_note_produzione_cella.j2' %}
                                         {% endwith %}
@@ -263,19 +276,13 @@
                         </td>
                         <td data-col="commenti_etichetta" class="pan-note-cell" onclick="event.stopPropagation()">
                             {% if selezione_attiva %}
-                                {% with id_documento=ordine.IdDocumento, id_riga=ordine.IdRigaDoc,
-                                        item=commenti_etichetta_per_ordine.get((ordine.IdDocumento, ordine.IdRigaDoc)) %}
-                                    {% include 'ordini/_partials/_commento_etichetta_cella.j2' %}
-                                {% endwith %}
+                                {{ testo_etichetta(ordine.IdDocumento, ordine.IdRigaDoc) }}
                             {% else %}
                                 <div class="pan-notes-group">
                                     {% for voce in ordine.OrdiniDettaglio %}
                                         <div class="pan-notes-group-item">
-                                            <span class="pan-note-order-label">Ordine {{ voce.IdDocumento }}-{{ voce.IdRigaDoc }}</span>
-                                            {% with id_documento=voce.IdDocumento, id_riga=voce.IdRigaDoc,
-                                                    item=commenti_etichetta_per_ordine.get((voce.IdDocumento, voce.IdRigaDoc)) %}
-                                                {% include 'ordini/_partials/_commento_etichetta_cella.j2' %}
-                                            {% endwith %}
+                                            <span class="pan-note-order-label" title="Ordine {{ voce.IdDocumento }}-{{ voce.IdRigaDoc }}">{{ voce.Cliente }}</span>
+                                            {{ testo_etichetta(voce.IdDocumento, voce.IdRigaDoc) }}
                                         </div>
                                     {% else %}
                                         <span class="text-secondary small">Nessun ordine associato.</span>

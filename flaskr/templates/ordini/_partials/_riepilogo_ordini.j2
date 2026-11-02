@@ -1,6 +1,13 @@
+{# Riepilogo compatto esclusivo della barra "Ordini da gestire".
+   Non modifica _riepilogo_contenuto.j2 usato nei dettagli della pianificazione. #}
 {% if errore %}
-    <div class="alert alert-warning pan-summary-alert mb-0" role="alert">{{ errore }}</div>
-{% else %}
-    {% set sommatoria_compatta = true %}
-    {% include "ordini/_partials/_riepilogo_contenuto.j2" %}
+    <span class="small {{ 'text-muted' if errore == 'Nessun ordine selezionato' else 'text-danger' }}" role="status">{{ errore }}</span>
+{% elif riepilogo %}
+    <div class="ordini-riepilogo-linea" role="status" aria-label="Riepilogo ordini selezionati">
+        <span class="ordini-riepilogo-voce">Ordini <strong>{{ riepilogo.numero_ordini }}</strong></span>
+        <span class="ordini-riepilogo-voce">Panettoni disponibili <strong>{{ riepilogo.qta_panettoni }}</strong></span>
+        <span class="ordini-riepilogo-voce">Cotte <strong>{{ riepilogo.numero_cotte }}</strong> <span class="text-muted">({{ riepilogo.capienza_cotta }} pz/cotta)</span></span>
+        <span class="ordini-riepilogo-voce" title="Panettoni necessari per completare l'ultima cotta">Da completare <strong>{{ riepilogo.panettoni_mancanti_cotta }}</strong></span>
+        <span class="ordini-riepilogo-voce">Impasto <strong>{{ '%.2f' | format(riepilogo.peso_impasto) }} kg</strong></span>
+    </div>
 {% endif %}

@@ -5,67 +5,340 @@
 {% endblock %}
 
 {% block content %}
+<style>
+    .ordini-workspace { max-width: 100%; }
+    .ordini-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: .6rem; }
+    .ordini-header h1 { margin: 0; font-size: 1.6rem; font-weight: 700; }
+    .ordini-header .descrizione { margin: .25rem 0 0; color: var(--bs-secondary-color, #64748b); font-size: .9rem; }
+    .ordini-nav { display: inline-flex; align-items: center; gap: .5rem; padding: .65rem 1rem; border: 2px solid var(--bs-primary, #0d6efd); border-radius: .75rem; background: var(--bs-body-bg, #fff); color: var(--bs-primary, #0d6efd); text-decoration: none; font-weight: 700; }
+    .ordini-nav:hover, .ordini-nav:focus-visible { background: var(--bs-primary, #0d6efd); color: #fff; }
+    /* Il layout esce dai limiti del container Bootstrap soltanto in questa pagina. */
+    main.container:has(.ordini-workspace) { max-width: min(1900px, 98vw); }
+    .ordini-panel { min-width: 0; border: 1px solid var(--bs-border-color, #d6dee7); border-radius: .9rem; background: var(--bs-body-bg, #fff); box-shadow: 0 2px 12px rgba(0,0,0,.045); }
+    .ordini-panel-header { display: flex; align-items: center; justify-content: space-between; gap: .8rem; flex-wrap: wrap; padding: 1rem 1.1rem .7rem; }
+    .ordini-panel-header h2 { margin: 0; font-size: 1.13rem; font-weight: 700; }
+    .ordini-meta { color: var(--bs-secondary-color, #64748b); font-size: .8rem; }
+    .ordini-panel-body { padding: 0 1rem 1rem; min-width: 0; }
+    .ordini-panel .ordini-table-scroll { max-height: none; }
+    .ordini-actions { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; padding-top: .75rem; }
+    .ordini-actions .btn { font-weight: 600; }
+    .ordini-sommario { max-width: 100%; }
+    .ordini-loading { padding: 1.2rem; color: var(--bs-secondary-color, #64748b); }
+    .htmx-indicator { display: none; }
+    .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline; }
+    @media (max-width: 600px) { .ordini-panel-body { padding: 0 .5rem .75rem; } .ordini-panel-header { padding: .8rem; } }
 
+    /* Le due viste occupano alternativamente tutta la larghezza del workspace.
+       Nuovi nomi CSS per non ereditare lo switch solo-mobile di responsive.css. */
+    .ordini-schede-nav {
+        display: flex; flex: 0 0 auto; flex-wrap: nowrap;
+        gap: .25rem; margin: .2rem 0 0; padding: 0 .25rem;
+        border-bottom: 1px solid var(--bs-border-color, #d6dee7);
+        overflow-x: auto;
+    }
+    .ordini-schede-nav .nav-item { flex: 0 0 auto; }
+    .ordini-schede-nav .nav-link {
+        border-radius: .65rem .65rem 0 0;
+        padding: .65rem 1.1rem;
+        color: var(--bs-body-color, #334155);
+        font-weight: 650;
+        white-space: nowrap;
+    }
+    .ordini-schede-nav .nav-link.active {
+        color: var(--bs-primary, #0d6efd);
+        background: var(--bs-body-bg, #fff);
+        border-color: var(--bs-border-color, #d6dee7) var(--bs-border-color, #d6dee7) var(--bs-body-bg, #fff);
+    }
+    .ordini-schede-content { flex: 1 1 auto; min-height: 0; min-width: 0; width: 100%; }
+    .ordini-schede-content > .ordini-scheda:not(.active) { display: none !important; }
+    .ordini-schede-content > .ordini-scheda.active {
+        display: flex !important; flex-direction: column;
+        min-height: 0; height: 100%; min-width: 0; width: 100%;
+    }
+    .ordini-schede-content .ordini-panel {
+        flex: 1 1 auto; min-height: 0; width: 100%;
+        border-top-left-radius: 0;
+    }
+    .ordini-panel-descrizione { margin: .2rem 0 0; font-size: .8rem; color: var(--bs-secondary-color, #64748b); }
+    @media (max-width: 575.98px) {
+        .ordini-schede-nav .nav-item { flex: 1 0 auto; }
+        .ordini-schede-nav .nav-link { width: 100%; padding: .55rem .65rem; font-size: .87rem; }
+        .ordini-panel-descrizione { font-size: .75rem; }
+    }
 
-<div class="ordini-workspace pan-page pan-orders-page">
+    /* Layout a tutta altezza: offcanvas e header generale restano nel base.j2. */
+    body:has(.ordini-workspace) {
+        min-height: 100dvh;
+        height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    body:has(.ordini-workspace) > main.container,
+    body:has(.ordini-workspace) > main.container-fluid,
+    body.pan-app-body:has(.ordini-workspace) > .pan-main {
+        flex: 1 1 auto;
+        height: auto !important;
+        max-height: none !important;
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        padding-top: .35rem !important;
+        padding-bottom: .35rem !important;
+    }
+    body:has(.ordini-workspace) .ordini-workspace {
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
+        height: auto;
+        display: flex;
+        flex-direction: column;
+    }
+    body:has(.ordini-workspace) .ordini-schede-nav {
+        flex: 0 0 auto;
+        margin-top: 0;
+    }
+    body:has(.ordini-workspace) .ordini-schede-content {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    body:has(.ordini-workspace) .ordini-schede-content > .ordini-scheda.active {
+        flex: 1 1 auto;
+        min-height: 0;
+        height: auto;
+    }
+    body:has(.ordini-workspace) .ordini-schede-content .ordini-panel {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    body:has(.ordini-workspace) .ordini-panel-body,
+    body:has(.ordini-workspace) #ordini_cliente_da_produrre,
+    body:has(.ordini-workspace) #ordini_cliente_in_produzione,
+    body:has(.ordini-workspace) .ordini-form {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        min-width: 0;
+    }
+    body:has(.ordini-workspace) .ordini-panel-body {
+        padding: .25rem .6rem .45rem;
+    }
+    body:has(.ordini-workspace) .ordini-panel .ordini-table-scroll {
+        flex: 1 1 auto;
+        min-height: 0 !important;
+        max-height: none !important;
+        height: auto !important;
+        width: 100%;
+        overflow-y: auto !important;
+        overflow-x: auto !important;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+    }
+    body:has(.ordini-workspace) .ordini-panel .ordini-table {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin-bottom: 0;
+    }
+    body:has(.ordini-workspace) .ordini-panel .ordini-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+    body:has(.ordini-workspace) .ordini-panel .ordini-paginazione { display: none !important; }
+    body:has(.ordini-workspace) .ordini-actions,
+    body:has(.ordini-workspace) .ordini-sommario { flex: 0 0 auto; }
+    @media (max-width: 767.98px) {
+        body:has(.ordini-workspace) .ordini-panel-body { padding: .2rem .3rem .35rem; }
+        body:has(.ordini-workspace) .ordini-panel .ordini-table { min-width: 1150px !important; }
+    }
 
+    /* Intestazioni pulite: nessun riquadro attorno alle colonne, solo separatore della testata. */
+    body:has(.ordini-workspace) .ordini-panel .ordini-table thead {
+        border-bottom: 1px solid var(--bs-border-color, #d6dee7) !important;
+    }
+    body:has(.ordini-workspace) .ordini-panel .ordini-table thead th {
+        border: 0 !important;
+        box-shadow: none !important;
+        background: var(--bs-tertiary-bg, #f1f5f9) !important;
+        padding: .42rem .35rem;
+    }
+    body:has(.ordini-workspace) .ordini-panel .ordini-sort {
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        padding: .1rem 0;
+    }
+    /* Indicazione etichetta: anteprima in sola lettura, senza controlli nel riepilogo. */
+    body:has(.ordini-workspace) .ordini-panel .ordini-table td[data-col="commenti_etichetta"] {
+        padding: .3rem .35rem;
+        vertical-align: top;
+    }
+    body:has(.ordini-workspace) .ordini-etichetta-lettura {
+        display: flex;
+        align-items: flex-start;
+        gap: .3rem;
+        min-width: 0;
+        line-height: 1.3;
+        font-size: .76rem;
+    }
+    body:has(.ordini-workspace) .ordini-etichetta-tipo {
+        flex: 0 0 auto;
+        color: var(--bs-secondary-color, #64748b);
+        font-weight: 700;
+        font-size: .68rem;
+        white-space: nowrap;
+    }
+    body:has(.ordini-workspace) .ordini-etichetta-testo {
+        display: block;
+        flex: 1 1 auto;
+        min-width: 0;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+    body:has(.ordini-workspace) .ordini-table td[data-col="commenti_etichetta"] .pan-notes-group-item {
+        padding: .2rem 0;
+    }
+    body:has(.ordini-workspace) .ordini-table td[data-col="commenti_etichetta"] .pan-note-order-label {
+        font-size: .68rem;
+        margin: 0 0 .12rem;
+    }
 
-    <div class="ordini-panels">
-        <section class="ordini-panel pan-panel" data-panel="nuovi" aria-labelledby="titolo-nuovi">
-            <div class="ordini-panel-header pan-panel-header">
-                <h2 id="titolo-nuovi">Ordini da produrre</h2>
-                <span class="ordini-meta">Aggiornamento automatico ogni 30 secondi</span>
-            </div>
-            <div class="ordini-panel-body pan-panel-body">
-                <div id="ordini_cliente_da_produrre"
-                     hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_da_produrre') }}"
-                     hx-trigger="load, every 30s, pianificazioneSalvata from:body, prioritaAggiornata from:body, pianificazioneChiusa from:body, pianificazioneAnnullata from:body"
-                     hx-swap="innerHTML"
-                     hx-sync="this:replace"
-                     aria-live="off">
-                    <p class="ordini-loading">Caricamento ordini da produrre...</p>
-                </div>
-                {% if puo_gestire_produzione %}
-                <div class="ordini-compact-footer" aria-label="Sommatoria e pianificazione ordini selezionati">
-                    <div id="riepilogo-ordini" class="ordini-sommario" aria-live="polite">
-                        <span class="ordini-summary-empty">Seleziona uno o più ordini per visualizzare i totali.</span>
+    /* Riepilogo degli ordini su una sola riga, accanto alla pianificazione.
+       Solo il testo scorre orizzontalmente quando il viewport e' stretto. */
+    body:has(.ordini-workspace) .ordini-actions-riepilogo {
+        display: flex;
+        flex-flow: row nowrap;
+        align-items: center;
+        gap: .7rem;
+        min-width: 0;
+        padding-top: .3rem;
+        padding-bottom: .1rem;
+        margin: 0;
+    }
+    body:has(.ordini-workspace) .ordini-actions-riepilogo > .btn {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+    body:has(.ordini-workspace) .ordini-actions-riepilogo > #riepilogo-ordini {
+        flex: 1 1 auto;
+        display: block;
+        min-width: 0;
+        max-width: none;
+        margin: 0 !important;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        scrollbar-width: thin;
+        font-size: .8rem;
+        line-height: 1.35;
+    }
+    body:has(.ordini-workspace) .ordini-riepilogo-linea {
+        display: inline-flex;
+        flex-flow: row nowrap;
+        align-items: center;
+        gap: .65rem;
+        width: max-content;
+        max-width: none;
+        white-space: nowrap;
+    }
+    body:has(.ordini-workspace) .ordini-riepilogo-voce {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .28rem;
+        white-space: nowrap;
+    }
+    body:has(.ordini-workspace) .ordini-riepilogo-voce + .ordini-riepilogo-voce::before {
+        content: "·";
+        padding-right: .2rem;
+        color: var(--bs-secondary-color, #64748b);
+    }
+    body:has(.ordini-workspace) .ordini-riepilogo-linea strong {
+        font-weight: 700;
+    }
+</style>
+
+<div class="ordini-workspace">
+
+    {# Schede Bootstrap native: no doppio layout desktop, nessuna route nuova. #}
+    <ul class="nav nav-tabs ordini-schede-nav" id="ordini-schede" role="tablist" aria-label="Sezioni gestione ordini panettoni">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="ordini-da-gestire-tab" type="button"
+                    data-bs-toggle="tab" data-bs-target="#ordini-da-gestire-pane"
+                    role="tab" aria-controls="ordini-da-gestire-pane" aria-selected="true"
+                    hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_da_produrre') }}"
+                    hx-trigger="shown.bs.tab" hx-target="#ordini_cliente_da_produrre" hx-swap="innerHTML">
+                Ordini da gestire
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="pianificazioni-tab" type="button"
+                    data-bs-toggle="tab" data-bs-target="#pianificazioni-pane"
+                    role="tab" aria-controls="pianificazioni-pane" aria-selected="false"
+                    hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_in_produzione') }}"
+                    hx-trigger="shown.bs.tab" hx-target="#ordini_cliente_in_produzione" hx-swap="innerHTML">
+                Pianificazioni
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content ordini-schede-content" id="ordini-schede-content">
+        <div class="tab-pane ordini-scheda fade show active" id="ordini-da-gestire-pane"
+             role="tabpanel" aria-labelledby="ordini-da-gestire-tab" tabindex="0">
+            <section class="ordini-panel" aria-label="Ordini da gestire">
+                <div class="ordini-panel-body">
+                    <div id="ordini_cliente_da_produrre"
+                         hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_da_produrre') }}"
+                         hx-trigger="load, every 30s, pianificazioneSalvata from:body, prioritaAggiornata from:body, pianificazioneChiusa from:body, pianificazioneAnnullata from:body"
+                         hx-swap="innerHTML"
+                         hx-sync="this:replace"
+                         aria-live="off">
+                        <p class="ordini-loading">Caricamento ordini da gestire...</p>
                     </div>
-                    <div class="ordini-actions">
-                        <button type="button" class="btn btn-primary btn-sm ordini-plan-btn"
+                    {% if puo_gestire_produzione %}
+                    <div class="ordini-actions ordini-actions-riepilogo">
+                        <button type="button" class="btn btn-primary"
                                 hx-post="{{ url_for('ordini_cliente.anteprima_pianificazione') }}"
                                 hx-include="#form-ordini"
-                                hx-params="ordini_selezionati"
                                 hx-target="#contenuto-pianificazione"
                                 hx-swap="innerHTML"
                                 data-bs-toggle="modal"
                                 data-bs-target="#modal-pianificazione">
                             Pianifica ordini selezionati
                         </button>
+                        <div id="riepilogo-ordini" class="ordini-sommario" aria-live="polite" aria-atomic="true">
+                            <span class="text-muted">Nessun ordine selezionato</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+
+        <div class="tab-pane ordini-scheda fade" id="pianificazioni-pane"
+             role="tabpanel" aria-labelledby="pianificazioni-tab" tabindex="0">
+            <section class="ordini-panel" aria-label="Pianificazioni">
+                <div class="ordini-panel-body">
+                    <div id="ordini_cliente_in_produzione"
+                         hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_in_produzione') }}"
+                         hx-trigger="load, every 30s, pianificazioneSalvata from:body, prioritaAggiornata from:body, pianificazioneChiusa from:body, pianificazioneAnnullata from:body"
+                         hx-swap="innerHTML"
+                         hx-sync="this:replace"
+                         aria-live="off">
+                        <p class="ordini-loading">Caricamento pianificazioni...</p>
                     </div>
                 </div>
-                {% endif %}
-            </div>
-        </section>
-
-        <section class="ordini-panel pan-panel" data-panel="produzione" aria-labelledby="titolo-produzione">
-            <div class="ordini-panel-header pan-panel-header">
-                <h2 id="titolo-produzione">Ordini in produzione</h2>
-                <span class="ordini-meta">Aggiornamento automatico ogni 30 secondi</span>
-            </div>
-            <div class="ordini-panel-body pan-panel-body">
-                <div id="ordini_cliente_in_produzione"
-                     hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_in_produzione') }}"
-                     hx-trigger="load, every 30s, pianificazioneSalvata from:body, prioritaAggiornata from:body, pianificazioneChiusa from:body, pianificazioneAnnullata from:body"
-                     hx-swap="innerHTML"
-                     hx-sync="this:replace"
-                     aria-live="off">
-                    <p class="ordini-loading">Caricamento ordini in produzione...</p>
-                </div>
-            </div>
-        </section>
+            </section>
+        </div>
     </div>
-
-
 </div>
 
 {% if puo_gestire_produzione %}
@@ -79,7 +352,6 @@
 
 {% block scripts %}
     {{ super() }}
-    <script src="{{ url_for('static', filename='js/selezione_ordini.js', v='20261021-6') }}"></script>
-
-    <script src="{{ url_for('static', filename='js/commenti_inline.js', v='20261021-6') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/selezione_ordini.js', v='20261020-2') }}"></script>
+    <script src="{{ url_for('static', filename='js/ordini_scorrimento.js', v='20261030-2') }}" defer></script>
 {% endblock %}

@@ -1,8 +1,0 @@
-Flask
-Flask-Login
-Flask-SQLAlchemy
-SQLAlchemy
-pandas
-pyodbc
-wfastcgi
-Flask-Migrate
