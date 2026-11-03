@@ -1,0 +1,165 @@
+{% extends 'base.j2' %}
+{% block title %}Anteprima impasto condiviso · Pianificazione{% endblock %}
+{% block content %}
+<main class="container-fluid py-3 pan-page" style="max-width:1600px">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+    <div>
+      <h1 class="h4 mb-1">Simulazione impasto comune e cotte miste</h1>
+      <p class="text-secondary mb-0">Ordini di formati diversi, un unico impasto e cotte configurabili per forno.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.elenco_bozze_impasto_misto') }}">Bozze salvate</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('ordini_cliente.impostazioni_gruppi_produzione') }}">Gruppi di produzione</a>
+    </div>
+  </div>
+  <div class="alert alert-warning py-2 small" role="note">
+    <strong>Anteprima e bozze:</strong> ora puoi salvare la proposta di pianificazione, ma la bozza non conferma la produzione, non prenota macchine o forni e non modifica stock o stati.
+    Le cotte miste sono stimate utilizzando la quota <code>pezzi / capienza omogenea</code> per ciascun formato: questa
+    proporzione deve essere verificata rispetto ai vincoli fisici reali di teglie e forno prima di abilitarne la conferma.
+  </div>
+  <section class="card shadow-sm mb-3">
+    <div class="card-body">
+      <form method="get" action="{{ url_for('ordini_cliente.anteprima_impasto_misto') }}" class="d-flex flex-wrap gap-3 align-items-end">
+        <div style="min-width:260px;flex:1">
+          <label for="misto-gruppo" class="form-label fw-semibold">Gruppo di produzione</label>
+          <select class="form-select" id="misto-gruppo" name="gruppo" required>
+            {% for item in gruppi %}
+              <option value="{{ item.IdGruppo }}" {{ 'selected' if gruppo and gruppo.IdGruppo == item.IdGruppo else '' }}>{{ item.Nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-outline-primary" type="submit">Carica gruppo</button>
+      </form>
+    </div>
+  </section>
+  {% if errore %}<div class="alert alert-danger" role="alert">{{ errore }}</div>{% endif %}
+  {% if gruppo %}
+  <form method="post" action="{{ url_for('ordini_cliente.anteprima_impasto_misto') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="richiesta_id" value="{{ richiesta_id }}">
+    <input type="hidden" name="gruppo" value="{{ gruppo.IdGruppo }}">
+    <div class="row g-3 align-items-start">
+      <div class="col-12 col-xxl-8">
+        <section class="card shadow-sm mb-3">
+          <div class="card-header"><strong>1. Ordini del gruppo</strong><span class="small text-muted ms-2">Seleziona le quantità residue da simulare</span></div>
+          <div class="table-responsive" style="max-height:480px;overflow:auto">
+            <table class="table table-sm table-hover align-middle mb-0">
+              <thead class="table-light" style="position:sticky;top:0;z-index:1">
+                <tr><th scope="col">Selezione</th><th scope="col">Ordine</th><th scope="col">Cliente</th><th scope="col">Articolo</th><th scope="col">Consegna</th><th scope="col" class="text-end">Residuo disponibile</th></tr>
+              </thead>
+              <tbody>
+                {% for ordine in ordini %}
+                  {% set chiave = ordine.IdDocumento|string ~ '-' ~ ordine.IdRigaDoc|string %}
+                  <tr>
+                    <td><input type="checkbox" class="form-check-input" name="ordini" value="{{ chiave }}" aria-label="Seleziona ordine {{ chiave }}" {{ 'checked' if chiave in selezionati else '' }}></td>
+                    <td class="text-nowrap fw-semibold">{{ chiave }}</td>
+                    <td>{{ ordine.Cliente.RagioneSociale if ordine.Cliente else 'N/D' }}</td>
+                    <td><strong>{{ ordine.CodArt }}</strong><div class="small text-muted">{{ ordine.DesArt }} · {{ ordine.articolo.Prezzatura if ordine.articolo else '' }} g</div></td>
+                    <td class="text-nowrap">{{ ordine.DataConsegna.strftime('%d-%m-%Y') if ordine.DataConsegna else 'N/D' }}</td>
+                    <td class="text-end fw-semibold">{{ disponibili.get((ordine.IdDocumento, ordine.IdRigaDoc), 0) }}</td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="6" class="text-center text-muted py-4">Non ci sono ordini con residuo disponibile per questo gruppo.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="card shadow-sm mb-3">
+          <div class="card-header"><strong>2. Assegnazione dei formati ai forni</strong></div>
+          <div class="card-body">
+            <div class="row g-3">
+            {% for articolo in articoli %}
+              <div class="col-12 col-md-6">
+                <label class="form-label fw-semibold" for="forno-art-{{ loop.index }}">{{ articolo.CodArt }} · {{ articolo.Prezzatura }} g</label>
+                <select class="form-select" id="forno-art-{{ loop.index }}" name="forno_{{ articolo.CodArt }}">
+                  <option value="">Seleziona un forno</option>
+                  {% for id_forno, capienza in forni_compatibili.get(articolo.CodArt, {})|dictsort %}
+                    <option value="{{ id_forno }}" {{ 'selected' if forni_form.get(articolo.CodArt) == id_forno|string else '' }}>
+                      {{ forni[id_forno].DescrizioneForno if forni.get(id_forno) else 'Forno ' ~ id_forno }} · {{ capienza }} pezzi/cotta omogenea
+                    </option>
+                  {% endfor %}
+                </select>
+                {% if not forni_compatibili.get(articolo.CodArt) %}<div class="small text-danger">Nessun forno compatibile con ricetta e formato.</div>{% endif %}
+              </div>
+            {% endfor %}
+            </div>
+          </div>
+        </section>
+        <section class="card shadow-sm mb-3">
+          <div class="card-header"><strong>3. Numero di cotte per forno</strong></div>
+          <div class="card-body">
+            <p class="text-secondary small">Inserisci il numero di cotte che vuoi usare nel blocco effettivo. Il sistema verifica il massimo residuo e il fabbisogno degli ordini.</p>
+            <div class="row g-3">
+            {% for id_forno in forni_id %}
+              <div class="col-12 col-md-4">
+                <label class="form-label fw-semibold" for="cotte-{{ id_forno }}">{{ forni[id_forno].DescrizioneForno if forni.get(id_forno) else 'Forno ' ~ id_forno }}</label>
+                <input class="form-control" id="cotte-{{ id_forno }}" name="cotte_{{ id_forno }}" type="number" min="1" step="1" max="999" value="{{ cotte_form.get(id_forno, '1') }}">
+              </div>
+            {% endfor %}
+            </div>
+          </div>
+        </section>
+      </div>
+      <div class="col-12 col-xxl-4">
+        <section class="card shadow-sm mb-3">
+          <div class="card-header"><strong>4. Produzione e impastatrici</strong></div>
+          <div class="card-body">
+            <label class="form-label fw-semibold" for="misto-data">Data iniziale</label>
+            <input class="form-control mb-3" type="date" id="misto-data" name="data_inizio" value="{{ data_form }}" required>
+            <label class="form-label fw-semibold" for="misto-blocco">Blocco iniziale</label>
+            <select class="form-select mb-3" id="misto-blocco" name="blocco">
+              <option value="M" {{ 'selected' if blocco_form == 'M' else '' }}>Mattina</option>
+              <option value="P" {{ 'selected' if blocco_form == 'P' else '' }}>Pomeriggio</option>
+            </select>
+            <div class="fw-semibold mb-2">Impastatrici</div>
+            <div class="border rounded-2 p-2" style="max-height:240px;overflow:auto">
+              {% for m in impastatrici %}
+                <label class="d-flex align-items-start gap-2 mb-2 small">
+                  <input type="checkbox" class="form-check-input mt-1" name="impastatrici" value="{{ m.IdImpastatrice }}" {{ 'checked' if m.IdImpastatrice|string in mixers_form else '' }}>
+                  <span>{{ m.ModelloImpastatrice }} · {{ m.CapienzaImpastatrice }} {{ m.UdM }}<span class="text-secondary d-block">{{ m.DescrizioneImpastatrice }}</span></span>
+                </label>
+              {% else %}<span class="text-muted small">Nessuna impastatrice configurata.</span>{% endfor %}
+            </div>
+            <div class="d-grid gap-2 mt-3">
+              <button type="submit" name="azione" value="simula" class="btn btn-primary" {{ 'disabled' if not ordini else '' }}>Simula impasto e cotte</button>
+              <button type="submit" name="azione" value="salva_bozza" class="btn btn-outline-primary" {{ 'disabled' if not ordini else '' }}>Salva proposta come bozza</button>
+            </div>
+            <div class="small text-secondary mt-2">Il salvataggio ricalcola la simulazione sul server. Le quantità sono una fotografia del momento e non riservano ordini, forni o impastatrici.</div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </form>
+  {% endif %}
+  {% if esito %}
+    <section class="card shadow-sm mt-3 mb-3" id="misto-risultato">
+      <div class="card-header d-flex flex-wrap justify-content-between gap-2 align-items-center"><strong>Risultato della simulazione</strong><span class="badge text-bg-warning">Bozza non produttiva</span></div>
+      <div class="card-body">
+        <div class="d-flex flex-wrap gap-4 mb-3"><div><strong>Pezzi pianificabili</strong><div class="h4">{{ esito.totale_pezzi }}</div></div><div><strong>Cotte inserite</strong><div class="h4">{{ esito.totale_cotte }}</div></div><div><strong>Impasto comune</strong><div class="h4">{{ '%.2f'|format(esito.peso_kg) }} kg</div></div><div><strong>Capienza impastatrici</strong><div class="h4">{{ '%.2f'|format(esito.capacita_kg) }} kg</div></div></div>
+        <div class="table-responsive mb-3">
+          <table class="table table-sm table-striped align-middle">
+            <thead><tr><th>Ordine</th><th>CodArt</th><th class="text-end">Disponibile</th><th class="text-end">In anteprima</th><th class="text-end">Residuo</th></tr></thead>
+            <tbody>
+              {% for item in esito.ordini %}<tr><td>{{ item.ordine.IdDocumento }}-{{ item.ordine.IdRigaDoc }}</td><td>{{ item.ordine.CodArt }}</td><td class="text-end">{{ item.richiesta }}</td><td class="text-end fw-semibold">{{ item.pianificata }}</td><td class="text-end">{{ item.residuo }}</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% for id_forno, risultato in esito.risultati.items() %}
+          {% set dati = risultato.esito %}
+          <div class="border rounded-3 p-3 mb-3">
+            <h2 class="h6">{{ forni[id_forno].DescrizioneForno if forni.get(id_forno) else 'Forno ' ~ id_forno }} · {{ risultato.data.strftime('%d-%m-%Y') }} / {{ risultato.blocco }}</h2>
+            <p class="small text-secondary">Cotte inserite: <strong>{{ dati.numero_cotte }}</strong> · Cotte libere: <strong>{{ risultato.libere }}</strong> · Minimo stimato per coprire l'intero residuo: <strong>{{ dati.minimo_stimato }}</strong> · Massimo dal fabbisogno degli ordini: <strong>{{ dati.massimo_da_ordini }}</strong></p>
+            <div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead><tr><th>Cotta</th><th>Composizione dei formati</th><th>Occupazione stimata</th></tr></thead><tbody>
+              {% for cotta in dati.cotte %}
+                <tr><td>{{ loop.index }}</td><td>{% for codice, n in cotta.items() %}<span class="me-3">{{ codice }}: <strong>{{ n }}</strong></span>{% else %}<span class="text-muted">Cotta vuota</span>{% endfor %}</td><td>{{ '%.1f'|format((dati.occupazioni[loop.index0]|float) * 100) }}%</td></tr>
+              {% endfor %}
+            </tbody></table></div>
+          </div>
+        {% endfor %}
+        <div class="small text-secondary">Le quantità indicate sono una proposta simulata. Il sistema non ha modificato nessun ordine.</div>
+      </div>
+    </section>
+  {% endif %}
+</main>
+{% endblock %}

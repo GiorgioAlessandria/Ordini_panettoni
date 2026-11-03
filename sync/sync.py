@@ -4,12 +4,11 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import dateutil.utils
-from sqlalchemy import create_engine, delete, event, exc, select, tuple_
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
-from config.production import SECRET_KEY, SQLALCHEMY_DATABASE_URI
 from flaskr.models.model_ordini import (
     AnagraficaArticoli,
     AnagraficaClienti,
@@ -18,26 +17,70 @@ from flaskr.models.model_ordini import (
     StatoRigaOrdine,
 )
 from sync.models_sync import VwESArticoli, VwESClientiFornitori, VwESOrdiniClienteAperti
+from pathlib import Path
+from runpy import run_path
+from sqlalchemy.engine import URL
+import logging
+from logging.handlers import RotatingFileHandler
+from time import monotonic
+BASE_DIR = Path(r"C:\ProgramData\OrdiniPanettoni")
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(parents = True, exist_ok = True)
 
-sql_params: str = SECRET_KEY
+logger = logging.getLogger("ordini_panettoni.sync")
+logger.setLevel(logging.INFO)
+logger.propagate = False
+
+if not logger.handlers:
+    handler = RotatingFileHandler(
+            LOG_DIR / "sync.log",
+            maxBytes = 5 * 1024 * 1024,
+            backupCount = 5,
+            encoding = "utf-8",
+            )
+
+    handler.setFormatter(
+            logging.Formatter(
+                    "%(asctime)s | %(levelname)-8s | %(message)s",
+                    datefmt = "%Y-%m-%d %H:%M:%S",
+                    )
+            )
+
+    logger.addHandler(handler)
+config = run_path(
+    str(BASE_DIR / "config" / "production.py")
+)
+
+SQLALCHEMY_DATABASE_URI = config["SQLALCHEMY_DATABASE_URI"]
+
+sql_params = (
+    BASE_DIR / "config" / "sqlserver_odbc.txt"
+).read_text(encoding="utf-8").strip()
 TimeZone = "Europe/Rome"
 
 try:
-    sqlserver_engine_app = create_engine(f"mssql+pyodbc:///?odbc_connect={sql_params}", echo=False)
-    print("SQLServer connected")
+    sqlserver_engine_app = create_engine(
+    URL.create(
+        "mssql+pyodbc",
+        query={"odbc_connect": sql_params}
+    ),
+    pool_pre_ping=True,)
+
+    with sqlserver_engine_app.connect() as conn:
+        conn.exec_driver_sql("SELECT 1")
+
+    logger.info("Connessione SQL Server verificata")
     SessionSQLServer = sessionmaker(bind=sqlserver_engine_app)
-    print("SQLServer session created")
-except Exception as exc:
-    print(f"Errore connessione SQL Server: {exc}")
+except Exception:
+    logger.exception("Errore connessione SQL Server")
     raise
 
 try:
-    sqlite_engine_app = create_engine(SQLALCHEMY_DATABASE_URI)
-    print("Sqlite connected")
+    sqlite_engine_app = create_engine(SQLALCHEMY_DATABASE_URI, connect_args={"timeout":30})
     SessionSqlite = sessionmaker(bind=sqlite_engine_app)
-    print("Sqlite session created")
-except Exception as exc:
-    print(f"Errore connessione Sqlite: {exc}")
+    logger.info("Connessione SQLite verificata")
+except Exception:
+    logger.exception("Errore connessione SQLite")
     raise
 
 
@@ -73,7 +116,7 @@ def articoli(table_articoli: list[VwESArticoli], sync_time: datetime) -> list[di
             match = re.search(r"\d{3,4}", articolo.CodArt)
             if match is None:
                 continue
-            prezzatura = str(match.group())
+            prezzatura = int(match.group())
             articolo.Glassatura = glassatura
             articolo.Prezzatura = prezzatura
             articoli_filtrati[articolo.CodArt] = articolo
@@ -167,8 +210,8 @@ def clienti(
 def log_ordini(ordini_nuovi: list[dict[str, Any]], sync_time: datetime):
     elaborazione = [
         {
-            "IdDocumento": list(ordine.values())[0],
-            "IdRigaDoc": list(ordine.values())[1],
+            "IdDocumento": ordine["IdDocumento"],
+            "IdRigaDoc": ordine["IdRigaDoc"],
             "Stato": "Nuovo",
             "Operatore": "sync",
             "synced_at": sync_time,
@@ -181,8 +224,8 @@ def log_ordini(ordini_nuovi: list[dict[str, Any]], sync_time: datetime):
 def stato_riga(ordini_nuovi: list[dict[str, Any]], sync_time: datetime):
     elaborazione = [
         {
-            "IdDocumento": list(ordine.values())[0],
-            "IdRigaDoc": list(ordine.values())[1],
+            "IdDocumento": ordine["IdDocumento"],
+            "IdRigaDoc": ordine["IdRigaDoc"],
             "Stato": "Nuovo",
             "Operatore": "sync",
             "DataRegistrazione": dateutil.utils.today(tzinfo=ZoneInfo(TimeZone)),
@@ -193,16 +236,62 @@ def stato_riga(ordini_nuovi: list[dict[str, Any]], sync_time: datetime):
     return elaborazione
 
 
+# Lo stato viene conservato soltanto nel processo di sync.
+# Evita di ripetere la stessa segnalazione ogni 30 secondi.
+_ultimi_ordini_assenti_erp: frozenset[tuple[int, int]] | None = None
+
+
+def rileva_ordini_assenti_erp(
+    chiavi_sqlite: set[tuple[int, int]],
+    ordini_erp: list[dict[str, Any]],
+) -> frozenset[tuple[int, int]]:
+    """Ordini presenti localmente ma assenti dall'ultimo feed ERP.
+
+    Il risultato e' SOLO diagnostico: non implica che l'ordine sia eliminabile.
+    Ordini pianificati, note e storico potrebbero ancora dipendere dal record.
+    """
+    chiavi_erp = {
+        (ordine["IdDocumento"], ordine["IdRigaDoc"])
+        for ordine in ordini_erp
+    }
+    return frozenset(chiavi_sqlite - chiavi_erp)
+
+
+def segnala_ordini_assenti_erp(
+    ordini_assenti: frozenset[tuple[int, int]],
+) -> None:
+    """Segnala una variazione senza spammare il log a ogni ciclo."""
+    global _ultimi_ordini_assenti_erp
+    if ordini_assenti == _ultimi_ordini_assenti_erp:
+        return
+
+    if ordini_assenti:
+        primi = sorted(ordini_assenti)[:10]
+        logger.warning(
+            "Ordini presenti in SQLite ma assenti dal feed ERP: %d | "
+            "Prime chiavi: %s | Nessuna eliminazione automatica "
+            "(verificare pianificazioni, stati, note e storico).",
+            len(ordini_assenti),
+            primi,
+        )
+    elif _ultimi_ordini_assenti_erp:
+        logger.info("Rientrati tutti gli ordini prima assenti dal feed ERP.")
+
+    _ultimi_ordini_assenti_erp = ordini_assenti
+
+
 def main():
-    ordini_esistenti = {}
+    inizio = monotonic()
+    logger.info("Inizio sincronizzazione SQL Server -> SQLite")
+    ordini_esistenti: set[tuple[int, int]] = set()
     try:
         with SessionSqlite() as sess:
             ordini_esistenti = set(
                 sess.execute(select(OrdiniCliente.IdDocumento, OrdiniCliente.IdRigaDoc)).all()
             )
-    except IntegrityError as e:
-        print(f"Errore di lettura dati {e}")
-        pass
+    except Exception:
+        logger.exception("Errore durante la lettura degli ordini SQLite")
+        raise
     articoli_raw = leggi_view(VwESArticoli, SessionSQLServer)
     ordini_raw = leggi_view(VwESOrdiniClienteAperti, SessionSQLServer)
     clienti_raw = leggi_view(VwESClientiFornitori, SessionSQLServer)
@@ -211,6 +300,18 @@ def main():
     articoli_elaborati = articoli(articoli_raw, sync_time)
     ordini_elaborati = ordini(ordini_raw, articoli_elaborati, sync_time)
     clienti_elaborati = clienti(clienti_raw, ordini_elaborati, sync_time)
+    logger.info(
+            "Dati elaborati | Articoli: %d | Ordini: %d | Clienti: %d",
+            len(articoli_elaborati),
+            len(ordini_elaborati),
+            len(clienti_elaborati),
+            )
+    # La lista ERP e' gia' filtrata per gli articoli PNT gestiti.
+    # Confrontiamo i codici, ma non cancelliamo i record con storia locale.
+    ordini_assenti_erp = rileva_ordini_assenti_erp(
+        ordini_esistenti, ordini_elaborati
+    )
+
     ordini_nuovi = [
         ordine
         for ordine in ordini_elaborati
@@ -222,6 +323,22 @@ def main():
     ]
     ordini_nuovi_log = log_ordini(ordini_nuovi, sync_time)
     ordini_stato_riga = stato_riga(ordini_nuovi, sync_time)
+    logger.info("Nuovi ordini individuati: %d", len(ordini_nuovi))
+
+    if not articoli_elaborati:
+        raise RuntimeError(
+            "Sync interrotto: nessun articolo trovato."
+        )
+
+    if not ordini_elaborati:
+        raise RuntimeError(
+            "Sync interrotto: nessun ordine trovato."
+        )
+
+    if not clienti_elaborati:
+        raise RuntimeError(
+            "Sync interrotto: nessun cliente trovato."
+        )
 
     stmt_articoli_upsert = insert(AnagraficaArticoli).values(articoli_elaborati)
     stmt_articoli_upsert = stmt_articoli_upsert.on_conflict_do_update(
@@ -233,10 +350,6 @@ def main():
             "Glassatura": stmt_articoli_upsert.excluded.Glassatura,
             "synced_at": stmt_articoli_upsert.excluded.synced_at,
         },
-    )
-    articoli_presenti = [articolo["CodArt"] for articolo in articoli_elaborati]
-    stmt_articoli_delete = delete(AnagraficaArticoli).where(
-        AnagraficaArticoli.CodArt.not_in(articoli_presenti)
     )
 
     stmt_ordini_upsert = insert(OrdiniCliente).values(ordini_elaborati)
@@ -264,10 +377,6 @@ def main():
             "synced_at": stmt_ordini_upsert.excluded.synced_at,
         },
     )
-    ordini_presenti = [(ordine["IdDocumento"], ordine["IdRigaDoc"]) for ordine in ordini_elaborati]
-    stmt_ordini_delete = delete(OrdiniCliente).where(
-        tuple_(OrdiniCliente.IdDocumento, OrdiniCliente.IdRigaDoc).not_in(ordini_presenti)
-    )
 
     stmt_clienti_upsert = insert(AnagraficaClienti).values(clienti_elaborati)
     stmt_clienti_upsert = stmt_clienti_upsert.on_conflict_do_update(
@@ -289,32 +398,47 @@ def main():
     stmt_stato_riga_upsert = stmt_stato_riga_upsert.on_conflict_do_nothing(
         index_elements=["IdDocumento", "IdRigaDoc"]
     )
-    stmt_stato_riga_delete = delete(StatoRigaOrdine).where(
-        tuple_(StatoRigaOrdine.IdDocumento, StatoRigaOrdine.IdRigaDoc).not_in(ordini_presenti)
-    )
 
     try:
         with SessionSqlite() as sess:
             sess.execute(stmt_clienti_upsert)
             sess.execute(stmt_articoli_upsert)
             sess.execute(stmt_ordini_upsert)
-            sess.execute(stmt_articoli_delete)
             if ordini_nuovi_log:
                 sess.execute(stmt_log_operazioni_upsert)
             if ordini_stato_riga:
                 sess.execute(stmt_stato_riga_upsert)
-            sess.execute(stmt_stato_riga_delete)
-            sess.execute(stmt_ordini_delete)
             sess.commit()
-    except IntegrityError as e:
-        print(f"Errore di inserimento dati:\n{e}")
+            # Segnaliamo solo dopo un commit effettivamente riuscito.
+            segnala_ordini_assenti_erp(ordini_assenti_erp)
+            durata = monotonic()-inizio
+            logger.info(
+                    "Sincronizzazione completata | "
+                    "Articoli: %d | Ordini: %d | Clienti: %d | "
+                    "Nuovi ordini: %d | Durata: %.2f secondi",
+                    len(articoli_elaborati),
+                    len(ordini_elaborati),
+                    len(clienti_elaborati),
+                    len(ordini_nuovi),
+                    durata,
+                    )
+            durata = monotonic() - inizio
+    except IntegrityError:
+        logger.exception("Errore di integrità durante il salvataggio SQLite")
+        raise
 
 
 if __name__ == "__main__":
-    a = False
     counter = 0
-    while not a:
-        main()
-        sleep(30)
-        print(f"Ciclo {counter} completato")
-        counter += 1
+
+    while True:
+        try:
+            main()
+        except Exception:
+            logger.exception(
+                    "Sincronizzazione fallita | Ciclo: %d",
+                    counter,
+                    )
+        finally:
+            counter += 1
+            sleep(30)

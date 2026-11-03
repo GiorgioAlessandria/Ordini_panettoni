@@ -1,0 +1,45 @@
+{% extends 'base.j2' %}
+{% block title %}Proposte e pianificazioni miste{% endblock %}
+{% block content %}
+<main class="container-fluid py-3 pan-page" style="max-width:1450px">
+  <header class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div><h1 class="h4 mb-1">Pianificazioni multi-articolo</h1>
+      <p class="text-secondary mb-0">Proposte, prenotazioni attive, completate e annullate.</p>
+    </div>
+    <a class="btn btn-primary btn-sm" href="{{ url_for('ordini_cliente.anteprima_impasto_misto') }}">Nuova simulazione</a>
+  </header>
+  {% with messaggi = get_flashed_messages(with_categories=true) %}
+    {% for categoria, testo in messaggi %}<div class="alert alert-{{ categoria }}">{{ testo }}</div>{% endfor %}
+  {% endwith %}
+  <div class="alert alert-warning small" role="note">
+    Solo le bozze non ancora confermate non impegnano risorse.
+    Le pianificazioni confermate prenotano forni, impastatrici e quantità per ordine; sono soggette alla rivalidazione prima dell'attivazione.
+  </div>
+  <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
+    <h2 class="h6 mb-0">Ultimi {{ bozze|length }} record</h2>
+    {% if mostra_archiviate %}
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('ordini_cliente.elenco_bozze_impasto_misto') }}">Nascondi archiviate</a>
+    {% else %}
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('ordini_cliente.elenco_bozze_impasto_misto', archiviate=1) }}">Includi archiviate</a>
+    {% endif %}
+  </div>
+  <div class="card shadow-sm"><div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-light"><tr><th>ID</th><th>Creata il</th><th>Data produzione proposta</th><th>Stato</th><th>Cotte</th><th>Impasto</th><th>Operatore</th><th></th></tr></thead>
+      <tbody>{% for b in bozze %}
+        <tr>
+          <td class="fw-semibold">#{{ b.IdBozza }}</td>
+          <td>{{ b.CreataIl.strftime('%d-%m-%Y %H:%M') }}</td>
+          <td>{{ b.DataProduzione.strftime('%d-%m-%Y') }} · {{ b.BloccoIniziale }}</td>
+          {% set piano = piani.get(b.IdBozza) %}
+          <td><span class="badge {{ 'text-bg-success' if piano and piano.Stato == 'Chiuso' else ('text-bg-info' if piano and piano.Stato == 'In produzione' else ('text-bg-secondary' if (piano or b.Stato != 'Bozza') else 'text-bg-warning')) }}">{{ piano.Stato if piano else b.Stato }}</span></td>
+          <td>{{ b.NumeroCotte }}</td>
+          <td>{{ '%.2f'|format(b.PesoTotaleGrammi / 1000) }} kg</td>
+          <td>{{ b.Operatore }}</td>
+          <td><a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=b.IdBozza) }}">Dettaglio</a></td>
+        </tr>
+      {% else %}<tr><td colspan="8" class="text-center text-secondary py-4">Nessuna proposta salvata.</td></tr>{% endfor %}</tbody>
+    </table>
+  </div></div>
+</main>
+{% endblock %}

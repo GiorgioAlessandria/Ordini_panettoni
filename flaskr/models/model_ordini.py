@@ -194,6 +194,40 @@ class Costanti(db.Model):
     Valore: Mapped[int]
 
 
+class GruppoProduzione(db.Model):
+    """Articoli compatibili con un unico impasto base.
+
+    La configurazione NON modifica la ricetta ERP e non abilita ancora
+    l'assegnazione multi-articolo nella conferma delle pianificazioni.
+    """
+    __tablename__ = "gruppi_produzione"
+
+    IdGruppo: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    Nome: Mapped[str] = mapped_column(db.String(100), nullable=False, unique=True)
+    Descrizione: Mapped[str | None] = mapped_column(db.String(400), nullable=True)
+    Attivo: Mapped[int] = mapped_column(nullable=False, server_default="1")
+    articoli: Mapped[list["GruppoProduzioneArticolo"]] = relationship(
+        back_populates="gruppo", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        CheckConstraint("Attivo IN (0, 1)", name="ck_gruppi_produzione_attivo"),
+    )
+
+
+class GruppoProduzioneArticolo(db.Model):
+    """Un codice articolo può appartenere a un solo gruppo di produzione."""
+    __tablename__ = "gruppi_produzione_articoli"
+
+    CodArt: Mapped[str] = mapped_column(
+        ForeignKey("articoli.CodArt", ondelete="RESTRICT"), primary_key=True
+    )
+    IdGruppo: Mapped[int] = mapped_column(
+        ForeignKey("gruppi_produzione.IdGruppo", ondelete="CASCADE"), nullable=False, index=True
+    )
+    gruppo: Mapped["GruppoProduzione"] = relationship(back_populates="articoli")
+
+
 class PianificazioneProduzione(db.Model):
     __tablename__ = "pianificazione_produzione"
     IdPianificazione: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -401,4 +435,172 @@ class CommentoEtichettaOrdine(db.Model):
     Operatore: Mapped[str] = mapped_column(nullable=False)
     __table_args__ = (
         CheckConstraint("TipoCommento IN (1, 2)", name="ck_commento_etichetta_ordine_tipo"),
+    )
+
+
+# Fase 3A — proposte persistenti di impasto condiviso. NON sono piani attivi.
+# Le tabelle vengono create dalla migrazione SQL; non alterano lo storico.
+class BozzaPianificazioneMista(db.Model):
+    __tablename__ = "bozze_pianificazione_mista"
+    IdBozza: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    RichiestaId: Mapped[str] = mapped_column(db.String(32), nullable=False, unique=True)
+    IdGruppo: Mapped[int] = mapped_column(ForeignKey("gruppi_produzione.IdGruppo", ondelete="RESTRICT"), nullable=False)
+    DataProduzione: Mapped[date] = mapped_column(nullable=False)
+    BloccoIniziale: Mapped[str] = mapped_column(nullable=False)
+    PesoTotaleGrammi: Mapped[Decimal] = mapped_column(Numeric(16, 3), nullable=False)
+    NumeroCotte: Mapped[int] = mapped_column(nullable=False)
+    Operatore: Mapped[str] = mapped_column(db.String(120), nullable=False)
+    CreataIl: Mapped[datetime] = mapped_column(nullable=False)
+    Stato: Mapped[str] = mapped_column(db.String(16), nullable=False, server_default="Bozza")
+    ordini: Mapped[list["BozzaPianificazioneMistaOrdine"]] = relationship(
+        back_populates="bozza", cascade="all, delete-orphan")
+    forni: Mapped[list["BozzaPianificazioneMistaForno"]] = relationship(
+        back_populates="bozza", cascade="all, delete-orphan")
+    impastatrici: Mapped[list["BozzaPianificazioneMistaImpastatrice"]] = relationship(
+        back_populates="bozza", cascade="all, delete-orphan")
+    fasi_impasto: Mapped[list["BozzaPianificazioneMistaFase"]] = relationship(
+        back_populates="bozza", cascade="all, delete-orphan")
+    __table_args__ = (
+        CheckConstraint("BloccoIniziale IN ('M', 'P')", name="ck_bozza_mista_blocco"),
+        CheckConstraint("Stato IN ('Bozza', 'Archiviata')", name="ck_bozza_mista_stato"),
+        CheckConstraint("PesoTotaleGrammi > 0", name="ck_bozza_mista_peso"),
+        CheckConstraint("NumeroCotte > 0", name="ck_bozza_mista_cotte"),
+    )
+
+
+class BozzaPianificazioneMistaOrdine(db.Model):
+    __tablename__ = "bozze_pianificazione_mista_ordini"
+    IdBozza: Mapped[int] = mapped_column(
+        ForeignKey("bozze_pianificazione_mista.IdBozza", ondelete="CASCADE"), primary_key=True)
+    IdDocumento: Mapped[int] = mapped_column(primary_key=True)
+    IdRigaDoc: Mapped[int] = mapped_column(primary_key=True)
+    CodArt: Mapped[str] = mapped_column(nullable=False)
+    IdForno: Mapped[int] = mapped_column(ForeignKey("anagrafica_forni.IdForno"), nullable=False)
+    QtaPianificata: Mapped[int] = mapped_column(nullable=False)
+    QtaDisponibileSnapshot: Mapped[int] = mapped_column(nullable=False)
+    bozza: Mapped["BozzaPianificazioneMista"] = relationship(back_populates="ordini")
+    __table_args__ = (
+        CheckConstraint("QtaPianificata > 0 AND QtaDisponibileSnapshot >= QtaPianificata",
+                        name="ck_bozza_mista_ordine_quantita"),
+    )
+
+
+class BozzaPianificazioneMistaForno(db.Model):
+    __tablename__ = "bozze_pianificazione_mista_forni"
+    IdBozza: Mapped[int] = mapped_column(
+        ForeignKey("bozze_pianificazione_mista.IdBozza", ondelete="CASCADE"), primary_key=True)
+    IdForno: Mapped[int] = mapped_column(ForeignKey("anagrafica_forni.IdForno"), primary_key=True)
+    DataFase: Mapped[date] = mapped_column(nullable=False)
+    Blocco: Mapped[str] = mapped_column(nullable=False)
+    NumeroCotte: Mapped[int] = mapped_column(nullable=False)
+    CotteLibereSnapshot: Mapped[int] = mapped_column(nullable=False)
+    bozza: Mapped["BozzaPianificazioneMista"] = relationship(back_populates="forni")
+    cotte: Mapped[list["BozzaPianificazioneMistaCotta"]] = relationship(
+        back_populates="forno", cascade="all, delete-orphan")
+    __table_args__ = (
+        CheckConstraint("Blocco IN ('M', 'P')", name="ck_bozza_mista_forno_blocco"),
+        CheckConstraint("NumeroCotte > 0 AND CotteLibereSnapshot >= NumeroCotte",
+                        name="ck_bozza_mista_forno_cotte"),
+    )
+
+
+class BozzaPianificazioneMistaCotta(db.Model):
+    __tablename__ = "bozze_pianificazione_mista_cotte"
+    IdBozza: Mapped[int] = mapped_column(primary_key=True)
+    IdForno: Mapped[int] = mapped_column(primary_key=True)
+    NumeroCotta: Mapped[int] = mapped_column(primary_key=True)
+    CodArt: Mapped[str] = mapped_column(primary_key=True)
+    QtaPezzi: Mapped[int] = mapped_column(nullable=False)
+    forno: Mapped["BozzaPianificazioneMistaForno"] = relationship(back_populates="cotte")
+    __table_args__ = (
+        ForeignKeyConstraint(["IdBozza", "IdForno"],
+                             ["bozze_pianificazione_mista_forni.IdBozza", "bozze_pianificazione_mista_forni.IdForno"],
+                             ondelete="CASCADE"),
+        CheckConstraint("NumeroCotta > 0 AND QtaPezzi > 0", name="ck_bozza_mista_cotta_pezzi"),
+    )
+
+
+class BozzaPianificazioneMistaImpastatrice(db.Model):
+    __tablename__ = "bozze_pianificazione_mista_impastatrici"
+    IdBozza: Mapped[int] = mapped_column(
+        ForeignKey("bozze_pianificazione_mista.IdBozza", ondelete="CASCADE"), primary_key=True)
+    IdImpastatrice: Mapped[int] = mapped_column(
+        ForeignKey("anagrafica_impastatrici.IdImpastatrice"), primary_key=True)
+    KgAssegnati: Mapped[Decimal] = mapped_column(Numeric(16, 6), nullable=False)
+    bozza: Mapped["BozzaPianificazioneMista"] = relationship(back_populates="impastatrici")
+    __table_args__ = (CheckConstraint("KgAssegnati >= 0", name="ck_bozza_mista_impastatrice_kg"),)
+
+
+class BozzaPianificazioneMistaFase(db.Model):
+    """Snapshot delle fasi comuni di impasto, nessuna prenotazione."""
+    __tablename__ = "bozze_pianificazione_mista_fasi"
+    IdBozza: Mapped[int] = mapped_column(
+        ForeignKey("bozze_pianificazione_mista.IdBozza", ondelete="CASCADE"), primary_key=True)
+    IdRicettaFase: Mapped[int] = mapped_column(primary_key=True)
+    IdLavorazione: Mapped[int] = mapped_column(nullable=False)
+    OffsetBlocchi: Mapped[int] = mapped_column(nullable=False)
+    DataFase: Mapped[date] = mapped_column(nullable=False)
+    Blocco: Mapped[str] = mapped_column(nullable=False)
+    DurataBlocchi: Mapped[int] = mapped_column(nullable=False)
+    bozza: Mapped["BozzaPianificazioneMista"] = relationship(back_populates="fasi_impasto")
+    __table_args__ = (
+        CheckConstraint("Blocco IN ('M', 'P')", name="ck_bozza_mista_fase_blocco"),
+        CheckConstraint("OffsetBlocchi >= 0 AND DurataBlocchi > 0", name="ck_bozza_mista_fase_durata"),
+    )
+
+# Fase 3B — piani misti: non sovrapporre i campi monoforno della testata legacy.
+# Ogni piano misto si appoggia allo snapshot immutato della bozza 3A.
+class PianificazioneMistaAttiva(db.Model):
+    __tablename__ = "pianificazioni_miste_attive"
+    IdBozza: Mapped[int] = mapped_column(
+        ForeignKey("bozze_pianificazione_mista.IdBozza", ondelete="RESTRICT"), primary_key=True
+    )
+    Stato: Mapped[str] = mapped_column(db.String(16), nullable=False, server_default="In produzione")
+    OperatoreConferma: Mapped[str] = mapped_column(db.String(120), nullable=False)
+    ConfermataIl: Mapped[datetime] = mapped_column(nullable=False)
+    OperatoreAnnullamento: Mapped[str | None] = mapped_column(db.String(120))
+    AnnullataIl: Mapped[datetime | None] = mapped_column()
+    ChiusaIl: Mapped[datetime | None] = mapped_column()
+    OperatoreChiusura: Mapped[str | None] = mapped_column(db.String(120))
+    MotivoAnnullamento: Mapped[str | None] = mapped_column(db.String(500))
+    bozza: Mapped["BozzaPianificazioneMista"] = relationship()
+    __table_args__ = (
+        CheckConstraint("Stato IN ('In produzione','Chiuso','Annullato')", name="ck_piano_misto_stato"),
+    )
+
+
+class PrenotazioneMistaImpastatrice(db.Model):
+    __tablename__ = "prenotazioni_miste_impastatrici"
+    IdBozza: Mapped[int] = mapped_column(
+        ForeignKey("pianificazioni_miste_attive.IdBozza", ondelete="CASCADE"), primary_key=True
+    )
+    IdImpastatrice: Mapped[int] = mapped_column(
+        ForeignKey("anagrafica_impastatrici.IdImpastatrice"), primary_key=True
+    )
+    DataFase: Mapped[date] = mapped_column(primary_key=True)
+    Blocco: Mapped[str] = mapped_column(primary_key=True)
+    KgAssegnati: Mapped[Decimal] = mapped_column(Numeric(16, 6), nullable=False)
+    __table_args__ = (
+        UniqueConstraint("IdImpastatrice", "DataFase", "Blocco", name="uq_misto_impastatrice_slot"),
+        CheckConstraint("Blocco IN ('M','P')", name="ck_misto_impastatrice_blocco"),
+        CheckConstraint("KgAssegnati >= 0", name="ck_misto_impastatrice_peso"),
+    )
+
+
+class PrenotazioneMistaForno(db.Model):
+    __tablename__ = "prenotazioni_miste_forni"
+    IdBozza: Mapped[int] = mapped_column(
+        ForeignKey("pianificazioni_miste_attive.IdBozza", ondelete="CASCADE"), primary_key=True
+    )
+    IdForno: Mapped[int] = mapped_column(
+        ForeignKey("anagrafica_forni.IdForno"), primary_key=True
+    )
+    DataFase: Mapped[date] = mapped_column(primary_key=True)
+    Blocco: Mapped[str] = mapped_column(primary_key=True)
+    NumeroCotte: Mapped[int] = mapped_column(nullable=False)
+    MaxCotteBlocco: Mapped[int] = mapped_column(nullable=False)
+    __table_args__ = (
+        CheckConstraint("Blocco IN ('M','P')", name="ck_misto_forno_blocco"),
+        CheckConstraint("NumeroCotte > 0 AND MaxCotteBlocco >= NumeroCotte",
+                        name="ck_misto_forno_limite"),
     )

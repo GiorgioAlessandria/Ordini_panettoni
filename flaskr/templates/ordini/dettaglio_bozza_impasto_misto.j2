@@ -1,0 +1,114 @@
+{% extends 'base.j2' %}
+{% block title %}Bozza impasto condiviso #{{ bozza.IdBozza }}{% endblock %}
+{% block content %}
+<main class="container-fluid py-3 pan-page" style="max-width:1450px">
+  <header class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div><h1 class="h4 mb-1">Bozza multi-articolo #{{ bozza.IdBozza }}</h1>
+      <p class="text-secondary mb-0">{{ bozza.DataProduzione.strftime('%d-%m-%Y') }} · Blocco {{ bozza.BloccoIniziale }} · Creata {{ bozza.CreataIl.strftime('%d-%m-%Y %H:%M') }} da {{ bozza.Operatore }}</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      {% if bozza.Stato == 'Bozza' and not piano_misto %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.anteprima_impasto_misto', bozza=bozza.IdBozza) }}">Riapri in simulazione</a>{% endif %}
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('ordini_cliente.elenco_bozze_impasto_misto') }}">Elenco bozze</a>
+    </div>
+  </header>
+  {% with messaggi = get_flashed_messages(with_categories=true) %}
+    {% for categoria, testo in messaggi %}<div class="alert alert-{{ categoria }}">{{ testo }}</div>{% endfor %}
+  {% endwith %}
+  {% if piano_misto %}
+    <div class="alert {{ 'alert-success' if piano_misto.Stato == 'Chiuso' else ('alert-secondary' if piano_misto.Stato == 'Annullato' else 'alert-info') }} small">
+      <strong>Pianificazione mista #{{ piano_misto.IdBozza }} · {{ piano_misto.Stato }}</strong>.
+      {% if piano_misto.Stato == 'Annullato' %}Prenotazioni rilasciate; lo storico rimane consultabile.
+      {% else %}Le cotte e le impastatrici risultano prenotate nei blocchi indicati.{% endif %}
+    </div>
+  {% else %}
+    <div class="alert alert-warning small" role="note"><strong>{{ bozza.Stato }} · non attiva.</strong>
+      Le quantità, le cotte e le risorse qui riportate sono snapshot, non prenotazioni.</div>
+  {% endif %}
+  <div class="d-flex flex-wrap gap-4 mb-3">
+    <div><span class="small text-muted d-block">Totale cotte</span><strong class="h5">{{ bozza.NumeroCotte }}</strong></div>
+    <div><span class="small text-muted d-block">Impasto</span><strong class="h5">{{ '%.2f'|format(bozza.PesoTotaleGrammi / 1000) }} kg</strong></div>
+    <div><span class="small text-muted d-block">Ordini</span><strong class="h5">{{ bozza.ordini|length }}</strong></div>
+  </div>
+  <section class="card shadow-sm mb-3">
+    <div class="card-header fw-semibold">Ordini associati</div>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Ordine</th><th>Codice articolo</th><th>Forno</th><th class="text-end">Quantità proposta</th><th class="text-end">Disponibile al salvataggio</th></tr></thead>
+      <tbody>{% for o in bozza.ordini|sort(attribute='IdDocumento') %}
+        <tr><td>{{ o.IdDocumento }}-{{ o.IdRigaDoc }}</td><td>{{ o.CodArt }}</td><td>#{{ o.IdForno }}</td>
+        <td class="text-end fw-semibold">{{ o.QtaPianificata }}</td><td class="text-end">{{ o.QtaDisponibileSnapshot }}</td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+  </section>
+  <section class="card shadow-sm mb-3">
+    <div class="card-header fw-semibold">Forni e cotte</div>
+    <div class="card-body">
+      {% for forno in forni %}
+        <h2 class="h6">Forno #{{ forno.IdForno }} · {{ forno.DataFase.strftime('%d-%m-%Y') }} / {{ forno.Blocco }}</h2>
+        <p class="small text-secondary">{{ forno.NumeroCotte }} cotte indicate · {{ forno.CotteLibereSnapshot }} disponibili al momento del salvataggio</p>
+        <div class="table-responsive mb-3"><table class="table table-sm table-bordered">
+          <thead><tr><th>Cotta</th><th>Articoli / pezzi</th></tr></thead>
+          <tbody>{% for n in range(1, forno.NumeroCotte + 1) %}
+            <tr><td>{{ n }}</td><td>
+              {% for riga in forno.cotte|sort(attribute='CodArt') if riga.NumeroCotta == n %}
+                <span class="me-3">{{ riga.CodArt }}: <strong>{{ riga.QtaPezzi }}</strong></span>
+              {% else %}<span class="text-danger">Nessun pezzo</span>{% endfor %}
+            </td></tr>
+          {% endfor %}</tbody>
+        </table></div>
+      {% endfor %}
+    </div>
+  </section>
+  <section class="card shadow-sm mb-3">
+    <div class="card-header fw-semibold">Fasi dell'impasto comune</div>
+    <div class="table-responsive"><table class="table table-sm mb-0">
+      <thead><tr><th>Fase</th><th>Lavorazione</th><th>Data</th><th>Blocco</th><th>Durata</th></tr></thead>
+      <tbody>{% for f in bozza.fasi_impasto|sort(attribute='OffsetBlocchi') %}
+        <tr><td>{{ f.IdRicettaFase }}</td><td>{{ f.IdLavorazione }}</td><td>{{ f.DataFase.strftime('%d-%m-%Y') }}</td><td>{{ f.Blocco }}</td><td>{{ f.DurataBlocchi }} blocchi</td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+  </section>
+  <section class="card shadow-sm mb-3">
+    <div class="card-header fw-semibold">Impastatrici selezionate</div>
+    <div class="card-body d-flex flex-wrap gap-3">
+      {% for m in bozza.impastatrici|sort(attribute='IdImpastatrice') %}
+        <div class="border rounded-2 p-2">Impastatrice #{{ m.IdImpastatrice }} · <strong>{{ '%.3f'|format(m.KgAssegnati) }} kg</strong></div>
+      {% endfor %}
+    </div>
+  </section>
+  {% if not piano_misto and bozza.Stato == 'Bozza' %}
+    <form method="post" action="{{ url_for('ordini_cliente.conferma_piano_misto', id_bozza=bozza.IdBozza) }}" class="border rounded p-3 mb-3">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div class="fw-semibold">Conferma la pianificazione multi-articolo</div>
+      <p class="small text-secondary">Le risorse vengono rivalidate al momento della conferma. Il numero di cotte miste deve essere stato validato sul forno fisico.</p>
+      <label class="d-flex gap-2 align-items-start mb-2">
+        <input type="checkbox" name="conferma_capienza_mista" value="1" required>
+        <span class="small">Ho verificato fisicamente la capienza delle cotte miste per ogni forno.</span>
+      </label>
+      <button type="submit" class="btn btn-primary btn-sm" {% if not conferma_abilitata %}disabled{% endif %}>Conferma e prenota risorse</button>
+      {% if not conferma_abilitata %}<div class="small text-danger mt-2">Conferma disabilitata in configurazione server. Per abilitarla è richiesta la validazione del modello di capienza.</div>{% endif %}
+    </form>
+  {% elif piano_misto and piano_misto.Stato == 'In produzione' %}
+    <div class="d-flex gap-3 flex-wrap mb-3">
+      <form method="post" action="{{ url_for('ordini_cliente.chiudi_piano_misto', id_bozza=bozza.IdBozza) }}"
+            onsubmit="return confirm('Confermi la chiusura di TUTTI gli ordini associati?');">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn-success btn-sm" type="submit">Chiudi pianificazione mista</button>
+      </form>
+      <form class="d-flex gap-2 align-items-center" method="post"
+            action="{{ url_for('ordini_cliente.annulla_piano_misto', id_bozza=bozza.IdBozza) }}"
+            onsubmit="return confirm('Annullare il piano e liberare tutte le prenotazioni?');">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <input class="form-control form-control-sm" name="motivo" minlength="5" maxlength="500" placeholder="Motivo annullamento" required>
+        <button class="btn btn-outline-danger btn-sm" type="submit">Annulla</button>
+      </form>
+    </div>
+  {% endif %}
+  {% if bozza.Stato == 'Bozza' and not piano_misto %}
+    <form method="post" action="{{ url_for('ordini_cliente.archivia_bozza_impasto_misto', id_bozza=bozza.IdBozza) }}"
+          onsubmit="return confirm('Archiviare questa bozza? Nessun ordine o risorsa produttiva sarà modificato.');">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-outline-danger btn-sm">Archivia bozza</button>
+    </form>
+  {% endif %}
+</main>
+{% endblock %}

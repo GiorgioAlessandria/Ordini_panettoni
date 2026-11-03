@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import secrets
+import uuid
 from functools import wraps
 from math import ceil
 
@@ -522,3 +523,390 @@ def commento_etichetta_cella(id_documento: int, id_riga: int):
                     if errore and request.form.get('azione') == 'salva_testo' else None),
         puo_modificare_commenti_etichette=True,
     )
+
+# --- Gruppi di produzione: un impasto comune per codici articolo differenti. ---
+from flaskr.models.model_ordini import AnagraficaArticoli, GruppoProduzione, GruppoProduzioneArticolo
+from flaskr.service.gruppi_produzione_service import (
+    ErroreGruppoProduzione, lista_configurazione, salva_gruppo_produzione,
+)
+from sqlalchemy.orm import selectinload
+
+
+def _render_gruppi_produzione(*, errore=None, valori=None, id_modifica=None):
+    gruppi, articoli, assegnazioni = lista_configurazione()
+    gruppo_corrente = None
+    if id_modifica is None:
+        id_modifica = request.args.get('modifica', '').strip()
+    if id_modifica:
+        try:
+            numero = int(id_modifica)
+        except (TypeError, ValueError):
+            abort(400)
+        gruppo_corrente = db.session.get(GruppoProduzione, numero)
+        if gruppo_corrente is None:
+            abort(404)
+    if valori is None:
+        selezionati = (
+            {item.CodArt for item in gruppo_corrente.articoli}
+            if gruppo_corrente is not None else set()
+        )
+        valori = {
+            'nome': gruppo_corrente.Nome if gruppo_corrente else '',
+            'descrizione': gruppo_corrente.Descrizione or '' if gruppo_corrente else '',
+            'attivo': str(gruppo_corrente.Attivo) if gruppo_corrente else '1',
+            'codici': selezionati,
+        }
+    return render_template(
+        'ordini/impostazioni_gruppi_produzione.j2',
+        gruppi=gruppi, articoli=articoli, assegnazioni=assegnazioni,
+        gruppo_corrente=gruppo_corrente, valori=valori,
+        errore=errore, csrf_token=_csrf_token(),
+    )
+
+
+@bp_ordini_cliente.get('/impostazioni/gruppi-produzione', endpoint='impostazioni_gruppi_produzione')
+@login_required
+@solo_configuratori
+def impostazioni_gruppi_produzione():
+    return _render_gruppi_produzione()
+
+
+@bp_ordini_cliente.post('/impostazioni/gruppi-produzione/salva', endpoint='salva_gruppo_produzione')
+@login_required
+@solo_configuratori
+def salva_gruppo_produzione_route():
+    _verifica_csrf()
+    id_raw = request.form.get('id_gruppo', '').strip()
+    if id_raw:
+        try:
+            id_gruppo = int(id_raw)
+        except ValueError:
+            abort(400)
+        if id_gruppo <= 0:
+            abort(400)
+    else:
+        id_gruppo = None
+    dati = {
+        'nome': request.form.get('nome', ''),
+        'descrizione': request.form.get('descrizione', ''),
+        'attivo': request.form.get('attivo', ''),
+        'codici': set(request.form.getlist('codici')),
+    }
+    try:
+        gruppo = salva_gruppo_produzione(
+            id_gruppo=id_gruppo,
+            nome=dati['nome'], descrizione=dati['descrizione'],
+            attivo=dati['attivo'], codici=list(dati['codici']),
+        )
+        db.session.commit()
+    except ErroreGruppoProduzione as exc:
+        db.session.rollback()
+        return _render_gruppi_produzione(errore=str(exc), valori=dati, id_modifica=id_gruppo), 400
+    except IntegrityError:
+        db.session.rollback()
+        return _render_gruppi_produzione(
+            errore='Impossibile salvare: nome o articolo già associato, oppure vincolo del database.',
+            valori=dati, id_modifica=id_gruppo,
+        ), 409
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Errore salvataggio gruppi di produzione')
+        return _render_gruppi_produzione(
+            errore='Errore database: nessuna modifica registrata.',
+            valori=dati, id_modifica=id_gruppo,
+        ), 500
+    flash('Gruppo di produzione salvato.', 'success')
+    return redirect(url_for('ordini_cliente.impostazioni_gruppi_produzione', modifica=gruppo.IdGruppo))
+
+
+@bp_ordini_cliente.post('/impostazioni/gruppi-produzione/elimina', endpoint='elimina_gruppo_produzione')
+@login_required
+@solo_configuratori
+def elimina_gruppo_produzione():
+    _verifica_csrf()
+    try:
+        id_gruppo = int(request.form.get('id_gruppo', ''))
+    except (TypeError, ValueError):
+        abort(400)
+    gruppo = db.session.get(GruppoProduzione, id_gruppo)
+    if gruppo is None:
+        abort(404)
+    try:
+        # Al momento i gruppi sono solo configurazione: nessuna pianificazione
+        # li referenzia. Le associazioni articolo sono eliminate insieme al gruppo.
+        db.session.delete(gruppo)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash('Il gruppo è utilizzato da altri dati e non può essere eliminato.', 'warning')
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Errore eliminazione gruppo produzione %s', id_gruppo)
+        flash('Impossibile eliminare il gruppo.', 'danger')
+    else:
+        flash('Gruppo eliminato. Gli articoli ERP rimangono invariati.', 'success')
+    return redirect(url_for('ordini_cliente.impostazioni_gruppi_produzione'))
+
+# --- Fasi 2 e 3A: simulazione e salvataggio BOZZE, mai pianificazioni attive. ---
+from flaskr.models.model_ordini import (
+    AnagraficaForni, AnagraficaImpastatrici, BozzaPianificazioneMista,
+)
+from flaskr.service.anteprima_impasto_misto_service import (
+    ErroreAnteprimaMista, carica_gruppi, carica_scelte, forni_per_articolo, simula,
+)
+from flaskr.service.bozze_impasto_misto_service import (
+    ErroreBozzaMista, carica_bozze, salva_bozza,
+)
+from flaskr.service.pianificazione_service import ErroreCalcoloPianificazione
+
+
+@bp_ordini_cliente.route('/pianificazione/impasto-misto', methods=['GET', 'POST'],
+                        endpoint='anteprima_impasto_misto')
+@login_required
+@solo_ruoli('admin', 'utente_produzione')
+def anteprima_impasto_misto():
+    """Simula cotte condivise: non persiste piani e non prenota macchine."""
+    if request.method == 'POST':
+        _verifica_csrf()
+    gruppi = carica_gruppi()
+    error = None
+    esito = None
+    gruppo = None
+    articoli = []
+    ordini = []
+    disponibili = {}
+    forni_compatibili = {}
+    bozza_ripresa = None
+    if request.method == 'GET' and request.args.get('bozza'):
+        try:
+            id_bozza = int(request.args['bozza'])
+        except ValueError:
+            abort(400)
+        bozza_ripresa = db.session.get(BozzaPianificazioneMista, id_bozza)
+        if bozza_ripresa is None:
+            abort(404)
+    gruppo_raw = request.values.get('gruppo', '').strip()
+    if bozza_ripresa is not None:
+        if db.session.get(PianificazioneMistaAttiva, bozza_ripresa.IdBozza) is not None:
+            flash('Una proposta già confermata non può essere riutilizzata. Crea una nuova bozza.', 'warning')
+            return redirect(url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=bozza_ripresa.IdBozza))
+        gruppo_raw = str(bozza_ripresa.IdGruppo)
+    try:
+        id_gruppo = int(gruppo_raw) if gruppo_raw else (gruppi[0].IdGruppo if gruppi else None)
+    except ValueError:
+        abort(400)
+    if id_gruppo is not None:
+        try:
+            gruppo, articoli, ordini, disponibili = carica_scelte(
+                id_gruppo, include_cnf=(ruolo_attuale() == "admin")
+            )
+            forni_compatibili = forni_per_articolo(articoli)
+        except (ErroreAnteprimaMista, ValueError) as exc:
+            error = str(exc)
+
+    forni_id = sorted({fid for opzioni in forni_compatibili.values() for fid in opzioni})
+    forni = {
+        f.IdForno: f for f in db.session.scalars(db.select(AnagraficaForni).where(
+            AnagraficaForni.IdForno.in_(forni_id)
+        )).all()
+    }
+    impastatrici = db.session.scalars(db.select(AnagraficaImpastatrici).order_by(
+        AnagraficaImpastatrici.IdImpastatrice
+    )).all()
+    # Valori del modulo non cambiano finché non viene avviata un'altra anteprima.
+    scelte = request.form.getlist('ordini') if request.method == 'POST' else []
+    forni_form = {cod: request.form.get(f'forno_{cod}', '') for cod in forni_compatibili}
+    cotte_form = {fid: request.form.get(f'cotte_{fid}', '1') for fid in forni_id}
+    mixers_form = request.form.getlist('impastatrici')
+    data_form = request.form.get('data_inizio', '')
+    blocco_form = request.form.get('blocco', 'M')
+    if bozza_ripresa is not None:
+        ancora_presenti = {f'{o.IdDocumento}-{o.IdRigaDoc}' for o in ordini}
+        scelte_storiche = {f'{o.IdDocumento}-{o.IdRigaDoc}' for o in bozza_ripresa.ordini}
+        scelte = sorted(scelte_storiche & ancora_presenti)
+        if scelte_storiche - ancora_presenti:
+            error = ('Alcuni ordini della bozza non sono più disponibili. '
+                     'Rivedi la selezione: la vecchia quantità non è riservata.')
+        for o in bozza_ripresa.ordini:
+            forni_form[o.CodArt] = str(o.IdForno)
+        cotte_form = {fid: str(f.NumeroCotte) for f in bozza_ripresa.forni
+                      for fid in [f.IdForno]}
+        mixers_form = [str(m.IdImpastatrice) for m in bozza_ripresa.impastatrici]
+        data_form = bozza_ripresa.DataProduzione.isoformat()
+        blocco_form = bozza_ripresa.BloccoIniziale
+    richiesta_id = request.form.get('richiesta_id', '') if request.method == 'POST' else uuid.uuid4().hex
+    if request.method == 'POST' and not error and gruppo:
+        try:
+            data_inizio = datetime.strptime(data_form, '%Y-%m-%d').date()
+            assegnazione = {}
+            for cod in {o.CodArt for o in ordini if f'{o.IdDocumento}-{o.IdRigaDoc}' in scelte}:
+                assegnazione[cod] = int(forni_form[cod])
+            forni_usati = set(assegnazione.values())
+            cotte = {fid: int(cotte_form[fid]) for fid in forni_usati}
+            esito = simula(
+                gruppo_id=gruppo.IdGruppo, chiavi=scelte,
+                forno_articolo=assegnazione, cotte_per_forno=cotte,
+                data_inizio=data_inizio, blocco=blocco_form,
+                impastatrici_ids=[int(x) for x in mixers_form],
+                include_cnf=(ruolo_attuale() == "admin"),
+            )
+            if request.form.get('azione') == 'salva_bozza':
+                id_bozza = salva_bozza(
+                    esito=esito, gruppo_id=gruppo.IdGruppo,
+                    data_inizio=data_inizio, blocco=blocco_form,
+                    forno_articolo=assegnazione,
+                    impastatrici_ids=[int(x) for x in mixers_form],
+                    richiesta_id=richiesta_id, operatore=_operatore_bozza_mista(),
+                )
+                flash(f'Bozza #{id_bozza} salvata. Non occupa risorse e non è una pianificazione attiva.', 'success')
+                return redirect(url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=id_bozza))
+        except (ErroreAnteprimaMista, ErroreBozzaMista, ErroreCalcoloPianificazione, ValueError, KeyError) as exc:
+            db.session.rollback()
+            error = str(exc) or 'Controlla i dati della simulazione.'
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('Errore simulazione / salvataggio bozza impasto misto')
+            error = 'Errore di calcolo o salvataggio: nessuna bozza è stata registrata.'
+
+    return render_template(
+        'ordini/anteprima_impasto_misto.j2', gruppi=gruppi, gruppo=gruppo,
+        articoli=articoli, ordini=ordini, disponibili=disponibili,
+        forni=forni, forni_compatibili=forni_compatibili,
+        forni_id=forni_id, impastatrici=impastatrici,
+        selezionati=scelte, forni_form=forni_form, cotte_form=cotte_form,
+        mixers_form=mixers_form, data_form=data_form, blocco_form=blocco_form,
+        errore=error, esito=esito, csrf_token=_csrf_token(), richiesta_id=richiesta_id,
+    )
+
+
+# --- Fase 3A: bozze persistenti, NON prenotazioni produttive. ---
+
+
+def _operatore_bozza_mista() -> str:
+    utente = getattr(g, 'utente', None) or getattr(g, 'user', None)
+    for attributo in ('Username', 'username', 'NomeUtente', 'IdUtente', 'id'):
+        dato = getattr(utente, attributo, None)
+        if dato is not None and str(dato).strip():
+            return str(dato).strip()[:120]
+    return str(session.get('username') or ruolo_attuale() or 'operatore')[:120]
+
+
+@bp_ordini_cliente.get('/pianificazione/impasto-misto/bozze', endpoint='elenco_bozze_impasto_misto')
+@login_required
+@solo_ruoli('admin', 'utente_produzione')
+def elenco_bozze_impasto_misto():
+    mostra_archiviate = request.args.get('archiviate') == '1'
+    bozze = carica_bozze(includi_archiviate=mostra_archiviate)
+    ids = [b.IdBozza for b in bozze]
+    piani = {p.IdBozza: p for p in db.session.scalars(
+        db.select(PianificazioneMistaAttiva).where(PianificazioneMistaAttiva.IdBozza.in_(ids))
+    ).all()} if ids else {}
+    return render_template(
+        'ordini/bozze_impasto_misto.j2',
+        bozze=bozze, piani=piani,
+        mostra_archiviate=mostra_archiviate,
+    )
+
+
+@bp_ordini_cliente.get('/pianificazione/impasto-misto/bozze/<int:id_bozza>',
+                       endpoint='dettaglio_bozza_impasto_misto')
+@login_required
+@solo_ruoli('admin', 'utente_produzione')
+def dettaglio_bozza_impasto_misto(id_bozza: int):
+    bozza = db.session.get(BozzaPianificazioneMista, id_bozza)
+    if bozza is None:
+        abort(404)
+    forni = sorted(bozza.forni, key=lambda f: f.IdForno)
+    return render_template(
+        'ordini/dettaglio_bozza_impasto_misto.j2',
+        bozza=bozza, forni=forni,
+        piano_misto=db.session.get(PianificazioneMistaAttiva, id_bozza),
+        conferma_abilitata=bool(current_app.config.get('ABILITA_CONFERMA_PIANI_MISTI', False)),
+        csrf_token=_csrf_token(),
+    )
+
+
+@bp_ordini_cliente.post('/pianificazione/impasto-misto/bozze/<int:id_bozza>/archivia',
+                        endpoint='archivia_bozza_impasto_misto')
+@login_required
+@solo_ruoli('admin', 'utente_produzione')
+def archivia_bozza_impasto_misto(id_bozza: int):
+    _verifica_csrf()
+    bozza = db.session.get(BozzaPianificazioneMista, id_bozza)
+    if bozza is None:
+        abort(404)
+    if db.session.get(PianificazioneMistaAttiva, id_bozza) is not None:
+        flash('Una bozza già confermata non può essere archiviata: usare le operazioni del piano.', 'warning')
+        return redirect(url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=id_bozza))
+    if bozza.Stato == 'Bozza':
+        bozza.Stato = 'Archiviata'
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            current_app.logger.exception('Errore archiviazione bozza %s', id_bozza)
+            flash('Impossibile archiviare la bozza.', 'danger')
+        else:
+            flash('Bozza archiviata. Nessuna risorsa produttiva è stata modificata.', 'success')
+    return redirect(url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=id_bozza))
+
+
+# --- Fase 3B1: attivazione atomica dei piani misti e ciclo di vita autonomo. ---
+from flaskr.models.model_ordini import PianificazioneMistaAttiva
+from flaskr.service.attivazione_impasto_misto_service import (
+    ErroreAttivazioneMista, conferma_bozza, chiudi_piano_misto, annulla_piano_misto,
+)
+
+
+@bp_ordini_cliente.post('/pianificazione/impasto-misto/bozze/<int:id_bozza>/conferma',
+                        endpoint='conferma_piano_misto')
+@login_required
+@solo_ruoli('admin', 'utente_produzione')
+def conferma_piano_misto(id_bozza: int):
+    _verifica_csrf()
+    # La capienza per cotta mista è una stima proporzionale, da autorizzare
+    # esplicitamente dopo prova fisica dell'allestimento dei forni.
+    if not current_app.config.get('ABILITA_CONFERMA_PIANI_MISTI', False):
+        flash('Attivazione disabilitata: validare prima la capienza fisica delle cotte miste.', 'warning')
+        return redirect(url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=id_bozza))
+    if request.form.get('conferma_capienza_mista') != '1':
+        flash('Conferma la verifica della capienza fisica del carico misto.', 'warning')
+        return redirect(url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=id_bozza))
+    try:
+        conferma_bozza(id_bozza, _operatore_bozza_mista(), include_cnf=(ruolo_attuale() == 'admin'))
+    except ErroreAttivazioneMista as exc:
+        flash(str(exc), 'danger')
+    else:
+        flash('Pianificazione mista confermata: ordini, forni e impastatrici prenotati.', 'success')
+    return redirect(url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=id_bozza))
+
+
+@bp_ordini_cliente.post('/pianificazione/impasto-misto/bozze/<int:id_bozza>/chiudi',
+                        endpoint='chiudi_piano_misto')
+@login_required
+@solo_ruoli('admin', 'utente_produzione')
+def chiudi_piano_misto_route(id_bozza: int):
+    _verifica_csrf()
+    try:
+        chiudi_piano_misto(id_bozza, _operatore_bozza_mista())
+    except ErroreAttivazioneMista as exc:
+        flash(str(exc), 'danger')
+    else:
+        flash('Pianificazione mista chiusa. Non è stato movimentato stock.', 'success')
+    return redirect(url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=id_bozza))
+
+
+@bp_ordini_cliente.post('/pianificazione/impasto-misto/bozze/<int:id_bozza>/annulla',
+                        endpoint='annulla_piano_misto')
+@login_required
+@solo_ruoli('admin', 'utente_produzione')
+def annulla_piano_misto_route(id_bozza: int):
+    _verifica_csrf()
+    try:
+        annulla_piano_misto(id_bozza, _operatore_bozza_mista(),
+                           request.form.get('motivo', ''))
+    except ErroreAttivazioneMista as exc:
+        flash(str(exc), 'danger')
+    else:
+        flash('Piano annullato: ordini e risorse nuovamente disponibili.', 'success')
+    return redirect(url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=id_bozza))

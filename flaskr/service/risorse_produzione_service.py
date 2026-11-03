@@ -20,6 +20,7 @@ from flaskr.models.model_ordini import (
     PianificazioneImpastatriceFase,
     PianificazioneOrdiniImpastatrici,
     PianificazioneProduzione,
+    PianificazioneMistaAttiva, PrenotazioneMistaImpastatrice, PrenotazioneMistaForno,
     RicettaFasi,
     TipologieLavorazione,
 )
@@ -294,6 +295,17 @@ def impastatrici_libere(
             )
         ).all()
     )
+    # Prenotazioni dei piani misti: stessi slot delle prenotazioni monoricetta.
+    occupate |= set(db.session.execute(
+        db.select(
+            PrenotazioneMistaImpastatrice.IdImpastatrice,
+            PrenotazioneMistaImpastatrice.DataFase,
+            PrenotazioneMistaImpastatrice.Blocco,
+        ).join(PianificazioneMistaAttiva,
+               PianificazioneMistaAttiva.IdBozza == PrenotazioneMistaImpastatrice.IdBozza)
+         .where(PrenotazioneMistaImpastatrice.IdImpastatrice.in_(ids),
+                PianificazioneMistaAttiva.Stato.in_(('In produzione', 'Chiuso')))
+    ).all())
     occupate |= _occupazioni_impastatrici_storiche(ids, escludi_id_pianificazione)
     disponibili = {
         macchina.IdImpastatrice: _capacita_kg(macchina)
@@ -413,6 +425,23 @@ def disponibilita_forno(
                 impiegate_per_slot[slot] += int(cotte)
                 if limite_esistente is not None:
                     limite_effettivo = min(limite_effettivo, int(limite_esistente))
+    # Le cotte miste occupano lo stesso forno e gli stessi blocchi: non possono
+    # essere ignorate dalla conferma standard, né dalle altre proposte miste.
+    miste = db.session.execute(
+        db.select(PrenotazioneMistaForno.DataFase,
+                  PrenotazioneMistaForno.Blocco,
+                  PrenotazioneMistaForno.NumeroCotte,
+                  PrenotazioneMistaForno.MaxCotteBlocco)
+        .join(PianificazioneMistaAttiva,
+              PianificazioneMistaAttiva.IdBozza == PrenotazioneMistaForno.IdBozza)
+        .where(PrenotazioneMistaForno.IdForno == id_forno,
+               PianificazioneMistaAttiva.Stato.in_(('In produzione', 'Chiuso')))
+    ).all()
+    for giorno, blocco, cotte, massimo in miste:
+        slot = (giorno, blocco)
+        if slot in impiegate_per_slot:
+            impiegate_per_slot[slot] += int(cotte)
+            limite_effettivo = min(limite_effettivo, int(massimo))
     return max(0, min(limite_effettivo - n for n in impiegate_per_slot.values())), limite_effettivo
 
 

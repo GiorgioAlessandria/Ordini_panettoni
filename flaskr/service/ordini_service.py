@@ -13,6 +13,7 @@ from flaskr.models.model_ordini import (
     OrdiniCliente,
     OrdiniPriorita,
     PianificazioneOrdini,
+    PianificazioneMistaAttiva, BozzaPianificazioneMistaOrdine,
     RicettaFasi,
     StatoRigaOrdine,
     TipLavorazioniAnagForni,
@@ -461,7 +462,22 @@ def recupera_quantita_impegnate() -> dict[tuple[int, int], int]:
         )
     )
     risultati = db.session.execute(stmt).all()
-    return {
-        (r.IdDocumento, r.IdRiga): r.quantita_impegnata
+    totale = {
+        (r.IdDocumento, r.IdRiga): int(r.quantita_impegnata)
         for r in risultati
     }
+    # Le bozze NON impegnano ordini: si contano solo le attivazioni non annullate.
+    righe_miste = db.session.execute(
+        db.select(BozzaPianificazioneMistaOrdine.IdDocumento,
+                  BozzaPianificazioneMistaOrdine.IdRigaDoc,
+                  db.func.sum(BozzaPianificazioneMistaOrdine.QtaPianificata))
+        .join(PianificazioneMistaAttiva,
+              PianificazioneMistaAttiva.IdBozza == BozzaPianificazioneMistaOrdine.IdBozza)
+        .where(PianificazioneMistaAttiva.Stato.in_(('In produzione', 'Chiuso')))
+        .group_by(BozzaPianificazioneMistaOrdine.IdDocumento,
+                  BozzaPianificazioneMistaOrdine.IdRigaDoc)
+    ).all()
+    for documento, riga, quantita in righe_miste:
+        chiave = (documento, riga)
+        totale[chiave] = totale.get(chiave, 0) + int(quantita or 0)
+    return totale

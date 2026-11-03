@@ -7,6 +7,7 @@ from sqlalchemy.orm import joinedload
 from flaskr.extensions import db
 from flaskr.models.model_ordini import (
     OrdiniCliente, PianificazioneOrdini, PianificazioneProduzione,
+    PianificazioneMistaAttiva, BozzaPianificazioneMistaOrdine,
 )
 from flaskr.service.scadenze_giornaliere_service import eseguito
 
@@ -63,6 +64,20 @@ def righe_ordini_vendite() -> list[dict]:
             prese[chiave] += int(qta or 0)
             if stato == 'Chiuso':
                 chiuse[chiave] += int(qta or 0)
+
+    # Produzioni miste attive: nella vista Vendite manteniamo una riga per ordine.
+    for documento, riga, qta, stato_misto in db.session.execute(
+        db.select(BozzaPianificazioneMistaOrdine.IdDocumento,
+                  BozzaPianificazioneMistaOrdine.IdRigaDoc,
+                  BozzaPianificazioneMistaOrdine.QtaPianificata,
+                  PianificazioneMistaAttiva.Stato)
+        .join(PianificazioneMistaAttiva,
+              PianificazioneMistaAttiva.IdBozza == BozzaPianificazioneMistaOrdine.IdBozza)
+        .where(PianificazioneMistaAttiva.Stato.in_(('In produzione', 'Chiuso')))
+    ):
+        prese[(documento, riga)] += int(qta or 0)
+        if stato_misto == 'Chiuso':
+            chiuse[(documento, riga)] += int(qta or 0)
 
     righe = []
     for ordine in ordini:

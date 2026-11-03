@@ -20,6 +20,7 @@ from flaskr.models.model_ordini import (
     PianificazioneOrdini,
     PianificazioneProduzione,
     StatoRigaOrdine,
+    PianificazioneMistaAttiva, BozzaPianificazioneMistaOrdine,
     Stock,
 )
 
@@ -46,10 +47,22 @@ def _rileggi_stato_ordine(id_documento: int, id_riga: int, adesso: datetime, ope
             PianificazioneOrdini.Stato.in_(("In produzione", "Chiuso")),
         )
     ).all()
-    impegnato = sum(int(r.QtaPianificata) for r in righe)
-    if any(r.Stato == "In produzione" for r in righe) and impegnato >= int(originale.QTA_SALDO_DOC):
+    # Anche i piani misti attivi/chiusi impegnano le stesse righe ordine.
+    righe_miste = db.session.execute(
+        db.select(PianificazioneMistaAttiva.Stato,
+                  BozzaPianificazioneMistaOrdine.QtaPianificata)
+        .join(BozzaPianificazioneMistaOrdine,
+              BozzaPianificazioneMistaOrdine.IdBozza == PianificazioneMistaAttiva.IdBozza)
+        .where(BozzaPianificazioneMistaOrdine.IdDocumento == id_documento,
+               BozzaPianificazioneMistaOrdine.IdRigaDoc == id_riga,
+               PianificazioneMistaAttiva.Stato.in_(('In produzione','Chiuso')))
+    ).all()
+    impegnato = sum(int(r.QtaPianificata) for r in righe) + sum(int(q) for _, q in righe_miste)
+    presenza_attivi = any(r.Stato == 'In produzione' for r in righe) or any(stato == 'In produzione' for stato, _ in righe_miste)
+    solo_chiusi = all(r.Stato == 'Chiuso' for r in righe) and all(stato == 'Chiuso' for stato, _ in righe_miste)
+    if presenza_attivi and impegnato >= int(originale.QTA_SALDO_DOC):
         stato = "In produzione"
-    elif impegnato >= int(originale.QTA_SALDO_DOC) and all(r.Stato == "Chiuso" for r in righe):
+    elif impegnato >= int(originale.QTA_SALDO_DOC) and solo_chiusi:
         stato = "Chiuso"
     else:
         stato = "Nuovo"
