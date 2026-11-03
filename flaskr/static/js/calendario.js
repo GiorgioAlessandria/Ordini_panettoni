@@ -109,7 +109,7 @@
     function dettagliFase(evento) {
         const p = evento.extendedProps || {};
         const righe = [
-            `Pianificazione: ${p.id_pianificazione ?? '?'}`,
+            `Pianificazione: ${p.etichetta_piano || p.id_pianificazione || '?'}`,
             `Fase: ${p.numero_fase ?? '?'} · ${p.lavorazione || 'Lavorazione'}`,
             `Articolo: ${p.descrizione_articolo || evento.title || 'N/D'}`,
             `Ordini: ${(p.ordini || []).join(', ')}`,
@@ -140,7 +140,7 @@
         scheda.title = dettagliFase(evento);
         scheda.setAttribute('aria-label', dettagliFase(evento));
         const etichetta = addText(scheda, 'cal-event-badge',
-            `Piano #${p.id_pianificazione ?? '?'} · ${nomeFase}`);
+            `Piano ${p.etichetta_piano || '#' + (p.id_pianificazione ?? '?')} · ${nomeFase}`);
         etichetta.dataset.lavorazione = tipoLavorazione(p.lavorazione);
         if (typeof p.colore_fase === 'string' && /^#[0-9a-f]{6}$/i.test(p.colore_fase)) {
             etichetta.dataset.coloreFase = 'personalizzato';
@@ -527,7 +527,7 @@
                     ? (props.lavorazione || 'Lavorazione')
                     : `Fase ${props.numero_fase} · ${props.lavorazione || 'Lavorazione'}`;
                 const etichetta = addText(scheda, 'cal-event-badge',
-                    `Piano #${props.id_pianificazione ?? '?'} · ${nomeFase}`);
+                    `Piano ${props.etichetta_piano || '#' + (props.id_pianificazione ?? '?')} · ${nomeFase}`);
                 etichetta.dataset.lavorazione = tipoLavorazione(props.lavorazione);
                 if (typeof props.colore_fase === 'string' && /^#[0-9a-f]{6}$/i.test(props.colore_fase)) {
                     etichetta.dataset.coloreFase = 'personalizzato';
@@ -585,7 +585,7 @@
             const righe = [info.event.title];
             if (produzione) {
                 righe.push(
-                    `Pianificazione: ${p.id_pianificazione}`,
+                    `Pianificazione: ${p.etichetta_piano || p.id_pianificazione}`,
                     `Lavorazione: ${p.lavorazione}`,
                     `Ordini: ${(p.ordini || []).join(', ')}`,
                     `Quantità assegnata: ${p.quantita_assegnata ?? 'N/D'}`,

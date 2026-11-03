@@ -1,0 +1,19 @@
+<div class="border rounded-3 p-3 bg-light mt-3" aria-live="polite">
+  <label class="form-label fw-semibold" for="lotto-progressivo">Lotto di pianificazione</label>
+  {% if prefisso %}
+    <div class="input-group">
+      <span class="input-group-text font-monospace fw-semibold" aria-label="Prefisso fisso calcolato dalla prima data di impasto">{{ prefisso }}</span>
+      <input class="form-control font-monospace" type="text" id="lotto-progressivo"
+             name="lotto_progressivo" value="{{ '%02d'|format(progressivo) }}"
+             inputmode="numeric" pattern="0[1-9]|[1-9][0-9]" minlength="2" maxlength="2"
+             autocomplete="off" required aria-label="Ultime due cifre del lotto">
+    </div>
+    <div class="form-text">Lotto suggerito: <strong class="font-monospace">{{ prefisso }}{{ '%02d'|format(progressivo) }}</strong>.
+      Il prefisso deriva dalla prima fase di impasto ed è fisso; puoi modificare solo le ultime due cifre (01–99).
+      L'univocità viene verificata nuovamente al salvataggio.</div>
+  {% else %}
+    <div class="input-group"><span class="input-group-text font-monospace">--------</span>
+      <input class="form-control" type="text" value="--" disabled aria-label="Progressivo non ancora disponibile"></div>
+    <div class="form-text text-warning">{{ errore or 'Seleziona la data e gli ordini per calcolare il lotto.' }}</div>
+  {% endif %}
+</div>

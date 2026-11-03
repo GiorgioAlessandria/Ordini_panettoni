@@ -77,6 +77,13 @@
                                            hx-target="#riepilogo-pianificazione" hx-swap="innerHTML"> Pomeriggio (13:00–18:00)</label>
                         </div>
                     </fieldset>
+                    <div id="avviso-consegna-ordini" class="mb-3" aria-live="polite"
+                         hx-post="{{ url_for('ordini_cliente.avviso_consegna_pianificazione') }}"
+                         hx-trigger="change from:#data-inizio-produzione, change from:input[name='blocco_inizio_produzione']"
+                         hx-include="#form-pianificazione"
+                         hx-target="#avviso-consegna-ordini" hx-swap="innerHTML">
+                        <div class="small text-secondary">La data disponibile per la consegna sarà calcolata dall'ultimo blocco produttivo + 1 giorno.</div>
+                    </div>
                     <fieldset class="mb-3">
                         <legend class="form-label fw-semibold fs-6">Impastatrici disponibili</legend>
                         <p class="small text-secondary mb-2">Seleziona le macchine candidate. Il programma distribuirà automaticamente il peso effettivo e prenoterà solo le macchine necessarie.</p>

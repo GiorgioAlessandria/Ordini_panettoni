@@ -32,6 +32,7 @@ from flaskr.models.model_ordini import (
     TipologieLavorazione,
 )
 from flaskr.service.scadenze_giornaliere_service import articolo_cnf
+from flaskr.service.calendario_misto_service import righe_pdf_miste
 
 MARGINE = 14
 ASSE_ORE = 37
@@ -90,7 +91,7 @@ def leggi_fasi_settimana(inizio: date, fine: date, ruolo: str) -> list[dict]:
     righe = db.session.execute(stmt).all()
     ids = {p.IdPianificazione for _, p, _, _, _ in righe}
     if not ids:
-        return []
+        return righe_pdf_miste(inizio, fine, ruolo)
     # Una query per i forni, una per le assegnazioni puntuali per fase e
     # una per gli abbinamenti storici per piano: nessuna query per scheda PDF.
     ids_forni = {p.IdForno for _, p, _, _, _ in righe if p.IdForno is not None}
@@ -166,6 +167,7 @@ def leggi_fasi_settimana(inizio: date, fine: date, ruolo: str) -> list[dict]:
                              or macchine_per_piano.get(piano.IdPianificazione, []),
             "forno": forni.get(piano.IdForno, f"Forno #{piano.IdForno}"),
         })
+    eventi.extend(righe_pdf_miste(inizio, fine, ruolo))
     return eventi
 
 
@@ -326,7 +328,7 @@ def _scheda(canvas: Canvas, evento: dict, x: float, y: float,
     testo_w = max(.5, larghezza - 2 * padding_x)
     label_color = _rgb(evento.get("colore_fase"), colors.HexColor("#FFEA36"))
     numero_fase = evento.get("fase") or "?"
-    intestazione = f'#{evento["piano"]} · F{numero_fase} · {evento["lavorazione"]}'
+    intestazione = f'{evento.get("etichetta_piano") or "#" + str(evento["piano"])} · F{numero_fase} · {evento["lavorazione"]}' 
     # Una sola riga e meno spazio di prima: altezza etichetta 9-12 pt.
     header_h = min(12.4, max(5.0, altezza * .20))
     canvas.setFillColor(label_color)

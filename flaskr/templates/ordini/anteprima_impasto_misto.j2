@@ -34,7 +34,7 @@
   </section>
   {% if errore %}<div class="alert alert-danger" role="alert">{{ errore }}</div>{% endif %}
   {% if gruppo %}
-  <form method="post" action="{{ url_for('ordini_cliente.anteprima_impasto_misto') }}">
+  <form id="form-impasto-misto" method="post" action="{{ url_for('ordini_cliente.anteprima_impasto_misto') }}">
     <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
     <input type="hidden" name="richiesta_id" value="{{ richiesta_id }}">
     <input type="hidden" name="gruppo" value="{{ gruppo.IdGruppo }}">
@@ -112,6 +112,21 @@
               <option value="M" {{ 'selected' if blocco_form == 'M' else '' }}>Mattina</option>
               <option value="P" {{ 'selected' if blocco_form == 'P' else '' }}>Pomeriggio</option>
             </select>
+            <div id="avviso-consegna-misto" class="mb-3" aria-live="polite"
+                 hx-post="{{ url_for('ordini_cliente.avviso_consegna_pianificazione') }}"
+                 hx-trigger="load, change from:#misto-data, change from:#misto-blocco, change from:input[name='ordini']"
+                 hx-include="#form-impasto-misto"
+                 hx-target="#avviso-consegna-misto" hx-swap="innerHTML">
+              <div class="small text-secondary">Verifica la prima scadenza degli ordini selezionati.</div>
+            </div>
+            {# Solo proposta: l'univocità viene verificata nel salvataggio sul server. #}
+            <div id="lotto-misto-proposta"
+                 hx-get="{{ url_for('ordini_cliente.proposta_lotto_pianificazione') }}?tipo=MISTA"
+                 hx-trigger="load, change from:#misto-data, change from:#misto-blocco, change from:input[name='ordini']"
+                 hx-include="#misto-data, #misto-blocco, input[name='ordini'], input[name='gruppo']"
+                 hx-swap="innerHTML">
+              <div class="small text-secondary">Seleziona data e ordini per proporre il lotto.</div>
+            </div>
             <div class="fw-semibold mb-2">Impastatrici</div>
             <div class="border rounded-2 p-2" style="max-height:240px;overflow:auto">
               {% for m in impastatrici %}

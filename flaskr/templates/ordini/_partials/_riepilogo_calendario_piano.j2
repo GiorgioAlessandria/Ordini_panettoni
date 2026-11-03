@@ -8,6 +8,38 @@
 <div class="text-end"><div><strong>{{ piano.PanettoniPianificati }}</strong> pezzi da produrre</div><div><strong>{{ piano.NumeroCotte }}</strong> cotte</div><div><strong>{{ '%.2f'|format(piano.PesoTotale|float / 1000) }}</strong> kg impasto</div></div>
 </div>
 <div class="row g-2 mb-3"><div class="col-sm-4"><div class="border rounded p-2">Ordini impegnati <strong>{{ totale_assegnato }}</strong></div></div><div class="col-sm-4"><div class="border rounded p-2">Prelievo stock <strong>{{ totale_da_stock }}</strong></div></div><div class="col-sm-4"><div class="border rounded p-2">Macchine <strong>{{ macchine|length }}</strong></div></div></div>
+{# RISORSE_CALENDARIO_FIX_20261103 - Riepilogo piano tradizionale #}
+<div class="row g-3 mb-4" aria-label="Risorse della pianificazione">
+  <div class="col-12 col-lg-6">
+    <section class="h-100 rounded-3 border border-primary border-2 bg-light p-3" aria-label="Forno utilizzato">
+      <div class="text-primary text-uppercase small fw-bold mb-2">Forno assegnato</div>
+      <div class="fs-4 fw-bold lh-sm text-dark">{{ (forno.DescrizioneForno or forno.ModelloForno) if forno else ('Forno #' ~ piano.IdForno) }}</div>
+      {% if forno and forno.ModelloForno and forno.ModelloForno != forno.DescrizioneForno %}
+        <div class="fs-6 text-secondary mt-1">{{ forno.ModelloForno }}</div>
+      {% endif %}
+      <div class="small text-secondary mt-2">Numero cotte: <strong>{{ piano.NumeroCotte }}</strong></div>
+    </section>
+  </div>
+  <div class="col-12 col-lg-6">
+    <section class="h-100 rounded-3 border border-primary border-2 bg-light p-3" aria-label="Impastatrici utilizzate">
+      <div class="text-primary text-uppercase small fw-bold mb-2">Impastatrici assegnate · {{ macchine|length }}</div>
+      {% if macchine %}
+        <div class="d-flex flex-column gap-2">
+          {% for m in macchine %}
+            <div>
+              <div class="fs-4 fw-bold lh-sm text-dark">{{ m.DescrizioneImpastatrice or m.ModelloImpastatrice or ('Impastatrice #' ~ m.IdImpastatrice) }}</div>
+              {% if m.ModelloImpastatrice and m.ModelloImpastatrice != m.DescrizioneImpastatrice %}
+                <div class="small text-secondary">{{ m.ModelloImpastatrice }}</div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="fs-5 text-secondary">Nessuna impastatrice registrata</div>
+      {% endif %}
+    </section>
+  </div>
+</div>
 <h6>Ordini associati</h6>
 <div class="table-responsive" style="max-height: 420px; overflow: auto;">
   <table class="table table-sm table-bordered table-striped align-middle">

@@ -24,6 +24,15 @@
     <div class="alert alert-warning small" role="note"><strong>{{ bozza.Stato }} · non attiva.</strong>
       Le quantità, le cotte e le risorse qui riportate sono snapshot, non prenotazioni.</div>
   {% endif %}
+  {% set lotto_attuale = lotto_pianificazione('MISTA', bozza.IdBozza) %}
+  <div class="border rounded-3 p-3 mb-3 bg-light" aria-label="Lotto della pianificazione mista">
+    <span class="d-block text-secondary small fw-semibold">Lotto di pianificazione</span>
+    {% if lotto_attuale %}
+      <span class="font-monospace fw-bold fs-5">{{ lotto_attuale }}</span>
+    {% else %}
+      <span class="text-secondary small">Non assegnato (storico)</span>
+    {% endif %}
+  </div>
   <div class="d-flex flex-wrap gap-4 mb-3">
     <div><span class="small text-muted d-block">Totale cotte</span><strong class="h5">{{ bozza.NumeroCotte }}</strong></div>
     <div><span class="small text-muted d-block">Impasto</span><strong class="h5">{{ '%.2f'|format(bozza.PesoTotaleGrammi / 1000) }} kg</strong></div>

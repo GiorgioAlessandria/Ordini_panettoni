@@ -1,0 +1,121 @@
+{% extends 'base.j2' %}
+{% block title %}Gruppi di produzione · Impostazioni{% endblock %}
+{% block head %}
+    {{ super() }}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/impostazioni.css', v='20261021-3') }}">
+{% endblock %}
+{% block content %}
+<main class="container-fluid py-3 pan-page pan-settings-page" style="max-width: 1600px;">
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div>
+            <h1 class="h4 mb-1">Gruppi di produzione</h1>
+            <p class="text-muted mb-0">Definisci quali codici articolo condividono lo stesso impasto base.</p>
+        </div>
+        <div class="d-flex gap-2"><a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.anteprima_impasto_misto') }}">Simula cotte miste</a><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('ordini_cliente.impostazioni_index') }}">Torna alle impostazioni</a></div>
+    </div>
+    <div class="alert alert-info small py-2">
+        Questa schermata configura soltanto i raggruppamenti. Puoi ora simulare le cotte miste dalla pagina dedicata; la conferma produttiva rimane disabilitata.
+        Le anagrafiche e le ricette ERP non vengono modificate.
+    </div>
+    {% with messaggi = get_flashed_messages(with_categories=true) %}
+      {% for categoria, testo in messaggi %}
+        <div class="alert alert-{{ 'danger' if categoria == 'error' else categoria }} py-2" role="alert">{{ testo }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% if errore %}<div class="alert alert-danger" role="alert">{{ errore }}</div>{% endif %}
+
+    <div class="row g-3 align-items-start">
+        <div class="col-lg-5 col-xxl-4">
+            <section class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center gap-2">
+                    <strong>Gruppi configurati</strong>
+                    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.impostazioni_gruppi_produzione') }}">+ Nuovo</a>
+                </div>
+                <div class="card-body p-2">
+                    {% for gruppo in gruppi %}
+                        <div class="border rounded-3 p-3 mb-2">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div>
+                                    <div class="fw-semibold">{{ gruppo.Nome }}</div>
+                                    <span class="badge {{ 'bg-success' if gruppo.Attivo == 1 else 'bg-secondary' }}">{{ 'Attivo' if gruppo.Attivo == 1 else 'Non attivo' }}</span>
+                                    <span class="small text-muted ms-2">{{ gruppo.articoli|length }} articoli</span>
+                                </div>
+                                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('ordini_cliente.impostazioni_gruppi_produzione', modifica=gruppo.IdGruppo) }}">Modifica</a>
+                            </div>
+                            {% if gruppo.Descrizione %}<div class="text-muted small mt-2">{{ gruppo.Descrizione }}</div>{% endif %}
+                            <div class="small mt-2">{{ gruppo.articoli|map(attribute='CodArt')|sort|join(', ') }}</div>
+                            <form class="mt-2" method="post" action="{{ url_for('ordini_cliente.elimina_gruppo_produzione') }}"
+                                  onsubmit="return confirm('Eliminare il gruppo e le sue associazioni? Gli articoli ERP non saranno eliminati.');">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="id_gruppo" value="{{ gruppo.IdGruppo }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Elimina gruppo</button>
+                            </form>
+                        </div>
+                    {% else %}
+                        <p class="text-secondary small m-3">Nessun gruppo ancora configurato.</p>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+        <div class="col-lg-7 col-xxl-8">
+            <section class="card shadow-sm" id="gruppo-form">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>{{ 'Modifica gruppo' if gruppo_corrente else 'Nuovo gruppo di produzione' }}</strong>
+                    {% if gruppo_corrente %}<span class="small text-secondary">#{{ gruppo_corrente.IdGruppo }}</span>{% endif %}
+                </div>
+                <form method="post" action="{{ url_for('ordini_cliente.salva_gruppo_produzione') }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                    {% if gruppo_corrente %}<input type="hidden" name="id_gruppo" value="{{ gruppo_corrente.IdGruppo }}">{% endif %}
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="gp-nome" class="form-label fw-semibold">Nome gruppo *</label>
+                            <input id="gp-nome" type="text" maxlength="100" name="nome" required class="form-control" value="{{ valori.nome }}" placeholder="Es. Impasto base panettoni tradizionali">
+                        </div>
+                        <div class="mb-3">
+                            <label for="gp-descrizione" class="form-label fw-semibold">Descrizione</label>
+                            <textarea id="gp-descrizione" name="descrizione" maxlength="400" rows="2" class="form-control">{{ valori.descrizione }}</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="gp-attivo" class="form-label fw-semibold">Stato</label>
+                            <select id="gp-attivo" name="attivo" class="form-select">
+                                <option value="1" {{ 'selected' if valori.attivo == '1' else '' }}>Attivo</option>
+                                <option value="0" {{ 'selected' if valori.attivo == '0' else '' }}>Non attivo</option>
+                            </select>
+                        </div>
+                        <fieldset>
+                            <legend class="form-label fw-semibold fs-6 mb-1">Articoli per l'impasto comune *</legend>
+                            <p class="small text-muted mb-2">Seleziona almeno due articoli già associati a una ricetta. Un articolo può appartenere a un solo gruppo. La compatibilità reale dell’impasto tra ricette diverse dovrà essere verificata prima di abilitare la pianificazione multi-articolo.</p>
+                            <div class="border rounded p-2" style="max-height: 420px; overflow-y: auto;">
+                                <div class="row g-2">
+                                {% for articolo in articoli %}
+                                    {% set altro_gruppo = assegnazioni.get(articolo.CodArt) %}
+                                    {% set bloccato = altro_gruppo and (not gruppo_corrente or altro_gruppo != gruppo_corrente.Nome) %}
+                                    <div class="col-12 col-md-6">
+                                        <label class="border rounded-2 p-2 d-flex gap-2 h-100 align-items-start {{ 'opacity-50' if bloccato else '' }}" style="cursor: {{ 'not-allowed' if bloccato else 'pointer' }};">
+                                            <input class="form-check-input flex-shrink-0 mt-1" type="checkbox" name="codici" value="{{ articolo.CodArt }}"
+                                                   {{ 'checked' if articolo.CodArt in valori.codici else '' }} {{ 'disabled' if bloccato else '' }}>
+                                            <span class="small">
+                                                <strong>{{ articolo.CodArt }}</strong>
+                                                <span class="d-block text-secondary">{{ articolo.DesArt }}</span>
+                                                <span class="d-block text-muted">{{ articolo.Prezzatura }} g · {{ 'Glassato' if articolo.Glassatura else 'Non glassato' }}</span>
+                                                {% if bloccato %}<span class="text-warning-emphasis d-block">Già nel gruppo: {{ altro_gruppo }}</span>{% endif %}
+                                            </span>
+                                        </label>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted small mb-0">Nessun articolo ERP disponibile.</p>
+                                {% endfor %}
+                                </div>
+                            </div>
+                        </fieldset>
+                    </div>
+                    <div class="card-footer d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                        <span class="small text-secondary">I dati saranno registrati nel database locale SQLite.</span>
+                        <button type="submit" class="btn btn-primary">{{ 'Salva modifiche' if gruppo_corrente else 'Crea gruppo' }}</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+    </div>
+</main>
+{% endblock %}

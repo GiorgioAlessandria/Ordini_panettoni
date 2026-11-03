@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from decimal import Decimal
 
 from flaskr.extensions import db
+from flaskr.service.lotto_pianificazione_service import assegna_lotto, prima_data_impasto_fasi
 from flaskr.models.model_ordini import (
     AnagraficaImpastatrici, PianificazioneFasi, PianificazioneImpastatriceFase,
     PianificazioneOrdini, PianificazioneOrdiniImpastatrici,
@@ -182,7 +183,8 @@ def prepara_ripianificazione(id_piano: int, nuova_data: date) -> dict:
     }
 
 
-def salva_ripianificazione(id_piano: int, nuova_data: date, operatore: str, motivo: str) -> None:
+def salva_ripianificazione(id_piano: int, nuova_data: date, operatore: str, motivo: str,
+                           progressivo_lotto: str | None = None) -> None:
     """Verifica e sposta atomicamente. Non muta stock o righe ordine."""
     if not (5 <= len(motivo.strip()) <= 500):
         raise ErroreCalcoloPianificazione("La motivazione deve avere da 5 a 500 caratteri")
@@ -235,6 +237,14 @@ def salva_ripianificazione(id_piano: int, nuova_data: date, operatore: str, moti
         DataOperazione=datetime.now(),
         Motivo=motivo.strip(),
     ))
+    # Rigenera il lotto solo dopo aver calcolato le nuove fasi e prima del COMMIT.
+    # Il precedente resta occupato nello storico e non viene riutilizzato.
+    fasi_impasto_nuove, _ = individua_fasi_risorse(list(dati['fasi_nuove'].values()))
+    assegna_lotto(
+        tipo='TRAD', id_owner=id_piano,
+        data_impasto=prima_data_impasto_fasi(fasi_impasto_nuove),
+        progressivo=progressivo_lotto, operatore=operatore, motivo=motivo,
+    )
     db.session.commit()
 
 

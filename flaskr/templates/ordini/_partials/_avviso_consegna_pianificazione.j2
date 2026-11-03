@@ -1,0 +1,26 @@
+{% if errore %}
+  <div class="alert alert-warning small mb-0" role="status">Verifica consegna non disponibile: {{ errore }}</div>
+{% elif esito %}
+  <div class="alert {{ 'alert-danger' if esito.stato == 'in_ritardo' else ('alert-warning' if esito.stato == 'al_limite' else 'alert-success') }} small mb-0" role="status">
+    {% if esito.stato == 'al_limite' %}
+      <strong>Attenzione: consegna al limite.</strong> La prima scadenza degli ordini coincide con la data disponibile per la consegna.
+    {% elif esito.stato == 'in_ritardo' %}
+      <strong>Attenzione: consegna in ritardo.</strong> La data disponibile supera la prima scadenza di {{ -esito.giorni_margine }} giorno/i.
+    {% else %}
+      <strong>Consegna nei termini.</strong> Margine rispetto alla prima scadenza: {{ esito.giorni_margine }} giorno/i.
+    {% endif %}
+    <div class="mt-1">
+      Ultimo blocco produttivo: <strong>{{ esito.ultimo_blocco_data.strftime('%d-%m-%Y') }} {{ esito.ultimo_blocco }}</strong>
+      · Disponibile per la consegna: <strong>{{ esito.consegna_prevista.strftime('%d-%m-%Y') }}</strong>
+      (ultimo blocco + 1 giorno)
+      · Prima scadenza ERP: <strong>{{ esito.scadenza_ordine.strftime('%d-%m-%Y') }}</strong>
+      (ordine {{ esito.ordine_scadenza }}).
+    </div>
+    {% if esito.ordini_in_ritardo > 0 or esito.ordini_al_limite > 0 %}
+      <div class="mt-1">Ordini oltre scadenza: <strong>{{ esito.ordini_in_ritardo }}</strong> · Ordini al limite: <strong>{{ esito.ordini_al_limite }}</strong> su {{ esito.numero_ordini }}.</div>
+    {% endif %}
+    <div class="mt-1 opacity-75">Avviso informativo: non modifica le date degli ordini e non blocca automaticamente la conferma.</div>
+  </div>
+{% elif messaggio %}
+  <div class="small text-secondary" role="status">{{ messaggio }}</div>
+{% endif %}

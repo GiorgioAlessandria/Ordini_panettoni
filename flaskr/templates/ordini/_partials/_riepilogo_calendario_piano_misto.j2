@@ -1,0 +1,109 @@
+{# Riepilogo multi-articolo: snapshot 3A + stato 3B1, senza ipotizzare un forno unico. #}
+{# Le tre funzioni di lettura dei commenti sono registrate come context processor.
+   Riutilizziamo lo stesso componente del riepilogo calendario tradizionale. #}
+{% set note_vendite_map = note_vendite_per_righe(ordini, true) %}
+{% set note_produzione_map = note_produzione_per_righe(ordini, true) %}
+{% set commenti_etichette_map = commenti_etichette_per_righe(ordini, true) %}
+<div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
+  <div>
+    <span class="badge bg-primary">Pianificazione mista M-{{ bozza.IdBozza }}</span>
+    <h4 class="h5 mt-2 mb-1">Impasto condiviso · {{ bozza.ordini|length }} ordini</h4>
+    <p class="text-secondary mb-0">{{ bozza.DataProduzione.strftime('%d/%m/%Y') }} · Blocco {{ bozza.BloccoIniziale }}</p>
+  </div>
+  <div class="text-end small">
+    <div><strong>{{ bozza.NumeroCotte }}</strong> cotte complessive</div>
+    <div><strong>{{ '%.2f'|format(bozza.PesoTotaleGrammi|float / 1000) }}</strong> kg impasto</div>
+    <span class="badge {{ 'bg-success' if piano.Stato == 'Chiuso' else ('bg-secondary' if piano.Stato == 'Annullato' else 'bg-info text-dark') }}">{{ piano.Stato }}</span>
+  </div>
+</div>
+{# RISORSE_CALENDARIO_FIX_20261103 - Riepilogo piano multi-articolo #}
+<div class="row g-3 mb-4" aria-label="Risorse della pianificazione mista">
+  <div class="col-12 col-lg-6">
+    <section class="h-100 rounded-3 border border-primary border-2 bg-light p-3" aria-label="Forni utilizzati">
+      <div class="text-primary text-uppercase small fw-bold mb-2">Forni assegnati · {{ bozza.forni|length }}</div>
+      {% for f in bozza.forni|sort(attribute='IdForno') %}
+        <div class="mb-2">
+          <div class="fs-5 fw-bold text-dark">{{ nomi_forni.get(f.IdForno, 'Forno #' ~ f.IdForno) }}</div>
+          <div class="small text-secondary">{{ f.NumeroCotte }} cotte · {{ f.DataFase.strftime('%d/%m/%Y') }} · Blocco {{ f.Blocco }}</div>
+        </div>
+      {% else %}
+        <div class="text-secondary">Nessun forno assegnato</div>
+      {% endfor %}
+    </section>
+  </div>
+  <div class="col-12 col-lg-6">
+    <section class="h-100 rounded-3 border border-primary border-2 bg-light p-3" aria-label="Impastatrici utilizzate">
+      {% set impastatrici_attive = bozza.impastatrici|selectattr('KgAssegnati', 'gt', 0)|list %}
+      <div class="text-primary text-uppercase small fw-bold mb-2">Impastatrici assegnate · {{ impastatrici_attive|length }}</div>
+      {% for m in impastatrici_attive|sort(attribute='IdImpastatrice') %}
+        <div class="mb-2">
+          <div class="fs-5 fw-bold text-dark">{{ nomi_impastatrici.get(m.IdImpastatrice, 'Impastatrice #' ~ m.IdImpastatrice) }}</div>
+          <div class="small text-secondary">{{ '%.2f'|format(m.KgAssegnati|float) }} kg assegnati</div>
+        </div>
+      {% else %}
+        <div class="text-secondary">Nessuna impastatrice registrata</div>
+      {% endfor %}
+    </section>
+  </div>
+</div>
+<h6>Ordini associati</h6>
+<div class="table-responsive mb-3" style="max-height:430px;overflow:auto">
+  <table class="table table-sm table-bordered align-middle">
+    <thead class="table-light"><tr>
+      <th>Ordine</th><th>Cliente</th><th>Articolo</th><th>Consegna</th>
+      <th class="text-end">Pezzi</th><th>Forno</th><th style="min-width:245px">Commenti associati</th>
+    </tr></thead>
+    <tbody>
+      {% for voce in bozza.ordini|sort(attribute='IdDocumento') %}
+        {% set ordine = ordini_map.get((voce.IdDocumento, voce.IdRigaDoc)) %}
+        <tr>
+          <td class="text-nowrap">{{ voce.IdDocumento }}-{{ voce.IdRigaDoc }}</td>
+          <td>{{ ordine.Cliente.RagioneSociale if ordine and ordine.Cliente else 'Non presente nel feed ERP' }}</td>
+          <td><strong>{{ voce.CodArt }}</strong>{% if ordine %}<div class="small text-secondary">{{ ordine.DesArt }}</div>{% endif %}</td>
+          <td class="text-nowrap">{{ ordine.DataConsegna.strftime('%d/%m/%Y') if ordine and ordine.DataConsegna else 'N/D' }}</td>
+          <td class="text-end fw-semibold">{{ voce.QtaPianificata }}</td>
+          <td>{{ nomi_forni.get(voce.IdForno, 'Forno #' ~ voce.IdForno) }}</td>
+          <td>
+            {% if ordine %}
+              {% set id_documento = voce.IdDocumento %}
+              {% set id_riga = voce.IdRigaDoc %}
+              {% include 'ordini/_partials/_commenti_riepilogo_ordine.j2' %}
+            {% else %}<span class="text-secondary">Commenti non disponibili: ordine non presente nell'ERP.</span>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<h6>Forni e composizione delle cotte</h6>
+{% for forno in bozza.forni|sort(attribute='IdForno') %}
+  <div class="border rounded p-2 mb-2">
+    <div class="fw-semibold mb-1">{{ nomi_forni.get(forno.IdForno, 'Forno #' ~ forno.IdForno) }} · {{ forno.NumeroCotte }} cotte</div>
+    <div class="small text-secondary mb-2">{{ forno.DataFase.strftime('%d/%m/%Y') }} · Blocco {{ forno.Blocco }}</div>
+    <div class="table-responsive"><table class="table table-sm mb-0">
+      <thead><tr><th>Cotta</th><th>Composizione</th></tr></thead>
+      <tbody>
+      {% for numero in range(1, forno.NumeroCotte + 1) %}
+        <tr><td>{{ numero }}</td><td>
+          {% for pezzo in forno.cotte|sort(attribute='CodArt') if pezzo.NumeroCotta == numero %}
+            <span class="me-3">{{ pezzo.CodArt }}: <strong>{{ pezzo.QtaPezzi }}</strong> pz</span>
+          {% else %}<span class="text-danger">Composizione non disponibile</span>{% endfor %}
+        </td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+{% endfor %}
+<h6 class="mt-3">Fasi dell'impasto comune</h6>
+<div class="table-responsive mb-3">
+  <table class="table table-sm table-bordered">
+    <thead><tr><th>Fase</th><th>Data</th><th>Blocco</th><th>Durata</th></tr></thead>
+    <tbody>
+    {% for fase in bozza.fasi_impasto|sort(attribute='OffsetBlocchi') %}
+      <tr><td>{{ fase.IdLavorazione }}</td><td>{{ fase.DataFase.strftime('%d/%m/%Y') }}</td>
+        <td>{{ fase.Blocco }}</td><td>{{ fase.DurataBlocchi }} blocchi</td></tr>
+    {% else %}<tr><td colspan="4">Nessuna fase registrata</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+<a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=bozza.IdBozza) }}">Apri dettaglio pianificazione mista M-{{ bozza.IdBozza }}</a>

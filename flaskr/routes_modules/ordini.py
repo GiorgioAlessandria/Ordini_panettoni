@@ -5,10 +5,13 @@ from typing import Any
 
 from flask import abort, current_app, g, make_response, render_template, request, flash, redirect, url_for
 from sqlalchemy import tuple_, update
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import joinedload
 
 from flaskr.extensions import db
+from flaskr.service.lotto_pianificazione_service import (
+    ErroreLotto, assegna_lotto, prima_data_impasto_fasi,
+)
 from flaskr.models.model_ordini import (
     AnagraficaImpastatrici,
     CapacitaForno,
@@ -601,6 +604,23 @@ def conferma_pianificazione():
         db.session.add(pianificazione)
         db.session.flush()  # Genera IdPianificazione senza fare commit.
 
+        # Assegna il lotto nella medesima transazione della pianificazione.
+        # La data viene dalle fasi effettive di impasto, non dalla data del form.
+        fasi_impasto_per_lotto, _ = individua_fasi_risorse(fasi)
+        try:
+            assegna_lotto(
+                tipo="TRAD",
+                id_owner=pianificazione.IdPianificazione,
+                data_impasto=prima_data_impasto_fasi(fasi_impasto_per_lotto),
+                progressivo=request.form.get("lotto_progressivo") or None,
+                operatore=g.user.username,
+            )
+        except IntegrityError as exc:
+            # Collisione tra due prenotazioni: nessun salvataggio parziale.
+            raise ErroreLotto(
+                "Lotto già utilizzato da un altro operatore: aggiorna la proposta."
+            ) from exc
+
         # Le fasi sono state gia' calcolate senza scritture nella simulazione.
         for fase in fasi:
             fase.IdPianificazione = pianificazione.IdPianificazione
@@ -703,6 +723,12 @@ def conferma_pianificazione():
     except (ErroreCalcoloPianificazione, ErroreCalcoloRiepilogo, ValueError) as errore:
         db.session.rollback()
         return _errore_conferma_pianificazione(str(errore))
+
+    except IntegrityError:
+        db.session.rollback()
+        return _errore_conferma_pianificazione(
+            "Lotto o altra risorsa già occupati: aggiorna la proposta e riprova"
+        )
 
     except SQLAlchemyError:
         db.session.rollback()
@@ -822,10 +848,16 @@ def conferma_ripianificazione(IdPianificazione: int):
     motivo = (request.form.get("motivo_ripianificazione") or "").strip()
     try:
         nuova_data = date.fromisoformat(request.form.get("nuova_data") or "")
-        salva_ripianificazione(IdPianificazione, nuova_data, g.user.username, motivo)
+        salva_ripianificazione(
+            IdPianificazione, nuova_data, g.user.username, motivo,
+            progressivo_lotto=request.form.get('lotto_progressivo') or None,
+        )
     except (ValueError, ErroreCalcoloPianificazione) as errore:
         db.session.rollback()
         flash(str(errore), "danger")
+    except IntegrityError:
+        db.session.rollback()
+        flash("Il lotto o una risorsa è già occupata: scegli un nuovo progressivo oppure una nuova data", "danger")
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception("Errore durante la ripianificazione #%s", IdPianificazione)
@@ -889,3 +921,6 @@ def conferma_annullamento_pianificazione(IdPianificazione: int):
         return redirect(url_for("ordini_cliente.gestione_pianificazione", IdPianificazione=IdPianificazione), code=303)
     flash(f"Pianificazione #{IdPianificazione} annullata. Quantità e risorse ripristinate.", "success")
     return redirect(url_for("ordini_cliente.pianificazioni_chiuse"), code=303)
+
+# AVVISO_CONSEGNA_20261103
+from flaskr.routes_modules import avviso_consegna_routes as _avviso_consegna_routes  # noqa: F401

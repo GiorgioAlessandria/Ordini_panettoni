@@ -17,7 +17,6 @@ from flaskr.models.model_ordini import (
     TipologieLavorazione,
 )
 from flaskr.models.model_accessi import NotaVenditeOrdine
-from flaskr.models.model_note_produzione import NotaProduzioneOrdine
 from flaskr.accessi import ruolo_attuale
 from flaskr.service.scadenze_giornaliere_service import (
     articolo_cnf, eseguito, raggruppa_per_giorno,
@@ -25,6 +24,12 @@ from flaskr.service.scadenze_giornaliere_service import (
 from flaskr.routes_auth import login_required
 from flaskr.routes_blueprint import bp_ordini_cliente
 from flaskr.service.calendario_pianificazione_service import costruisci_evento_fase
+from flaskr.service.calendario_misto_service import (
+    eventi_fasi_miste, quantita_miste_per_ordini,
+)
+from flaskr.models.model_ordini import (
+    PianificazioneMistaAttiva, BozzaPianificazioneMistaOrdine, AnagraficaForni,
+)
 
 
 class ErrorePianificazioneCalendario(Exception):
@@ -81,6 +86,9 @@ def _quantita_chiuse(ordini):
         )
         for documento, riga, quantita in db.session.execute(stmt):
             risultato[(documento, riga)] = int(quantita or 0)
+    # Anche i piani misti chiusi soddisfano la consegna degli ordini.
+    for chiave, quantita in quantita_miste_per_ordini(chiavi, stati=('Chiuso',)).items():
+        risultato[chiave] = risultato.get(chiave, 0) + quantita
     return risultato
 
 
@@ -113,6 +121,9 @@ def _quantita_pianificate(ordini):
         )
         for documento, riga, quantita in db.session.execute(stmt):
             risultato[(documento, riga)] = int(quantita or 0)
+    # Bozze non attive ed annullamenti non impegnano ordini.
+    for chiave, quantita in quantita_miste_per_ordini(chiavi).items():
+        risultato[chiave] = risultato.get(chiave, 0) + quantita
     return risultato
 
 
@@ -125,15 +136,15 @@ def _stato_scadenza(quantita_pianificata: int, ordine_eseguito: bool) -> str:
     return "Nuovo"
 
 
-def _note_del_giorno(ordini, modello=NotaVenditeOrdine):
+def _note_del_giorno(ordini):
     """Commenti in una query per blocco di ordini, non una query per riga."""
     chiavi = sorted({(o.IdDocumento, o.IdRigaDoc) for o in ordini})
     note = defaultdict(list)
     for start in range(0, len(chiavi), 250):
         stmt = (
-            db.select(modello)
-            .where(tuple_(modello.IdDocumento, modello.IdRigaDoc).in_(chiavi[start:start + 250]))
-            .order_by(modello.CreatoIl.desc(), modello.Id.desc())
+            db.select(NotaVenditeOrdine)
+            .where(tuple_(NotaVenditeOrdine.IdDocumento, NotaVenditeOrdine.IdRigaDoc).in_(chiavi[start:start + 250]))
+            .order_by(NotaVenditeOrdine.CreatoIl.desc(), NotaVenditeOrdine.Id.desc())
         )
         for nota in db.session.scalars(stmt):
             note[(nota.IdDocumento, nota.IdRigaDoc)].append(nota)
@@ -208,7 +219,6 @@ def calendario_riepilogo_giorno(data: str):
         giorno=giorno,
         righe=righe,
         note_per_ordine=_note_del_giorno(ordini),
-        note_produzione_per_ordine=_note_del_giorno(ordini, NotaProduzioneOrdine),
         eseguiti=sum(r["eseguito"] for r in righe),
     )
 
@@ -228,7 +238,10 @@ def eventi_fase_calendario():
         .order_by(PianificazioneFasi.DataFase, PianificazioneFasi.Blocco)
     ).all()
     if not fasi:
-        return jsonify([])
+        return jsonify(eventi_fasi_miste(
+            inizio, fine, ruolo_attuale(),
+            lambda id_bozza: url_for('ordini_cliente.calendario_riepilogo_piano_misto', id_bozza=id_bozza),
+        ))
 
     ids_piani = {fase.IdPianificazione for fase in fasi}
     ids_lavorazioni = {fase.IdLavorazione for fase in fasi}
@@ -317,6 +330,10 @@ def eventi_fase_calendario():
             "ordini_cliente.calendario_riepilogo_piano", IdPianificazione=fase.IdPianificazione
         )
         eventi.append(evento)
+    eventi.extend(eventi_fasi_miste(
+        inizio, fine, ruolo_attuale(),
+        lambda id_bozza: url_for('ordini_cliente.calendario_riepilogo_piano_misto', id_bozza=id_bozza),
+    ))
     return jsonify(eventi)
 
 
@@ -368,10 +385,13 @@ def calendario_riepilogo_ordine(IdDocumento: int, IdRigaDoc: int):
                PianificazioneOrdini.IdRiga == IdRigaDoc,
                PianificazioneOrdini.Stato.in_(("In produzione", "Chiuso")))
     )
+    impegnata_totale = int(impegnata or 0) + quantita_miste_per_ordini(
+        [(IdDocumento, IdRigaDoc)]
+    ).get((IdDocumento, IdRigaDoc), 0)
     return render_template(
         "ordini/_partials/_riepilogo_calendario_ordine.j2", ordine=ordine,
-        impegnata=int(impegnata or 0),
-        residua=max(0, int(ordine.QTA_SALDO_DOC or 0) - int(impegnata or 0)),
+        impegnata=impegnata_totale,
+        residua=max(0, int(ordine.QTA_SALDO_DOC or 0) - impegnata_totale),
     )
 
 
@@ -405,10 +425,12 @@ def calendario_riepilogo_piano(IdPianificazione: int):
         .where(PianificazioneOrdiniImpastatrici.IdPianificazione == IdPianificazione)
     ).scalars().all()
     articolo = db.session.get(AnagraficaArticoli, piano.CodArt)
+    from flaskr.models.model_ordini import AnagraficaForni
+    forno = db.session.get(AnagraficaForni, piano.IdForno)
     return render_template(
         "ordini/_partials/_riepilogo_calendario_piano.j2",
         piano=piano, associazioni=associazioni, fasi=fasi,
-        macchine=macchine, descrizione=articolo.DesArt if articolo else piano.CodArt,
+        macchine=macchine, forno=forno, descrizione=articolo.DesArt if articolo else piano.CodArt,
         totale_assegnato=sum(int(a.QtaPianificata or 0) for a, _ in associazioni),
         totale_da_stock=sum(int(a.QtaDaStock or 0) for a, _ in associazioni),
     )
@@ -454,3 +476,42 @@ def calendario_pdf_settimana():
     )
     risposta.headers["Cache-Control"] = "private, no-store"
     return risposta
+
+
+@bp_ordini_cliente.get('/calendario/pianificazione-mista/<int:id_bozza>/riepilogo')
+@login_required
+def calendario_riepilogo_piano_misto(id_bozza: int):
+    """Riepilogo calendario dei piani misti attivi, chiusi o annullati."""
+    piano = db.session.get(PianificazioneMistaAttiva, id_bozza)
+    if piano is None:
+        abort(404)
+    bozza = piano.bozza
+    if ruolo_attuale() == 'utente_produzione' and any(
+        articolo_cnf(r.CodArt) for r in bozza.ordini
+    ):
+        abort(404)
+    chiavi = [(r.IdDocumento, r.IdRigaDoc) for r in bozza.ordini]
+    ordini = db.session.scalars(
+        db.select(OrdiniCliente)
+        .options(joinedload(OrdiniCliente.Cliente))
+        .where(tuple_(OrdiniCliente.IdDocumento, OrdiniCliente.IdRigaDoc).in_(chiavi))
+    ).all() if chiavi else []
+    ordini_map = {(r.IdDocumento, r.IdRigaDoc): r for r in ordini}
+    ids_forni = {f.IdForno for f in bozza.forni}
+    nomi_forni = {f.IdForno: (f.DescrizioneForno or f.ModelloForno or f'Forno #{f.IdForno}')
+                  for f in db.session.scalars(db.select(AnagraficaForni).where(AnagraficaForni.IdForno.in_(ids_forni)))}
+    ids_impastatrici_miste = {m.IdImpastatrice for m in bozza.impastatrici if m.KgAssegnati and m.KgAssegnati > 0}
+    nomi_impastatrici = {
+        m.IdImpastatrice: (m.DescrizioneImpastatrice or m.ModelloImpastatrice or f'Impastatrice #{m.IdImpastatrice}')
+        for m in db.session.scalars(
+            db.select(AnagraficaImpastatrici).where(
+                AnagraficaImpastatrici.IdImpastatrice.in_(ids_impastatrici_miste)
+            )
+        )
+    } if ids_impastatrici_miste else {}
+    return render_template(
+        'ordini/_partials/_riepilogo_calendario_piano_misto.j2',
+        piano=piano, bozza=bozza, ordini=ordini,
+        ordini_map=ordini_map, nomi_forni=nomi_forni,
+        nomi_impastatrici=nomi_impastatrici,
+    )

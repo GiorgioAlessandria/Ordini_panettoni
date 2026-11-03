@@ -314,6 +314,9 @@
                                 data-bs-target="#modal-pianificazione">
                             Pianifica ordini selezionati
                         </button>
+                        <a class="btn btn-outline-secondary btn-sm flex-shrink-0"
+                           href="{{ url_for('ordini_cliente.anteprima_impasto_misto') }}"
+                           title="Simulazione, senza salvataggio di pianificazioni">Simula cotte miste</a>
                         <div id="riepilogo-ordini" class="ordini-sommario" aria-live="polite" aria-atomic="true">
                             <span class="text-muted">Nessun ordine selezionato</span>
                         </div>

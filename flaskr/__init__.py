@@ -19,6 +19,7 @@ from flaskr.routes_modules import (
     accessi_utenti,
     calendario,
     impostazioni,
+    lotto_pianificazione_routes,
     note_vendite,
     note_produzione,
     ordini,
