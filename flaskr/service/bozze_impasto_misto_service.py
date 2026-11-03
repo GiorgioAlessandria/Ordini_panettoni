@@ -12,6 +12,7 @@ from decimal import Decimal
 import re
 
 from flaskr.extensions import db
+from flaskr.service.lotto_pianificazione_service import riserva_e_assegna_lotto_bozza
 from flaskr.models.model_ordini import (
     AnagraficaImpastatrici, BozzaPianificazioneMista,
     BozzaPianificazioneMistaCotta, BozzaPianificazioneMistaForno,
@@ -33,7 +34,7 @@ def _d(v) -> Decimal:
 
 def salva_bozza(*, esito: dict, gruppo_id: int, data_inizio, blocco: str,
                 forno_articolo: dict[str, int], impastatrici_ids: list[int],
-                richiesta_id: str, operatore: str) -> int:
+                richiesta_id: str, operatore: str, progressivo_lotto: str | None = None) -> int:
     """Salva una simulazione GIÀ rivalidata dal server. Una sola commit atomica.
 
     Anche se il salvataggio è ripetuto con lo stesso UUID, restituisce la stessa
@@ -128,6 +129,12 @@ def salva_bozza(*, esito: dict, gruppo_id: int, data_inizio, blocco: str,
     )
     db.session.add(bozza)
     db.session.flush()
+    # Lotto assegnato già al primo salvataggio, con le stesse fasi effettive
+    # della simulazione e nella stessa transazione delle righe della bozza.
+    riserva_e_assegna_lotto_bozza(
+        id_bozza=bozza.IdBozza, fasi_impasto=esito["fasi_impasto"],
+        progressivo=progressivo_lotto, operatore=operatore,
+    )
     for o in ordini_salvabili:
         db.session.add(BozzaPianificazioneMistaOrdine(IdBozza=bozza.IdBozza, **o))
     for id_forno, dati in esito['risultati'].items():

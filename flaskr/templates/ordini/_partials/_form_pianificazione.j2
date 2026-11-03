@@ -77,6 +77,12 @@
                                            hx-target="#riepilogo-pianificazione" hx-swap="innerHTML"> Pomeriggio (13:00–18:00)</label>
                         </div>
                     </fieldset>
+                    <div id="lotto-trad-proposta" class="mb-3"
+                         hx-get="{{ url_for('ordini_cliente.proposta_lotto_pianificazione') }}?tipo=TRAD"
+                         hx-trigger="load, change from:#data-inizio-produzione, change from:input[name='blocco_inizio_produzione']"
+                         hx-include="#form-pianificazione" hx-swap="innerHTML">
+                      <div class="small text-secondary">Seleziona data e blocco per proporre il lotto.</div>
+                    </div>
                     <div id="avviso-consegna-ordini" class="mb-3" aria-live="polite"
                          hx-post="{{ url_for('ordini_cliente.avviso_consegna_pianificazione') }}"
                          hx-trigger="change from:#data-inizio-produzione, change from:input[name='blocco_inizio_produzione']"

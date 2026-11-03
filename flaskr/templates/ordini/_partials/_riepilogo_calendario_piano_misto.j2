@@ -4,9 +4,11 @@
 {% set note_vendite_map = note_vendite_per_righe(ordini, true) %}
 {% set note_produzione_map = note_produzione_per_righe(ordini, true) %}
 {% set commenti_etichette_map = commenti_etichette_per_righe(ordini, true) %}
+{% set lotto_calendario_misto = lotto_pianificazione('MISTA', bozza.IdBozza) %}
 <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
   <div>
     <span class="badge bg-primary">Pianificazione mista M-{{ bozza.IdBozza }}</span>
+    <div class="mt-2"><span class="small text-secondary fw-semibold">Lotto: </span><strong class="font-monospace fs-5">{{ lotto_calendario_misto or "Non assegnato" }}</strong></div>
     <h4 class="h5 mt-2 mb-1">Impasto condiviso · {{ bozza.ordini|length }} ordini</h4>
     <p class="text-secondary mb-0">{{ bozza.DataProduzione.strftime('%d/%m/%Y') }} · Blocco {{ bozza.BloccoIniziale }}</p>
   </div>

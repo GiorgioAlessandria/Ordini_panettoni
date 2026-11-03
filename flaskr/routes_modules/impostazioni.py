@@ -757,12 +757,16 @@ def anteprima_impasto_misto():
                     forno_articolo=assegnazione,
                     impastatrici_ids=[int(x) for x in mixers_form],
                     richiesta_id=richiesta_id, operatore=_operatore_bozza_mista(),
+                    progressivo_lotto=request.form.get('lotto_progressivo') or None,
                 )
                 flash(f'Bozza #{id_bozza} salvata. Non occupa risorse e non è una pianificazione attiva.', 'success')
                 return redirect(url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=id_bozza))
         except (ErroreAnteprimaMista, ErroreBozzaMista, ErroreCalcoloPianificazione, ValueError, KeyError) as exc:
             db.session.rollback()
             error = str(exc) or 'Controlla i dati della simulazione.'
+        except IntegrityError:
+            db.session.rollback()
+            error = 'Il lotto o un altro vincolo è già occupato. Aggiorna la proposta e riprova.'
         except Exception:
             db.session.rollback()
             current_app.logger.exception('Errore simulazione / salvataggio bozza impasto misto')

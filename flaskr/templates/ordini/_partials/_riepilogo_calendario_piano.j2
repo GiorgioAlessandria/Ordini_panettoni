@@ -3,8 +3,10 @@
 {% set note_vendite_map = note_vendite_per_righe(ordini_associati, true) %}
 {% set note_produzione_map = note_produzione_per_righe(ordini_associati, true) %}
 {% set commenti_etichette_map = commenti_etichette_per_righe(ordini_associati, true) %}
+{% set lotto_calendario = lotto_pianificazione('TRAD', piano.IdPianificazione) %}
 <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
-<div><span class="badge bg-primary">Produzione #{{ piano.IdPianificazione }}</span><h4 class="mt-2 mb-1">{{ descrizione }}</h4><p class="text-muted mb-0">{{ piano.CodArt }} · {{ piano.DataProduzione.strftime('%d/%m/%Y') }} · Blocco {{ piano.BloccoIniziale }}</p></div>
+<div><span class="badge bg-primary">Produzione #{{ piano.IdPianificazione }}</span>
+<div class="mt-2"><span class="small text-secondary fw-semibold">Lotto: </span><strong class="font-monospace fs-5">{{ lotto_calendario or 'Non assegnato' }}</strong></div><h4 class="mt-2 mb-1">{{ descrizione }}</h4><p class="text-muted mb-0">{{ piano.CodArt }} · {{ piano.DataProduzione.strftime('%d/%m/%Y') }} · Blocco {{ piano.BloccoIniziale }}</p></div>
 <div class="text-end"><div><strong>{{ piano.PanettoniPianificati }}</strong> pezzi da produrre</div><div><strong>{{ piano.NumeroCotte }}</strong> cotte</div><div><strong>{{ '%.2f'|format(piano.PesoTotale|float / 1000) }}</strong> kg impasto</div></div>
 </div>
 <div class="row g-2 mb-3"><div class="col-sm-4"><div class="border rounded p-2">Ordini impegnati <strong>{{ totale_assegnato }}</strong></div></div><div class="col-sm-4"><div class="border rounded p-2">Prelievo stock <strong>{{ totale_da_stock }}</strong></div></div><div class="col-sm-4"><div class="border rounded p-2">Macchine <strong>{{ macchine|length }}</strong></div></div></div>
