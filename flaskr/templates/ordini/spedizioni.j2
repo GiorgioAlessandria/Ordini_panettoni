@@ -30,21 +30,25 @@
   {% endmacro %}
   <section id="da-spedire" class="bg-white border rounded-3 shadow-sm p-3 mb-4">
     <h2 class="h5">1. Da spedire</h2>
-    <p class="text-secondary small">Seleziona una o più righe dello stesso cliente. Le spedizioni parziali non sono previste in questa versione.</p>
+    <p class="text-secondary small">Seleziona una o più righe dello stesso cliente. Le spedizioni parziali non sono previste. Le righe senza quantità effettiva verificata sono visibili ma non selezionabili.</p>
     <form action="{{ url_for('ordini_cliente.spedizioni_prepara') }}" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
       <div class="table-responsive" style="max-height: 52vh; overflow-y:auto;">
         <table class="table table-striped table-hover table-sm align-middle">
-          <thead class="table-light" style="position: sticky;top:0;"><tr><th scope="col">Seleziona</th><th scope="col">Ordine</th><th scope="col">Cliente</th><th scope="col">Articolo</th><th scope="col">Descrizione</th><th scope="col" class="text-end">Pezzi effettivi da spedire</th><th scope="col" class="text-end">Pezzi pronti verificati</th><th scope="col">Lotto/i</th><th scope="col">Consegna</th><th scope="col">Commenti vendite (lettura)</th><th scope="col">Commenti produzione (lettura)</th></tr></thead>
+          <thead class="table-light" style="position: sticky;top:0;"><tr><th scope="col">Seleziona</th><th scope="col">Ordine</th><th scope="col">Cliente</th><th scope="col">Articolo</th><th scope="col">Descrizione</th><th scope="col" class="text-end">Pezzi da spedire</th><th scope="col" class="text-end">Pezzi assegnati</th><th scope="col">Lotto/i</th><th scope="col">Consegna</th><th scope="col">Commenti vendite (lettura)</th><th scope="col">Commenti produzione (lettura)</th></tr></thead>
           <tbody>
           {% for ordine in ordini_disponibili %}
             <tr>
-              <td><input type="checkbox" class="form-check-input" name="ordini" value="{{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}" aria-label="Seleziona ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}"></td>
+              <td>{% if ordine.ConsuntivoMancante %}
+              <span class="badge text-bg-warning">Da verificare</span>
+              {% else %}
+              <input type="checkbox" class="form-check-input" name="ordini" value="{{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}" aria-label="Seleziona ordine {{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}">
+              {% endif %}</td>
               <td class="text-nowrap fw-semibold">{{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}</td>
               <td>{{ ordine.Cliente.RagioneSociale if ordine.Cliente else ordine.CodCliFor }}</td>
               <td>{{ ordine.CodArt }}</td><td>{{ ordine.DesArt }}</td>
-              <td class="text-end">{{ ordine.QtaAssegnataSpedizione }}</td>
-              <td class="text-end">{{ ordine.QtaAssegnataSpedizione }}</td>
+              <td class="text-end">{{ ordine.QtaAssegnataSpedizione if not ordine.ConsuntivoMancante else "—" }}</td>
+              <td class="text-end">{{ ordine.QtaAssegnataSpedizione if not ordine.ConsuntivoMancante else "Da verificare" }}</td>
               <td>{{ ordine.LottiSpedizione | join(', ') if ordine.LottiSpedizione else '—' }}</td>
               <td>{{ ordine.DataConsegna.strftime('%d-%m-%Y') if ordine.DataConsegna else '—' }}</td>
               <td>{{ commenti_sola_lettura(note_vendite.get((ordine.IdDocumento, ordine.IdRigaDoc), [])) }}</td>

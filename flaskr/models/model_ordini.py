@@ -268,15 +268,9 @@ class PianificazioneOrdini(db.Model):
     QtaDaStock: Mapped[int] = mapped_column(server_default="0", nullable=False)
     Stato: Mapped[str] = mapped_column(server_default="In produzione")
     DataChiusura: Mapped[datetime | None]
+    # Le associazioni di produzione sono storico indipendente dal feed ERP:
+    # la riga ordine puo' essere eliminata dal sync senza perdere la pianificazione.
     __table_args__ = (
-        ForeignKeyConstraint(
-            ["IdDocumento", "IdRiga"],
-            [
-                "ordini_cliente_aperti.IdDocumento",
-                "ordini_cliente_aperti.IdRigaDoc",
-            ],
-            name="fk_pianificazione_ordini_ordine",
-        ),
         CheckConstraint("QtaPianificata > 0", name="ck_qta_pianificata_positiva"),
         CheckConstraint("QtaDaStock >= 0 AND QtaDaStock <= QtaPianificata", name="ck_qta_da_stock_valida"),
         CheckConstraint(

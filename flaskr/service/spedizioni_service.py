@@ -1,25 +1,21 @@
-"""Gestione locale spedizioni di righe ERP interamente prodotte.
+"""Gestione logistica su snapshot locali, indipendenti dal feed ERP.
 
-Non scrive mai su ordini_cliente_aperti o StatoRigaOrdine. Non registra
-spedizioni parziali: una riga completa puo' partire una sola volta.
+Gli ordini Chiuso restano disponibili quando l'ERP li elimina. Solo la
+conferma della PARTENZA li toglie dai pronti; la testata rimane nello storico.
+Le spedizioni sono complete per riga ordine e contengono un unico cliente.
 """
 from __future__ import annotations
 
-from collections import defaultdict
 from datetime import date, datetime, timedelta
+from types import SimpleNamespace
 
-from sqlalchemy import text, tuple_, and_
+from sqlalchemy import text, tuple_
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import selectinload
 
 from flaskr.extensions import db
-from flaskr.models.model_ordini import (
-    OrdiniCliente, StatoRigaOrdine, PianificazioneOrdini, PianificazioneProduzione,
-    PianificazioneMistaAttiva, BozzaPianificazioneMistaOrdine,
-    Spedizione, SpedizioneOrdine,
-)
-from flaskr.models.model_lotto import LottoPianificazione
-from flaskr.models.model_consuntivi import ConsuntivoProduzioneOrdine
+from flaskr.models.model_ordini import Spedizione, SpedizioneOrdine
+from flaskr.models.model_spedizioni_snapshot import OrdineProntoSpedizione
 
 
 class ErroreSpedizione(ValueError):
@@ -27,145 +23,68 @@ class ErroreSpedizione(ValueError):
 
 
 def _transazione_esclusiva():
-    """Serializza i POST SQLite, come le conferme delle pianificazioni miste."""
+    """Serializza le conferme rispetto al sync SQLite."""
     if db.engine.dialect.name != "sqlite":
         raise ErroreSpedizione("Servizio disponibile solamente con SQLite")
-    db.session.rollback()  # Elimina una eventuale transazione di sola lettura.
+    db.session.rollback()
     db.session.execute(text("BEGIN IMMEDIATE"))
-
-
-def _quantita_chiusa(chiavi: list[tuple[int, int]]) -> dict[tuple[int, int], int]:
-    """Somma pezzi effettivi per ordine, NON quelli pianificati.
-
-    TRAD: aggiunge pezzi già prelevati da Stock (QtaDaStock) al prodotto
-    dichiarato; non sono pezzi prodotti nuovamente ma sono disponibili.
-    Piani storici senza consuntivo esplicito NON diventano prodotti per stima.
-    """
-    quantita = defaultdict(int)
-    for start in range(0, len(chiavi), 200):
-        blocco = chiavi[start:start + 200]
-        if not blocco:
-            continue
-        for doc, riga, prodotto, da_stock in db.session.execute(
-            db.select(ConsuntivoProduzioneOrdine.IdDocumento,
-                      ConsuntivoProduzioneOrdine.IdRigaDoc,
-                      ConsuntivoProduzioneOrdine.QtaProdotta,
-                      PianificazioneOrdini.QtaDaStock)
-            .join(PianificazioneOrdini, and_(
-                  PianificazioneOrdini.IdPianificazione == ConsuntivoProduzioneOrdine.IdPiano,
-                  PianificazioneOrdini.IdDocumento == ConsuntivoProduzioneOrdine.IdDocumento,
-                  PianificazioneOrdini.IdRiga == ConsuntivoProduzioneOrdine.IdRigaDoc))
-            .join(PianificazioneProduzione,
-                  PianificazioneProduzione.IdPianificazione == PianificazioneOrdini.IdPianificazione)
-            .where(ConsuntivoProduzioneOrdine.TipoPiano == "TRAD",
-                   tuple_(ConsuntivoProduzioneOrdine.IdDocumento,
-                          ConsuntivoProduzioneOrdine.IdRigaDoc).in_(blocco),
-                   PianificazioneOrdini.Stato == "Chiuso",
-                   PianificazioneProduzione.StatoRigaOrdine == "Chiuso")
-        ):
-            quantita[(doc, riga)] += int(prodotto) + int(da_stock or 0)
-        for doc, riga, prodotto in db.session.execute(
-            db.select(ConsuntivoProduzioneOrdine.IdDocumento,
-                      ConsuntivoProduzioneOrdine.IdRigaDoc,
-                      ConsuntivoProduzioneOrdine.QtaProdotta)
-            .join(BozzaPianificazioneMistaOrdine, and_(
-                  BozzaPianificazioneMistaOrdine.IdBozza == ConsuntivoProduzioneOrdine.IdPiano,
-                  BozzaPianificazioneMistaOrdine.IdDocumento == ConsuntivoProduzioneOrdine.IdDocumento,
-                  BozzaPianificazioneMistaOrdine.IdRigaDoc == ConsuntivoProduzioneOrdine.IdRigaDoc))
-            .join(PianificazioneMistaAttiva,
-                  PianificazioneMistaAttiva.IdBozza == BozzaPianificazioneMistaOrdine.IdBozza)
-            .where(ConsuntivoProduzioneOrdine.TipoPiano == "MISTA",
-                   tuple_(ConsuntivoProduzioneOrdine.IdDocumento,
-                          ConsuntivoProduzioneOrdine.IdRigaDoc).in_(blocco),
-                   PianificazioneMistaAttiva.Stato == "Chiuso")
-        ):
-            quantita[(doc, riga)] += int(prodotto)
-    return dict(quantita)
-
-
-def _lotti_chiusi(chiavi: list[tuple[int, int]]) -> dict[tuple[int, int], list[str]]:
-    """Tutti i lotti correnti delle pianificazioni chiuse, miste e tradizionali.
-
-    Un ordine può essere stato completato in più pianificazioni distinte.
-    """
-    risultato: dict[tuple[int, int], set[str]] = defaultdict(set)
-    for start in range(0, len(chiavi), 200):
-        blocco = chiavi[start:start + 200]
-        if not blocco:
-            continue
-        for doc, riga, lotto in db.session.execute(
-            db.select(PianificazioneOrdini.IdDocumento, PianificazioneOrdini.IdRiga,
-                      LottoPianificazione.Lotto)
-            .join(PianificazioneProduzione,
-                  PianificazioneProduzione.IdPianificazione == PianificazioneOrdini.IdPianificazione)
-            .join(LottoPianificazione, and_(LottoPianificazione.TipoOwner == "TRAD",
-                   LottoPianificazione.IdOwner == PianificazioneOrdini.IdPianificazione,
-                   LottoPianificazione.Corrente.is_(True)))
-            .where(tuple_(PianificazioneOrdini.IdDocumento, PianificazioneOrdini.IdRiga).in_(blocco),
-                   PianificazioneOrdini.Stato == "Chiuso",
-                   PianificazioneProduzione.StatoRigaOrdine == "Chiuso")
-        ):
-            risultato[(doc, riga)].add(lotto)
-        for doc, riga, lotto in db.session.execute(
-            db.select(BozzaPianificazioneMistaOrdine.IdDocumento,
-                      BozzaPianificazioneMistaOrdine.IdRigaDoc,
-                      LottoPianificazione.Lotto)
-            .join(PianificazioneMistaAttiva,
-                  PianificazioneMistaAttiva.IdBozza == BozzaPianificazioneMistaOrdine.IdBozza)
-            .join(LottoPianificazione, and_(LottoPianificazione.TipoOwner == "MISTA",
-                  LottoPianificazione.IdOwner == BozzaPianificazioneMistaOrdine.IdBozza,
-                  LottoPianificazione.Corrente.is_(True)))
-            .where(tuple_(BozzaPianificazioneMistaOrdine.IdDocumento,
-                          BozzaPianificazioneMistaOrdine.IdRigaDoc).in_(blocco),
-                   PianificazioneMistaAttiva.Stato == "Chiuso")
-        ):
-            risultato[(doc, riga)].add(lotto)
-    return {chiave: sorted(lotti) for chiave, lotti in risultato.items()}
 
 
 def _chiavi_prenotate() -> set[tuple[int, int]]:
     return set(db.session.execute(
         db.select(SpedizioneOrdine.IdDocumento, SpedizioneOrdine.IdRigaDoc)
         .join(Spedizione, Spedizione.IdSpedizione == SpedizioneOrdine.IdSpedizione)
-        .where(Spedizione.Stato.in_(("Preparata", "Spedita")), SpedizioneOrdine.Attiva.is_(True))
+        .where(Spedizione.Stato.in_(("Preparata", "Spedita")),
+               SpedizioneOrdine.Attiva.is_(True))
     ).all())
 
 
-def _ordini(chiavi=None):
-    stmt = db.select(OrdiniCliente).options(joinedload(OrdiniCliente.Cliente),
-                                               joinedload(OrdiniCliente.stato))
+def _ordini(chiavi: list[tuple[int, int]] | None = None):
+    """Dati di sola lettura del registro; non cerca ordini_cliente_aperti."""
+    stmt = db.select(OrdineProntoSpedizione)
     if chiavi is not None:
-        stmt = stmt.where(tuple_(OrdiniCliente.IdDocumento, OrdiniCliente.IdRigaDoc).in_(chiavi))
-    stmt = stmt.order_by(OrdiniCliente.DataConsegna,
-                         OrdiniCliente.CodCliFor,
-                         OrdiniCliente.IdDocumento, OrdiniCliente.IdRigaDoc)
+        if not chiavi:
+            return []
+        stmt = stmt.where(tuple_(OrdineProntoSpedizione.IdDocumento,
+                                 OrdineProntoSpedizione.IdRigaDoc).in_(chiavi))
+    stmt = stmt.order_by(OrdineProntoSpedizione.DataConsegna,
+                         OrdineProntoSpedizione.CodCliFor,
+                         OrdineProntoSpedizione.IdDocumento,
+                         OrdineProntoSpedizione.IdRigaDoc)
     return db.session.scalars(stmt).all()
 
 
-def _disponibili(ordini):
-    chiavi = [(o.IdDocumento, o.IdRigaDoc) for o in ordini]
-    prodotti = _quantita_chiusa(chiavi)
+def _presentazione(s: OrdineProntoSpedizione):
+    """Mantiene il contratto del template e dei commenti in sola lettura."""
+    return SimpleNamespace(
+        IdDocumento=s.IdDocumento, IdRigaDoc=s.IdRigaDoc,
+        CodCliFor=s.CodCliFor,
+        Cliente=SimpleNamespace(RagioneSociale=s.ClienteSnapshot),
+        CodArt=s.CodArt, DesArt=s.DesArt, DataConsegna=s.DataConsegna,
+        QTA_SALDO_DOC=s.QtaSaldoERPSnapshot,
+        QtaAssegnataSpedizione=int(s.QtaAssegnataSpedizione),
+        LottiSpedizione=s.LottiSnapshot.split(", ") if s.LottiSnapshot else [],
+        PresenteERP=bool(s.PresenteERP),
+        ConsuntivoMancante=int(s.QtaAssegnataSpedizione) <= 0,
+    )
+
+
+def _disponibili(ordini, *, includi_da_verificare: bool = False):
     prenotati = _chiavi_prenotate()
-    lotti = _lotti_chiusi(chiavi)
-    disponibili = []
-    for o in ordini:
-        chiave = (o.IdDocumento, o.IdRigaDoc)
-        # Lo stato esistente Chiuso è obbligatorio, non introdurre Prodotto.
-        if o.stato is None or o.stato.Stato != "Chiuso":
+    risposta = []
+    for s in ordini:
+        key = (s.IdDocumento, s.IdRigaDoc)
+        if key in prenotati or not s.ConfermatoChiuso:
             continue
-        if (chiave in prenotati or int(o.QTA_SALDO_DOC or 0) <= 0
-                or prodotti.get(chiave, 0) <= 0):
+        if not includi_da_verificare and int(s.QtaAssegnataSpedizione) <= 0:
             continue
-        # Solo attributi di visualizzazione; le tabelle ERP restano immutate.
-        o.QtaAssegnataSpedizione = prodotti[chiave]
-        o.LottiSpedizione = lotti.get(chiave, [])
-        disponibili.append(o)
-    return disponibili
+        risposta.append(_presentazione(s))
+    return risposta
 
 
 def ordini_disponibili_spedizione():
-    """Solo righe interamente prodotte e non gia' preparate/spedite."""
-    return _disponibili(_ordini())
+    """Include i CHIUSO privi di consuntivo, visibili ma NON selezionabili."""
+    return _disponibili(_ordini(), includi_da_verificare=True)
 
 
 def elenco_spedizioni():
@@ -202,19 +121,20 @@ def prepara_spedizione(ids: list[str], data_prevista: date | None,
         raise ErroreSpedizione("Le note non possono superare 600 caratteri")
     try:
         _transazione_esclusiva()
-        ordini = _ordini(chiavi)
-        if len(ordini) != len(chiavi):
-            raise ErroreSpedizione("Uno o piu' ordini non sono piu' disponibili nel feed ERP")
-        validi = {(o.IdDocumento, o.IdRigaDoc): o for o in _disponibili(ordini)}
+        righe = _ordini(chiavi)
+        if len(righe) != len(chiavi):
+            raise ErroreSpedizione("Uno o piu' ordini non risultano nel registro logistico")
+        validi = {(o.IdDocumento, o.IdRigaDoc): o
+                  for o in _disponibili(righe)}
         if set(chiavi) != set(validi):
-            raise ErroreSpedizione("Una o piu' righe non sono prodotte oppure sono gia' assegnate a spedizione")
-        codici_clienti = {o.CodCliFor for o in ordini}
+            raise ErroreSpedizione("Ordine non Chiuso, gia' prenotato o senza consuntivo verificato")
+        codici_clienti = {o.CodCliFor for o in validi.values()}
         if len(codici_clienti) != 1:
-            raise ErroreSpedizione("Una spedizione puo' contenere soltanto ordini dello stesso cliente")
-        primo = ordini[0]
+            raise ErroreSpedizione("Una spedizione puo' contenere solo ordini dello stesso cliente")
+        primo = next(iter(validi.values()))
         spedizione = Spedizione(
             CodCliFor=primo.CodCliFor,
-            ClienteSnapshot=primo.Cliente.RagioneSociale if primo.Cliente else str(primo.CodCliFor),
+            ClienteSnapshot=primo.Cliente.RagioneSociale,
             Stato="Preparata", DataPrevista=data_prevista, DataPartenza=None,
             DataCreazione=datetime.now(), OperatoreCreazione=operatore,
             OperatorePartenza=None, OperatoreAnnullamento=None, DataAnnullamento=None,
@@ -226,25 +146,28 @@ def prepara_spedizione(ids: list[str], data_prevista: date | None,
             o = validi[(doc, riga)]
             spedizione.righe.append(SpedizioneOrdine(
                 IdDocumento=doc, IdRigaDoc=riga, CodArtSnapshot=o.CodArt,
-                DesArtSnapshot=o.DesArt or o.CodArt, Quantita=int(o.QtaAssegnataSpedizione),
+                DesArtSnapshot=o.DesArt or o.CodArt,
+                Quantita=o.QtaAssegnataSpedizione,
                 QtaAssegnata=o.QtaAssegnataSpedizione,
-                LottiSnapshot=", ".join(o.LottiSpedizione) or None, Attiva=True))
+                LottiSnapshot=", ".join(o.LottiSpedizione) or None,
+                Attiva=True,
+            ))
         db.session.flush()
-        id_spedizione = spedizione.IdSpedizione
+        risultato = spedizione.IdSpedizione
         db.session.commit()
-        return id_spedizione
+        return risultato
     except (ErroreSpedizione, SQLAlchemyError) as exc:
         db.session.rollback()
         if isinstance(exc, ErroreSpedizione):
             raise
-        raise ErroreSpedizione("Impossibile preparare la spedizione: verificare disponibilita' e duplicati") from exc
+        raise ErroreSpedizione("Impossibile preparare la spedizione: verifica duplicati e disponibilita'") from exc
 
 
 def conferma_partenza(id_spedizione: int, partenza: datetime, operatore: str) -> None:
     if partenza.tzinfo is not None:
-        raise ErroreSpedizione("La data di partenza deve essere espressa nell’ora locale, senza fuso orario")
+        raise ErroreSpedizione("La data di partenza deve essere nell'ora locale")
     if partenza > datetime.now() + timedelta(minutes=5):
-        raise ErroreSpedizione("La data di partenza non puo' essere futura")
+        raise ErroreSpedizione("La partenza non puo' essere futura")
     try:
         _transazione_esclusiva()
         s = db.session.scalar(db.select(Spedizione)
@@ -253,21 +176,21 @@ def conferma_partenza(id_spedizione: int, partenza: datetime, operatore: str) ->
         if s is None or s.Stato != "Preparata" or not s.righe:
             raise ErroreSpedizione("Spedizione inesistente o gia' confermata/annullata")
         if partenza < s.DataCreazione:
-            raise ErroreSpedizione("La partenza non può precedere la preparazione della spedizione")
+            raise ErroreSpedizione("La partenza non puo' precedere la preparazione")
         chiavi = [(r.IdDocumento, r.IdRigaDoc) for r in s.righe]
-        ordini = {(o.IdDocumento, o.IdRigaDoc): o for o in _ordini(chiavi)}
-        if len(ordini) != len(chiavi):
-            raise ErroreSpedizione("Il feed ERP e' cambiato: almeno una riga non e' piu' presente")
-        chiuse = _quantita_chiusa(chiavi)
-        for r in s.righe:
-            chiave = (r.IdDocumento, r.IdRigaDoc)
-            o = ordini[chiave]
-            if (not r.Attiva or o.stato is None or o.stato.Stato != "Chiuso"
-                    or o.CodCliFor != s.CodCliFor or o.CodArt != r.CodArtSnapshot
-                    or int(o.QTA_SALDO_DOC or 0) <= 0
-                    or chiuse.get(chiave, 0) != r.Quantita):
+        pronti = {(x.IdDocumento, x.IdRigaDoc): x for x in _ordini(chiavi)}
+        if len(pronti) != len(chiavi):
+            raise ErroreSpedizione("Mancano righe nel registro logistico")
+        for riga in s.righe:
+            key = (riga.IdDocumento, riga.IdRigaDoc)
+            snap = pronti[key]
+            if (not riga.Attiva or not snap.ConfermatoChiuso or
+                    snap.CodCliFor != s.CodCliFor or
+                    snap.CodArt != riga.CodArtSnapshot or
+                    int(snap.QtaAssegnataSpedizione) != riga.Quantita or
+                    riga.Quantita <= 0):
                 raise ErroreSpedizione(
-                    f"Ordine {r.IdDocumento}-{r.IdRigaDoc} modificato o non completamente prodotto")
+                    f"Ordine {riga.IdDocumento}-{riga.IdRigaDoc}: dati logistici cambiati")
         s.Stato = "Spedita"
         s.DataPartenza = partenza
         s.OperatorePartenza = operatore
@@ -280,7 +203,7 @@ def conferma_partenza(id_spedizione: int, partenza: datetime, operatore: str) ->
 
 
 def annulla_preparazione(id_spedizione: int, operatore: str):
-    """Libera gli ordini dalla bozza, conservando la testata annullata per audit."""
+    """Rende di nuovo disponibile la riga; conserva la testata annullata."""
     try:
         _transazione_esclusiva()
         s = db.session.scalar(db.select(Spedizione)
@@ -292,7 +215,7 @@ def annulla_preparazione(id_spedizione: int, operatore: str):
         s.OperatoreAnnullamento = operatore
         s.DataAnnullamento = datetime.now()
         for riga in s.righe:
-            riga.Attiva = False  # libera il vincolo parziale; storico righe conservato.
+            riga.Attiva = False
         db.session.commit()
     except (ErroreSpedizione, SQLAlchemyError) as exc:
         db.session.rollback()
