@@ -114,9 +114,25 @@
   <div class="col-lg-6">
     <section class="card h-100"><div class="card-body">
       <h2 class="h5">Conferma completamento</h2>
-      <p>Chiude questa pianificazione e tutte le sue righe. Le quantità già impegnate restano contabilizzate; il surplus non viene accreditato nuovamente.</p>
-      <form method="post" action="{{ url_for('ordini_cliente.conferma_chiusura_pianificazione', IdPianificazione=piano.IdPianificazione) }}" onsubmit="return confirm('Confermare la chiusura definitiva della pianificazione #{{ piano.IdPianificazione }}?')">
-        <button class="btn btn-success" type="submit">Conferma chiusura</button>
+      <p class="small text-secondary">Indica i pezzi effettivamente destinati a ogni ordine. Seconda scelta e magazzino sono quantità aggiuntive, non sottratte dagli ordini. Nessun limite rispetto al pianificato.</p>
+      <form method="post" action="{{ url_for('ordini_cliente.conferma_chiusura_pianificazione', IdPianificazione=piano.IdPianificazione) }}" onsubmit="return confirm('Confermare consuntivo e chiusura definitiva della pianificazione #{{ piano.IdPianificazione }}?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
+        {% for a, o in associazioni %}
+        <div class="row align-items-center g-2 mb-2">
+          <label class="col-sm-7 col-form-label" for="qprod-{{ a.IdDocumento }}-{{ a.IdRiga }}">Ordine {{ a.IdDocumento }}-{{ a.IdRiga }} · pianificati {{ a.QtaPianificata }} (da stock {{ a.QtaDaStock or 0 }})</label>
+          <div class="col-sm-5"><input id="qprod-{{ a.IdDocumento }}-{{ a.IdRiga }}" class="form-control" type="number" name="prodotta_{{ a.IdDocumento }}_{{ a.IdRiga }}" value="{{ a.QtaPianificata - (a.QtaDaStock or 0) }}" min="0" step="1" required></div>
+        </div>
+        {% endfor %}
+        <div class="row g-2 mb-3">
+          <div class="col-sm-6"><label class="form-label">Seconda scelta · {{ piano.CodArt }}</label><input class="form-control" type="number" name="seconda_{{ piano.CodArt }}" value="0" min="0" step="1" required></div>
+          <div class="col-sm-6"><label class="form-label">Prima scelta a magazzino · {{ piano.CodArt }}</label><input class="form-control" type="number" name="magazzino_{{ piano.CodArt }}" value="0" min="0" step="1" required></div>
+        </div>
+        {% if piano.QtaStockGenerata is none %}
+          <div class="alert alert-warning small">Surplus storico non riconciliato: verificare lo stock prima della chiusura.</div>
+        {% elif piano.QtaStockGenerata > 0 %}
+          <div class="alert alert-info small">Questo piano ha già {{ piano.QtaStockGenerata }} pezzi anticipati a stock. Alla chiusura la giacenza sarà riconciliata con la quantità fisica dichiarata; se lo storno non è possibile, la chiusura verrà bloccata.</div>
+        {% endif %}
+        <button class="btn btn-success" type="submit" {% if piano.QtaStockGenerata is none %}disabled{% endif %}>Registra consuntivo e chiudi</button>
       </form>
     </div></section>
   </div>
@@ -166,6 +182,16 @@
 </div>
 {% else %}
 <div class="alert alert-info">Questa pianificazione non è più in produzione: non è possibile eseguire nuovamente chiusura o annullamento.</div>
+{% endif %}
+{% if piano.StatoRigaOrdine == 'Chiuso' and consuntivo_ordini %}
+<section class="card my-4"><div class="card-body">
+  <h2 class="h5">Consuntivo effettivo</h2>
+  {% for a, o in associazioni %}{% set cons = consuntivo_ordini.get((a.IdDocumento, a.IdRiga)) %}
+  <div class="small border-bottom py-1">Ordine {{ a.IdDocumento }}-{{ a.IdRiga }} · pianificati {{ a.QtaPianificata }} · prodotti per ordine <strong>{{ cons.QtaProdotta if cons else '—' }}</strong></div>
+  {% endfor %}
+  {% set ca = consuntivo_articoli.get(piano.CodArt) %}
+  {% if ca %}<p class="mt-3 mb-0">Articolo {{ piano.CodArt }} · Seconda scelta <strong>{{ ca.QtaSecondaScelta }}</strong> · Magazzino prima scelta <strong>{{ ca.QtaMagazzino }}</strong></p>{% endif %}
+</div></section>
 {% endif %}
 {% if storico_spostamenti %}
 <section class="mt-4">

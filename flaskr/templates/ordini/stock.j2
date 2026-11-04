@@ -3,7 +3,7 @@
 {% block content %}
 <div class="pan-page pan-stock-page">
 
-  <div class="alert alert-warning small">Le quantità includono anche i surplus accreditati quando si conferma una pianificazione, prima della produzione fisica. Non equivalgono necessariamente a disponibilità fisicamente verificata.</div>
+  <div class="alert alert-warning small">La prima scelta comprende gli accrediti da consuntivi e gli eventuali surplus delle pianificazioni storiche già accreditati prima della chiusura. La seconda scelta è registrata separatamente. Per i piani storici verificare la riconciliazione dei movimenti.</div>
   <section class="pan-panel pan-panel-body pan-data-slot" id="stock-tabella" hx-get="{{ url_for('ordini_cliente.stock_articoli_tabella') }}" hx-trigger="load, every 30s, pianificazioneSalvata from:body, stockAggiornato from:body" hx-swap="innerHTML"><p>Caricamento stock...</p></section>
 </div>
 {% endblock %}

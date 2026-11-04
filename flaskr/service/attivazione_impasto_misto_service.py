@@ -18,6 +18,7 @@ from sqlalchemy import delete, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from flaskr.extensions import db
+from flaskr.service.consuntivi_service import registra_consuntivo, ErroreConsuntivo
 from flaskr.models.model_ordini import (
     BozzaPianificazioneMista, BozzaPianificazioneMistaOrdine,
     LogOperazioni, OrdiniCliente, PianificazioneMistaAttiva,
@@ -255,13 +256,19 @@ def conferma_bozza(id_bozza: int, operatore: str, *, include_cnf: bool = False,
         ) from exc
 
 
-def chiudi_piano_misto(id_bozza: int, operatore: str) -> None:
-    """Completa gli ordini assegnati; nessuna operazione stock (surplus nullo)."""
+def chiudi_piano_misto(id_bozza: int, operatore: str, prodotte: dict, articoli: dict) -> None:
+    """Chiude con consuntivo per CodArt e per riga ordine, senza surplus stimato."""
     try:
         _transazione_sqlite_immediata()
         piano = db.session.get(PianificazioneMistaAttiva, id_bozza)
         if piano is None or piano.Stato != 'In produzione':
             raise ErroreAttivazioneMista('Pianificazione mista non attiva.')
+        registra_consuntivo(
+            "MISTA", id_bozza,
+            [(r.IdDocumento, r.IdRigaDoc, r.CodArt, int(r.QtaPianificata))
+             for r in piano.bozza.ordini],
+            prodotte, articoli, operatore,
+        )
         adesso = datetime.now()
         piano.Stato = 'Chiuso'
         piano.ChiusaIl = adesso
@@ -272,7 +279,7 @@ def chiudi_piano_misto(id_bozza: int, operatore: str) -> None:
         _log(piano.bozza, operatore, 'Chiuso', adesso)
         # Come per i piani storici, prenotazioni conservate nello storico.
         db.session.commit()
-    except ErroreAttivazioneMista:
+    except (ErroreAttivazioneMista, ErroreConsuntivo):
         db.session.rollback()
         raise
     except SQLAlchemyError as exc:

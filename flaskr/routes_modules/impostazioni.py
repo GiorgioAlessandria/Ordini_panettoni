@@ -826,6 +826,20 @@ def dettaglio_bozza_impasto_misto(id_bozza: int):
         'ordini/dettaglio_bozza_impasto_misto.j2',
         bozza=bozza, forni=forni,
         piano_misto=db.session.get(PianificazioneMistaAttiva, id_bozza),
+        consuntivo_ordini={
+            (c.IdDocumento, c.IdRigaDoc): c for c in db.session.scalars(
+                db.select(ConsuntivoProduzioneOrdine).where(
+                    ConsuntivoProduzioneOrdine.TipoPiano == "MISTA",
+                    ConsuntivoProduzioneOrdine.IdPiano == id_bozza,
+                )).all()
+        },
+        consuntivo_articoli={
+            c.CodArt: c for c in db.session.scalars(
+                db.select(ConsuntivoProduzioneArticolo).where(
+                    ConsuntivoProduzioneArticolo.TipoPiano == "MISTA",
+                    ConsuntivoProduzioneArticolo.IdPiano == id_bozza,
+                )).all()
+        },
         conferma_abilitata=bool(current_app.config.get('ABILITA_CONFERMA_PIANI_MISTI', False)),
         csrf_token=_csrf_token(),
     )
@@ -861,6 +875,8 @@ from flaskr.models.model_ordini import PianificazioneMistaAttiva
 from flaskr.service.attivazione_impasto_misto_service import (
     ErroreAttivazioneMista, conferma_bozza, chiudi_piano_misto, annulla_piano_misto,
 )
+from flaskr.service.consuntivi_service import leggi_form_consuntivo, ErroreConsuntivo
+from flaskr.models.model_consuntivi import ConsuntivoProduzioneOrdine, ConsuntivoProduzioneArticolo
 
 
 @bp_ordini_cliente.post('/pianificazione/impasto-misto/bozze/<int:id_bozza>/conferma',
@@ -893,11 +909,18 @@ def conferma_piano_misto(id_bozza: int):
 def chiudi_piano_misto_route(id_bozza: int):
     _verifica_csrf()
     try:
-        chiudi_piano_misto(id_bozza, _operatore_bozza_mista())
-    except ErroreAttivazioneMista as exc:
+        bozza = db.session.get(BozzaPianificazioneMista, id_bozza)
+        if bozza is None:
+            abort(404)
+        prodotte, articoli = leggi_form_consuntivo(request.form, [
+            (r.IdDocumento, r.IdRigaDoc, r.CodArt, int(r.QtaPianificata))
+            for r in bozza.ordini
+        ])
+        chiudi_piano_misto(id_bozza, _operatore_bozza_mista(), prodotte, articoli)
+    except (ErroreAttivazioneMista, ErroreConsuntivo) as exc:
         flash(str(exc), 'danger')
     else:
-        flash('Pianificazione mista chiusa. Non è stato movimentato stock.', 'success')
+        flash('Pianificazione mista chiusa. Consuntivi e stock aggiornati.', 'success')
     return redirect(url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=id_bozza))
 
 

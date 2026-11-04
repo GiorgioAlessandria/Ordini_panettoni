@@ -9,6 +9,8 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import joinedload
 
 from flaskr.extensions import db
+from flaskr.service.consuntivi_service import leggi_form_consuntivo, ErroreConsuntivo
+from flaskr.models.model_consuntivi import ConsuntivoProduzioneOrdine, ConsuntivoProduzioneArticolo, GiacenzaSecondaScelta
 from flaskr.service.lotto_pianificazione_service import (
     ErroreLotto, assegna_lotto, prima_data_impasto_fasi,
 )
@@ -98,7 +100,22 @@ def stock_articoli_tabella():
         .outerjoin(AnagraficaArticoli, Stock.CodArt == AnagraficaArticoli.CodArt)
         .order_by(Stock.CodArt)
     ).all()
-    return render_template("ordini/_partials/_stock_tabella.j2", righe=righe)
+    seconde = {
+        cod: qta for cod, qta in db.session.execute(
+            db.select(GiacenzaSecondaScelta.CodArt, GiacenzaSecondaScelta.Quantita)
+        )
+    }
+    righe_stock = [dict(CodArt=r.CodArt, Quantita=int(r.Quantita or 0),
+                        DesArt=r.DesArt) for r in righe]
+    codici_prima = {r["CodArt"] for r in righe_stock}
+    # Mostra anche articoli presenti SOLO nella seconda scelta.
+    for cod in sorted(set(seconde) - codici_prima):
+        articolo = db.session.get(AnagraficaArticoli, cod)
+        righe_stock.append(dict(CodArt=cod, Quantita=0,
+                                DesArt=articolo.DesArt if articolo else None))
+    righe_stock.sort(key=lambda r: r["CodArt"])
+    return render_template("ordini/_partials/_stock_tabella.j2",
+                           righe=righe_stock, seconde=seconde)
 
 
 @bp_ordini_cliente.route("/tabella_ordini_da_produrre")
@@ -632,7 +649,7 @@ def conferma_pianificazione():
             IdForno=forno.IdForno,
             TipologiaPanettone=risultato["tipologia_panettone"],
             StatoRigaOrdine="In produzione",  # Stato generale del programma.
-            QtaStockGenerata=panettoni_surplus if ottimizza_infornate else 0,
+            QtaStockGenerata=0,  # stock fisico solo alla chiusura
             PesoTotale=peso_totale_pianificato,
             NumeroCotte=numero_cotte,
             PanettoniPianificati=panettoni_infornata,
@@ -748,13 +765,7 @@ def conferma_pianificazione():
         # Registra esclusivamente il surplus generato dalla scelta di ottimizzare.
         # Non accreditare qui i pezzi assegnati agli ordini, già tracciati sopra.
         # Eseguito prima del commit: eventuali errori annullano stock + piano.
-        if ottimizza_infornate and panettoni_surplus > 0:
-            articolo_stock = risultato["codart_ordine"]
-            riga_stock = db.session.get(Stock, articolo_stock)
-            if riga_stock is None:
-                db.session.add(Stock(CodArt=articolo_stock, Quantita=panettoni_surplus))
-            else:
-                riga_stock.Quantita = int(riga_stock.Quantita or 0) + panettoni_surplus
+        # Il surplus è una stima: nessun accredito prima della chiusura.
 
         id_pianificazione = pianificazione.IdPianificazione
         db.session.commit()
@@ -777,7 +788,7 @@ def conferma_pianificazione():
     response = make_response(
         render_template(
             template, id_pianificazione=id_pianificazione,
-            qta_stock_generata=panettoni_surplus if ottimizza_infornate else 0,
+            qta_stock_generata=0,
             qta_stock_utilizzata=stock_da_usare, error=None
         )
     )
@@ -832,7 +843,21 @@ def gestione_pianificazione(IdPianificazione: int):
     ).all()
     # QtaStockGenerata=NULL e' previsto per i piani creati prima della migrazione.
     surplus_teorico = calcola_surplus_teorico_storico(piano, [a for a, _ in assoc])
+    consuntivo_ordini = {
+        (c.IdDocumento, c.IdRigaDoc): c
+        for c in db.session.scalars(db.select(ConsuntivoProduzioneOrdine).where(
+            ConsuntivoProduzioneOrdine.TipoPiano == "TRAD",
+            ConsuntivoProduzioneOrdine.IdPiano == IdPianificazione,
+        )).all()
+    }
+    consuntivo_articoli = {
+        c.CodArt: c for c in db.session.scalars(db.select(ConsuntivoProduzioneArticolo).where(
+            ConsuntivoProduzioneArticolo.TipoPiano == "TRAD",
+            ConsuntivoProduzioneArticolo.IdPiano == IdPianificazione,
+        )).all()
+    }
     return render_template("ordini/gestione_pianificazione.j2", piano=piano,
+                           consuntivo_ordini=consuntivo_ordini, consuntivo_articoli=consuntivo_articoli,
                            associazioni=assoc, registro=log,
                            storico_spostamenti=storico_spostamenti,
                            puo_ripianificare=ruolo_attuale() in ("admin", "utente_produzione"),
@@ -939,9 +964,19 @@ def conferma_riconciliazione_stock(IdPianificazione: int):
 @login_required
 def conferma_chiusura_pianificazione(IdPianificazione: int):
     _proteggi_piano_cnf(IdPianificazione)
+    verifica_csrf()
     try:
-        chiudi_pianificazione(IdPianificazione, g.user.username)
-    except ErroreCicloVita as errore:
+        piano = db.session.get(PianificazioneProduzione, IdPianificazione)
+        if piano is None:
+            abort(404)
+        righe = db.session.scalars(db.select(PianificazioneOrdini).where(
+            PianificazioneOrdini.IdPianificazione == IdPianificazione
+        )).all()
+        prodotte, articoli = leggi_form_consuntivo(request.form, [
+            (r.IdDocumento, r.IdRiga, piano.CodArt, int(r.QtaPianificata)) for r in righe
+        ])
+        chiudi_pianificazione(IdPianificazione, g.user.username, prodotte, articoli)
+    except (ErroreCicloVita, ErroreConsuntivo) as errore:
         flash(str(errore), "danger")
         return redirect(url_for("ordini_cliente.gestione_pianificazione", IdPianificazione=IdPianificazione), code=303)
     flash(f"Pianificazione #{IdPianificazione} chiusa correttamente.", "success")

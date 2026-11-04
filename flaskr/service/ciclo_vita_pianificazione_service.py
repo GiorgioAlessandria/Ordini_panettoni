@@ -23,6 +23,8 @@ from flaskr.models.model_ordini import (
     PianificazioneMistaAttiva, BozzaPianificazioneMistaOrdine,
     Stock,
 )
+from flaskr.service.consuntivi_service import registra_consuntivo, ErroreConsuntivo
+
 
 
 class ErroreCicloVita(Exception):
@@ -206,14 +208,20 @@ def _scrivi_log(
         ))
 
 
-def chiudi_pianificazione(id_pianificazione: int, operatore: str) -> None:
+def chiudi_pianificazione(id_pianificazione: int, operatore: str, prodotte: dict, articoli: dict) -> None:
     """Conclude il piano e le sue righe, mantenendo le occupazioni nello storico.
 
-    Non accredita nuovamente il surplus: il sistema lo ha già accreditato
-    al momento della conferma iniziale (comportamento legacy).
+    Registra quantita' effettive, movimenti di prima e seconda scelta.
+    Per i piani legacy riconcilia l'eventuale surplus anticipato prima di
+    aggiornare stato e log, tutto nella medesima transazione.
     """
     try:
         piano, righe = _prepara(id_pianificazione)
+        registra_consuntivo(
+            "TRAD", id_pianificazione,
+            [(r.IdDocumento, r.IdRiga, piano.CodArt, int(r.QtaPianificata)) for r in righe],
+            prodotte, articoli, operatore, stock_anticipato=piano.QtaStockGenerata,
+        )
         adesso = datetime.now()
         risultato = db.session.execute(
             update(PianificazioneProduzione)
@@ -234,7 +242,7 @@ def chiudi_pianificazione(id_pianificazione: int, operatore: str) -> None:
             _rileggi_stato_ordine(documento, nriga, adesso, operatore)
         _scrivi_log(piano, righe, "Chiuso", operatore, adesso)
         db.session.commit()
-    except ErroreCicloVita:
+    except (ErroreCicloVita, ErroreConsuntivo):
         db.session.rollback()
         raise
     except SQLAlchemyError as err:

@@ -19,6 +19,7 @@ from flaskr.models.model_ordini import (
     Spedizione, SpedizioneOrdine,
 )
 from flaskr.models.model_lotto import LottoPianificazione
+from flaskr.models.model_consuntivi import ConsuntivoProduzioneOrdine
 
 
 class ErroreSpedizione(ValueError):
@@ -34,38 +35,51 @@ def _transazione_esclusiva():
 
 
 def _quantita_chiusa(chiavi: list[tuple[int, int]]) -> dict[tuple[int, int], int]:
-    """Somma quantita' chiuse nei piani tradizionali E misti attivi/chiusi."""
+    """Somma pezzi effettivi per ordine, NON quelli pianificati.
+
+    TRAD: aggiunge pezzi già prelevati da Stock (QtaDaStock) al prodotto
+    dichiarato; non sono pezzi prodotti nuovamente ma sono disponibili.
+    Piani storici senza consuntivo esplicito NON diventano prodotti per stima.
+    """
     quantita = defaultdict(int)
     for start in range(0, len(chiavi), 200):
-        lotto = chiavi[start:start + 200]
-        if not lotto:
+        blocco = chiavi[start:start + 200]
+        if not blocco:
             continue
-        stmt = (
-            db.select(PianificazioneOrdini.IdDocumento, PianificazioneOrdini.IdRiga,
-                      db.func.sum(PianificazioneOrdini.QtaPianificata))
+        for doc, riga, prodotto, da_stock in db.session.execute(
+            db.select(ConsuntivoProduzioneOrdine.IdDocumento,
+                      ConsuntivoProduzioneOrdine.IdRigaDoc,
+                      ConsuntivoProduzioneOrdine.QtaProdotta,
+                      PianificazioneOrdini.QtaDaStock)
+            .join(PianificazioneOrdini, and_(
+                  PianificazioneOrdini.IdPianificazione == ConsuntivoProduzioneOrdine.IdPiano,
+                  PianificazioneOrdini.IdDocumento == ConsuntivoProduzioneOrdine.IdDocumento,
+                  PianificazioneOrdini.IdRiga == ConsuntivoProduzioneOrdine.IdRigaDoc))
             .join(PianificazioneProduzione,
                   PianificazioneProduzione.IdPianificazione == PianificazioneOrdini.IdPianificazione)
-            .where(tuple_(PianificazioneOrdini.IdDocumento, PianificazioneOrdini.IdRiga).in_(lotto),
+            .where(ConsuntivoProduzioneOrdine.TipoPiano == "TRAD",
+                   tuple_(ConsuntivoProduzioneOrdine.IdDocumento,
+                          ConsuntivoProduzioneOrdine.IdRigaDoc).in_(blocco),
                    PianificazioneOrdini.Stato == "Chiuso",
                    PianificazioneProduzione.StatoRigaOrdine == "Chiuso")
-            .group_by(PianificazioneOrdini.IdDocumento, PianificazioneOrdini.IdRiga)
-        )
-        for doc, riga, totale in db.session.execute(stmt):
-            quantita[(doc, riga)] += int(totale or 0)
-        stmt_misto = (
-            db.select(BozzaPianificazioneMistaOrdine.IdDocumento,
-                      BozzaPianificazioneMistaOrdine.IdRigaDoc,
-                      db.func.sum(BozzaPianificazioneMistaOrdine.QtaPianificata))
+        ):
+            quantita[(doc, riga)] += int(prodotto) + int(da_stock or 0)
+        for doc, riga, prodotto in db.session.execute(
+            db.select(ConsuntivoProduzioneOrdine.IdDocumento,
+                      ConsuntivoProduzioneOrdine.IdRigaDoc,
+                      ConsuntivoProduzioneOrdine.QtaProdotta)
+            .join(BozzaPianificazioneMistaOrdine, and_(
+                  BozzaPianificazioneMistaOrdine.IdBozza == ConsuntivoProduzioneOrdine.IdPiano,
+                  BozzaPianificazioneMistaOrdine.IdDocumento == ConsuntivoProduzioneOrdine.IdDocumento,
+                  BozzaPianificazioneMistaOrdine.IdRigaDoc == ConsuntivoProduzioneOrdine.IdRigaDoc))
             .join(PianificazioneMistaAttiva,
                   PianificazioneMistaAttiva.IdBozza == BozzaPianificazioneMistaOrdine.IdBozza)
-            .where(tuple_(BozzaPianificazioneMistaOrdine.IdDocumento,
-                          BozzaPianificazioneMistaOrdine.IdRigaDoc).in_(lotto),
+            .where(ConsuntivoProduzioneOrdine.TipoPiano == "MISTA",
+                   tuple_(ConsuntivoProduzioneOrdine.IdDocumento,
+                          ConsuntivoProduzioneOrdine.IdRigaDoc).in_(blocco),
                    PianificazioneMistaAttiva.Stato == "Chiuso")
-            .group_by(BozzaPianificazioneMistaOrdine.IdDocumento,
-                      BozzaPianificazioneMistaOrdine.IdRigaDoc)
-        )
-        for doc, riga, totale in db.session.execute(stmt_misto):
-            quantita[(doc, riga)] += int(totale or 0)
+        ):
+            quantita[(doc, riga)] += int(prodotto)
     return dict(quantita)
 
 
@@ -140,7 +154,7 @@ def _disponibili(ordini):
         if o.stato is None or o.stato.Stato != "Chiuso":
             continue
         if (chiave in prenotati or int(o.QTA_SALDO_DOC or 0) <= 0
-                or prodotti.get(chiave, 0) < int(o.QTA_SALDO_DOC)):
+                or prodotti.get(chiave, 0) <= 0):
             continue
         # Solo attributi di visualizzazione; le tabelle ERP restano immutate.
         o.QtaAssegnataSpedizione = prodotti[chiave]
@@ -212,7 +226,7 @@ def prepara_spedizione(ids: list[str], data_prevista: date | None,
             o = validi[(doc, riga)]
             spedizione.righe.append(SpedizioneOrdine(
                 IdDocumento=doc, IdRigaDoc=riga, CodArtSnapshot=o.CodArt,
-                DesArtSnapshot=o.DesArt or o.CodArt, Quantita=int(o.QTA_SALDO_DOC),
+                DesArtSnapshot=o.DesArt or o.CodArt, Quantita=int(o.QtaAssegnataSpedizione),
                 QtaAssegnata=o.QtaAssegnataSpedizione,
                 LottiSnapshot=", ".join(o.LottiSpedizione) or None, Attiva=True))
         db.session.flush()
@@ -250,8 +264,8 @@ def conferma_partenza(id_spedizione: int, partenza: datetime, operatore: str) ->
             o = ordini[chiave]
             if (not r.Attiva or o.stato is None or o.stato.Stato != "Chiuso"
                     or o.CodCliFor != s.CodCliFor or o.CodArt != r.CodArtSnapshot
-                    or int(o.QTA_SALDO_DOC or 0) != r.Quantita
-                    or chiuse.get(chiave, 0) < r.Quantita):
+                    or int(o.QTA_SALDO_DOC or 0) <= 0
+                    or chiuse.get(chiave, 0) != r.Quantita):
                 raise ErroreSpedizione(
                     f"Ordine {r.IdDocumento}-{r.IdRigaDoc} modificato o non completamente prodotto")
         s.Stato = "Spedita"
