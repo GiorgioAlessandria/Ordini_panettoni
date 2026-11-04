@@ -31,11 +31,19 @@
                     {% else %}
                       <div class="pan-agenda-event pan-agenda-{{ evento.categoria }}"
                            title="Piano #{{ evento.id_pianificazione }} · {{ evento.descrizione }} · {{ evento.cod_art }}">
-                        <a href="{{ url_for('ordini_cliente.gestione_pianificazione', IdPianificazione=evento.id_pianificazione) }}"
-                           target="_blank" rel="noopener noreferrer" class="text-decoration-none pan-agenda-event-link">
-                          <strong>#{{ evento.id_pianificazione }}</strong> · {{ evento.descrizione }}
-                          <small class="d-block text-secondary">{{ evento.descrizione_articolo }}{% if evento.cotte is not none %} · {{ evento.cotte }} cotte · forno {{ evento.forno }}{% endif %}</small>
-                        </a>
+                        {% if evento.tipo_misto|default(false) %}
+                          <a href="{{ url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=evento.id_bozza) }}"
+                             target="_blank" rel="noopener noreferrer" class="text-decoration-none pan-agenda-event-link">
+                            <strong>M-{{ evento.id_bozza }}</strong> · {{ evento.descrizione }}
+                            <small class="d-block text-secondary">{{ evento.descrizione_articolo }}{% if evento.cotte is not none %} · {{ evento.forno }}{% endif %}</small>
+                          </a>
+                        {% else %}
+                          <a href="{{ url_for('ordini_cliente.gestione_pianificazione', IdPianificazione=evento.id_pianificazione) }}"
+                             target="_blank" rel="noopener noreferrer" class="text-decoration-none pan-agenda-event-link">
+                            <strong>#{{ evento.id_pianificazione }}</strong> · {{ evento.descrizione }}
+                            <small class="d-block text-secondary">{{ evento.descrizione_articolo }}{% if evento.cotte is not none %} · {{ evento.cotte }} cotte · forno {{ evento.forno }}{% endif %}</small>
+                          </a>
+                        {% endif %}
                       </div>
                     {% endif %}
                   {% endfor %}

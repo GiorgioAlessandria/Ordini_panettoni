@@ -1,3 +1,17 @@
+<style>
+#ordini_cliente_da_produrre .ordini-modalita-mista tr[data-record][data-mix-gruppo]:not([data-mix-gruppo=""]) > td {
+  --bs-table-bg: var(--misto-riga-bg, #e8f1fd);
+  --bs-table-bg-type: transparent;
+  --bs-table-bg-state: transparent;
+  background: var(--misto-riga-bg, #e8f1fd) !important;
+  box-shadow: none !important;
+}
+#ordini_cliente_da_produrre .ordini-modalita-mista tr[data-record][data-mix-gruppo]:not([data-mix-gruppo=""]):hover > td {
+  background: var(--misto-riga-hover, #d6e8fb) !important;
+}
+#ordini_cliente_da_produrre .ordini-modalita-mista tr[data-record][data-mix-gruppo=""] > td { opacity: .55; }
+#ordini_cliente_da_produrre .ordini-modalita-mista [data-nome-misto] { display: block !important; color: #344054; }
+</style>
 {# Frammento usato da entrambe le route; stato_tabella = Nuovo / In produzione. #}
 {% set selezione_attiva = (stato_tabella == 'Nuovo') %}
 {% set prezzature = ordini_cliente | map(attribute='Prezzatura') | unique | sort | list %}
@@ -99,6 +113,13 @@
         <button type="button" class="btn btn-outline-secondary btn-sm ordini-reset" data-reset-filters>
             Azzera filtri
         </button>
+        {% if selezione_attiva and puo_gestire_produzione %}
+        <button type="button" class="btn btn-outline-primary btn-sm" data-toggle-impasti-misti
+                aria-pressed="false" title="Abilita la selezione per gruppo di impasto">
+            Impasti misti: OFF
+        </button>
+        <input type="hidden" name="tipo_pianificazione" value="tradizionale" data-tipo-pianificazione>
+        {% endif %}
     </div>
 
     <div class="ordini-barra pan-meta">
@@ -141,6 +162,8 @@
                     <tr data-record
                         {% if selezione_attiva and ordine.ResiduoParziale %}class="ordini-riga-parziale"{% endif %}
                         data-original-index="{{ loop.index0 }}"
+                        {% if selezione_attiva %}data-mix-gruppo="{{ ordine.CompatibilitaImpasto or '' }}"
+                        data-mix-nome="{{ ordine.NomeGruppoImpasto or '' }}"{% endif %}
                         data-commenti-ordini="{% if selezione_attiva %}{{ ordine.IdDocumento }}:{{ ordine.IdRigaDoc }}{% else %}{% for voce in ordine.OrdiniDettaglio %}{{ voce.IdDocumento }}:{{ voce.IdRigaDoc }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}"
                         data-id-documento="{{ ordine.IdDocumento }}"
                         data-id-riga="{{ ordine.IdRigaDoc }}"
@@ -169,9 +192,10 @@
                                        value="{{ ordine.IdDocumento }}-{{ ordine.IdRigaDoc }}"
                                        data-cod-art="{{ ordine.CodArt }}"
                                        data-prezzatura="{{ ordine.Prezzatura }}"
+                                       data-gruppo-impasto="{{ ordine.CompatibilitaImpasto or '' }}"
                                        hx-post="{{ url_for('ordini_cliente.riepilogo_selezione') }}"
                                        hx-trigger="change"
-                                       hx-include="closest .ordini-form" hx-params="ordini_selezionati"
+                                       hx-include="closest .ordini-form" hx-params="ordini_selezionati,tipo_pianificazione"
                                        hx-target="#riepilogo-ordini"
                                        hx-swap="innerHTML"
                                        onclick="event.stopPropagation()"
@@ -226,6 +250,9 @@
                             {% if selezione_attiva %}{{ ordine.Cliente }}{% else %}<span class="piano-plurale">{{ ordine.Cliente }}</span>{% endif %}
                         </td>
                         <td data-col="articolo">{{ ordine.CodArt }}
+                            {% if selezione_attiva and ordine.IdGruppoImpasto %}
+                            <small class="d-none" data-nome-misto>{{ ordine.NomeGruppoImpasto }}</small>
+                            {% endif %}
                         </td>
                         <td data-col="descrizione" title="{{ ordine.DesArt }}">{% if selezione_attiva %}{{ ordine.DesArt }}{% else %}<span class="piano-plurale">{{ ordine.DesArt }}</span>{% endif %}</td>
                         <td data-col="consegna" data-sort-value="{{ consegna_iso }}" title="{% if selezione_attiva %}Consegna{% else %}Dalla prima all'ultima scadenza: {{ ordine.DataConsegna }} – {{ ordine.ConsegnaUltima }}{% endif %}">{{ ordine.DataConsegna }}{% if not selezione_attiva and ordine.ConsegnaUltima != ordine.DataConsegna %}<br><small>– {{ ordine.ConsegnaUltima }}</small>{% endif %}</td>

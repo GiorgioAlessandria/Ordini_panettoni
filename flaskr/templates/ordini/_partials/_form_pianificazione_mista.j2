@@ -1,0 +1,117 @@
+{% if error %}
+<div class="modal-header"><h5 class="modal-title">Pianificazione produzione · Impasto misto</h5>
+<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>
+<div class="modal-body"><div class="alert alert-danger" role="alert">{{ error }}</div></div>
+{% else %}
+{% include 'ordini/_partials/_pianificazione_intestazione_comune.j2' %}
+<form id="form-pianificazione-mista" class="pan-planning-form"
+      hx-post="{{ url_for('ordini_cliente.conferma_mista_unificata') }}"
+      hx-target="#contenuto-pianificazione" hx-swap="innerHTML"
+      hx-disabled-elt="find button[type='submit']">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="richiesta_id" value="{{ richiesta_id }}">
+  <input type="hidden" name="gruppo" value="{{ gruppo.IdGruppo }}">
+  <input type="hidden" name="tipo_pianificazione" value="mista">
+  {% for chiave in chiavi %}<input type="hidden" name="ordini" value="{{ chiave }}">{% endfor %}
+  <div class="modal-body">
+    <div class="row g-3 align-items-start">
+      <section class="col-12 col-lg-3" aria-label="Giornate e ordini da pianificare">
+        <div class="pianificazione-pannello pan-form-card">
+          <h6 class="pianificazione-titolo">Ordini e impasto condiviso</h6>
+          <p class="small text-secondary">Gruppo: <strong>{{ gruppo.Nome }}</strong>. Il sistema verifica che le fasi di impasto siano compatibili.</p>
+          <div class="table-responsive" style="max-height:380px;overflow:auto">
+            <table class="table table-sm align-middle">
+              <thead><tr><th>Articolo</th><th>Ordine</th><th class="text-end">Residuo</th><th class="text-end">Da pianificare</th></tr></thead>
+              <tbody>
+              {% for o in ordini %}
+              <tr><td>{{ o.CodArt }}</td><td>{{ o.IdDocumento }}-{{ o.IdRigaDoc }}</td>
+                <td class="text-end">{{ disponibili[(o.IdDocumento, o.IdRigaDoc)] }}</td>
+                <td><input type="number" class="form-control form-control-sm text-end" style="min-width:85px"
+                    name="quantita_{{ o.IdDocumento }}_{{ o.IdRigaDoc }}"
+                    min="1" max="{{ disponibili[(o.IdDocumento, o.IdRigaDoc)] }}" step="1"
+                    value="{{ disponibili[(o.IdDocumento, o.IdRigaDoc)] }}" required
+                    aria-label="Quantità da pianificare per l'ordine {{ o.IdDocumento }}-{{ o.IdRigaDoc }}"></td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="small text-secondary">Per default viene proposta tutta la quantità disponibile; puoi ridurla per una pianificazione parziale. Peso e risorse vengono verificati automaticamente.</div>
+        </div>
+        <div class="pianificazione-pannello pan-form-card mt-3" id="agenda-pianificazione-mista" aria-live="polite">
+          {% include 'ordini/_partials/_agenda_pianificazione_mista.j2' %}
+        </div>
+      </section>
+      <section class="col-12 col-lg-4" aria-label="Impostazioni della produzione">
+        <div class="pianificazione-pannello pan-form-card">
+          <h6 class="pianificazione-titolo">Impostazioni della produzione</h6>
+          {% include 'ordini/_partials/_pianificazione_data_blocco_comune.j2' %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Forno per articolo</label>
+            {% for codice in codici %}
+            <div class="mb-2"><label for="forno-misto-{{ loop.index }}" class="form-label small">{{ codice }} · {{ articoli[codice].Prezzatura }} g</label>
+              <select class="form-select form-select-sm" name="forno_{{ codice }}" id="forno-misto-{{ loop.index }}" required>
+                <option value="">Seleziona un forno</option>
+                {% for id_forno, capacita in forni_compatibili[codice]|dictsort %}
+                <option value="{{ id_forno }}" {% if forni_compatibili[codice]|length == 1 %}selected{% endif %}>{{ forni[id_forno].DescrizioneForno or forni[id_forno].ModelloForno }} · {{ capacita }} pz/cotta</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endfor %}
+          </div>
+          <fieldset class="mb-3">
+            <legend class="form-label fw-semibold fs-6">Numero cotte per forno</legend>
+            <p class="small text-secondary">Calcola autonomamente il numero di cotte miste necessarie e inseriscilo per ciascun forno utilizzato. Il programma <strong>non stima il carico fisico delle cotte</strong>: verifica soltanto la disponibilità dei blocchi.</p>
+            <div class="row g-2">
+              {% for id_forno in forni_id %}
+              <div class="col-12 col-md-6"><label class="form-label small" for="misto-cotte-{{ id_forno }}">{{ forni[id_forno].DescrizioneForno or forni[id_forno].ModelloForno }}</label>
+              <input class="form-control form-control-sm" type="number" min="1" max="999" step="1"
+                     id="misto-cotte-{{ id_forno }}" name="cotte_{{ id_forno }}" placeholder="N. cotte"></div>
+              {% endfor %}
+            </div>
+          </fieldset>
+          {% include 'ordini/_partials/_pianificazione_impastatrici_comune.j2' %}
+          <div id="lotto-misto-proposta" class="mb-3"
+               hx-get="{{ url_for('ordini_cliente.proposta_lotto_pianificazione', tipo='MISTA') }}"
+               hx-trigger="load, change from:#misto-data, change from:input[name='blocco']"
+               hx-include="#form-pianificazione-mista" hx-swap="innerHTML">
+             <div class="small text-secondary">Seleziona la data per proporre il lotto unico.</div>
+          </div>
+        </div>
+      </section>
+      <section class="col-12 col-lg-5" aria-label="Simulazione della produzione">
+        <div class="pianificazione-pannello pan-form-card">
+          <h6 class="pianificazione-titolo">Simulazione, cotte e peso impasto</h6>
+          <button type="button" class="btn btn-outline-primary btn-sm mb-3"
+                  hx-post="{{ url_for('ordini_cliente.simulazione_mista_unificata') }}"
+                  hx-include="#form-pianificazione-mista" hx-target="#misto-simulazione"
+                  hx-swap="innerHTML" hx-indicator="#misto-caricamento">
+             Verifica disponibilità e simula
+          </button>
+          <span id="misto-caricamento" class="htmx-indicator small text-secondary">Calcolo in corso…</span>
+          <div id="misto-simulazione" aria-live="polite">
+            <div class="alert alert-info small">Scegli data, macchine, forno per articolo e numero di cotte. Verifica la simulazione prima di confermare.</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <div class="modal-footer pan-modal-footer d-flex flex-column align-items-stretch gap-2">
+    {% if not autorizzato %}
+    <div class="alert alert-warning w-100 mb-0" role="alert">
+      Conferma impasti misti non abilitata nella configurazione del server.
+    </div>
+    {% endif %}
+    <label class="d-flex align-items-start gap-2 w-100 small">
+      <input type="checkbox" name="conferma_capienza_mista" value="1" required class="form-check-input mt-1" {% if not autorizzato %}disabled{% endif %}>
+      <span>Confermo di aver calcolato e verificato personalmente il numero di cotte miste dichiarato per ciascun forno, comprese le quantità dei formati da produrre.</span>
+    </label>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 w-100">
+      <span class="small text-secondary">Ordini, cotte e impastatrici saranno rivalidati al salvataggio.</span>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Annulla</button>
+        <button class="btn btn-primary fw-bold" type="submit" {% if not autorizzato %}disabled{% endif %}>Conferma pianificazione</button>
+      </div>
+    </div>
+  </div>
+</form>
+{% endif %}

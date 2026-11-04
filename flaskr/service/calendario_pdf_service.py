@@ -267,11 +267,42 @@ def _a_capo(testo: str, font: str, dimensione: float, larghezza: float) -> list[
 
 
 def _dati_scheda(evento: dict) -> list[tuple[str, str]]:
+    """Informazioni operative per fase, mantenendo il formato PDF esistente.
+
+    Solo per le cotture miste usa i dati dei forni prenotati: le cotte sono
+    dichiarate dall'operatore e NON derivano da stime di capienza o da una
+    ripartizione inventata delle singole infornate.
+    """
     descr = evento.get("descrizione") or "Articolo"
     ordinati = f'{evento.get("numero_ordini", 0)} ord.  ·  {evento.get("quantita", 0)} pz'
     imp = evento.get("impastatrici") or []
-    # La stessa etichetta 'Imp.' specifica già la tipologia della risorsa.
     imp_names = ", ".join(_riduci_etichetta_risorsa(n, "impastatrice") for n in imp) or "N/D"
+
+    # Il calendario misto espone una cottura unica per piano e blocco,
+    # con l'elenco strutturato dei forni effettivamente prenotati.
+    dettagli = evento.get("forni_dettaglio") or []
+    if dettagli and _fase_e_cottura(evento):
+        # Un evento puo' riguardare piu' forni nello stesso blocco: non
+        # ridistribuire mai i pezzi in singole cotte. Le quantita' qui
+        # mostrate sono somme degli ordini associati a ciascun forno.
+        dettagli_ordinati = sorted(
+            dettagli,
+            key=lambda d: (str(d.get("nome") or ""), int(d.get("id_forno") or 0)),
+        )
+        cotte_dichiarate = sum(int(d.get("numero_cotte") or 0) for d in dettagli_ordinati)
+        dati = [
+            (str(descr), "Helvetica-Bold"),
+            (ordinati, "Helvetica-Bold"),
+            (f"Cotte dichiarate: {cotte_dichiarate} · {len(dettagli_ordinati)} forni", "Helvetica-Bold"),
+            (f"Imp.: {imp_names}", "Helvetica"),
+        ]
+        for forno in dettagli_ordinati:
+            nome = _riduci_etichetta_risorsa(forno.get("nome") or f"#{forno.get('id_forno', '?')}", "forno")
+            cotte = int(forno.get("numero_cotte") or 0)
+            pezzi = int(forno.get("quantita") or 0)
+            dati.append((f"Forno: {nome} · {cotte} cotte · {pezzi} pz", "Helvetica"))
+        return dati
+
     forno = _riduci_etichetta_risorsa(evento.get("forno") or "N/D", "forno")
     return [
         (str(descr), "Helvetica-Bold"),

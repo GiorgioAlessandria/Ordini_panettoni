@@ -1,7 +1,7 @@
 """Snapshot di simulazioni multi-articolo. NON crea pianificazioni attive.
 
-La bozza conserva ordini, composizione delle singole cotte, macchine e
-capacità al momento del calcolo. Non occupa risorse e può diventare obsoleta:
+La bozza conserva ordini, numero manuale di cotte, macchine e capacità.
+La composizione fisica per singola cotta non viene generata automaticamente. Non occupa risorse e può diventare obsoleta:
 prima di ogni futura conferma produttiva va rivalidata sotto lock SQLite.
 """
 from __future__ import annotations
@@ -34,7 +34,8 @@ def _d(v) -> Decimal:
 
 def salva_bozza(*, esito: dict, gruppo_id: int, data_inizio, blocco: str,
                 forno_articolo: dict[str, int], impastatrici_ids: list[int],
-                richiesta_id: str, operatore: str, progressivo_lotto: str | None = None) -> int:
+                richiesta_id: str, operatore: str, progressivo_lotto: str | None = None,
+                commit: bool = True) -> int:
     """Salva una simulazione GIÀ rivalidata dal server. Una sola commit atomica.
 
     Anche se il salvataggio è ripetuto con lo stesso UUID, restituisce la stessa
@@ -88,7 +89,10 @@ def salva_bozza(*, esito: dict, gruppo_id: int, data_inizio, blocco: str,
         numero = int(dati['esito'].numero_cotte)
         if not 1 <= numero <= int(dati['libere']):
             raise ErroreBozzaMista("Cotte non coerenti con il limite del forno.")
-        if len(dati['esito'].cotte) != numero:
+        # Il numero di cotte e' dichiarato dall'operatore. Non avendo fornito
+        # la composizione per singola cotta, il servizio non inventa righe fisiche.
+        # L'assenza di righe `cotte` e' quindi lecita per i nuovi piani manuali.
+        if dati['esito'].cotte and len(dati['esito'].cotte) != numero:
             raise ErroreBozzaMista("Composizione delle cotte incompleta.")
         for i, cotta in enumerate(dati['esito'].cotte, start=1):
             if not cotta or sum(int(x) for x in cotta.values()) <= 0:
@@ -101,7 +105,7 @@ def salva_bozza(*, esito: dict, gruppo_id: int, data_inizio, blocco: str,
     calcolato_per_codice_forno = defaultdict(int)
     for c in righe_cotte:
         calcolato_per_codice_forno[(c['IdForno'], c['CodArt'])] += c['QtaPezzi']
-    if dict(previsto_per_codice_forno) != dict(calcolato_per_codice_forno):
+    if righe_cotte and dict(previsto_per_codice_forno) != dict(calcolato_per_codice_forno):
         raise ErroreBozzaMista("Distribuzione delle cotte diversa dalle quantità per ordine.")
     if sum(int(d['esito'].numero_cotte) for d in esito['risultati'].values()) != int(esito['totale_cotte']):
         raise ErroreBozzaMista("Totale cotte non coerente.")
@@ -162,7 +166,11 @@ def salva_bozza(*, esito: dict, gruppo_id: int, data_inizio, blocco: str,
             IdBozza=bozza.IdBozza, IdImpastatrice=id_macchina,
             KgAssegnati=riparto_macchine.get(id_macchina, Decimal(0)),
         ))
-    db.session.commit()
+    # Nel form unificato la conferma produttiva viene effettuata nella STESSA
+    # transazione: flush visibile alla validazione, senza commit intermedio.
+    db.session.flush()
+    if commit:
+        db.session.commit()
     return bozza.IdBozza
 
 

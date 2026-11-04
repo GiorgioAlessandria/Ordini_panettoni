@@ -1,3 +1,6 @@
+{% if tipo_pianificazione|default('tradizionale') == 'mista' %}
+    {% include 'ordini/_partials/_form_pianificazione_mista.j2' %}
+{% else %}
 {% if not error %}
 <style>
   /* Agenda limitata ai soli giorni attraversati dalle fasi da pianificare. */
@@ -34,13 +37,7 @@
 </div>
 <div class="modal-body"><div class="alert alert-danger" role="alert">{{ error }}</div></div>
 {% else %}
-<div class="modal-header">
-    <div>
-        <h5 class="modal-title">Pianificazione produzione</h5>
-        <small class="text-secondary">Giornate coinvolte a sinistra; impostazioni al centro; simulazione a destra</small>
-    </div>
-    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
-</div>
+{% include 'ordini/_partials/_pianificazione_intestazione_comune.j2' %}
 <form id="form-pianificazione" class="pan-planning-form"
       hx-post="{{ url_for('ordini_cliente.conferma_pianificazione') }}"
       hx-target="#contenuto-pianificazione"
@@ -56,27 +53,7 @@
             <section class="col-12 col-lg-4" aria-labelledby="pianificazione-settings-title">
                 <div class="pianificazione-pannello pianificazione-impostazioni pan-form-card">
                     <h6 id="pianificazione-settings-title" class="pianificazione-titolo">Impostazioni della produzione</h6>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold" for="data-inizio-produzione">Data di inizio</label>
-                        <input class="form-control" type="date" id="data-inizio-produzione"
-                               name="data_inizio_produzione" required
-                               hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
-                               hx-trigger="change" hx-sync="#form-pianificazione:replace" hx-include="#form-pianificazione"
-                               hx-target="#riepilogo-pianificazione" hx-swap="innerHTML">
-                    </div>
-                    <fieldset class="mb-3">
-                        <legend class="form-label fw-semibold fs-6">Blocco iniziale</legend>
-                        <div class="d-flex flex-wrap gap-3">
-                            <label class="form-check-label"><input class="form-check-input me-1" type="radio" name="blocco_inizio_produzione" value="0" required
-                                           hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
-                                           hx-trigger="change" hx-sync="#form-pianificazione:replace" hx-include="#form-pianificazione"
-                                           hx-target="#riepilogo-pianificazione" hx-swap="innerHTML"> Mattina (07:00–12:30)</label>
-                            <label class="form-check-label"><input class="form-check-input me-1" type="radio" name="blocco_inizio_produzione" value="1"
-                                           hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
-                                           hx-trigger="change" hx-sync="#form-pianificazione:replace" hx-include="#form-pianificazione"
-                                           hx-target="#riepilogo-pianificazione" hx-swap="innerHTML"> Pomeriggio (13:00–18:00)</label>
-                        </div>
-                    </fieldset>
+                    {% include 'ordini/_partials/_pianificazione_data_blocco_comune.j2' %}
                     <div id="lotto-trad-proposta" class="mb-3"
                          hx-get="{{ url_for('ordini_cliente.proposta_lotto_pianificazione') }}?tipo=TRAD"
                          hx-trigger="load, change from:#data-inizio-produzione, change from:input[name='blocco_inizio_produzione']"
@@ -90,11 +67,7 @@
                          hx-target="#avviso-consegna-ordini" hx-swap="innerHTML">
                         <div class="small text-secondary">La data disponibile per la consegna sarà calcolata dall'ultimo blocco produttivo + 1 giorno.</div>
                     </div>
-                    <fieldset class="mb-3">
-                        <legend class="form-label fw-semibold fs-6">Impastatrici disponibili</legend>
-                        <p class="small text-secondary mb-2">Seleziona le macchine candidate. Il programma distribuirà automaticamente il peso effettivo e prenoterà solo le macchine necessarie.</p>
-                        {% include 'ordini/_partials/_impastatrici_disponibili.j2' %}
-                    </fieldset>
+                    {% include 'ordini/_partials/_pianificazione_impastatrici_comune.j2' %}
                     <div class="border rounded-3 p-3 bg-white mb-3">
                         <label class="form-label fw-semibold" for="quantita-da-stock">Preleva panettoni già a stock</label>
                         <div class="small text-secondary mb-2">Articolo: {{ riepilogo.codart_ordine }} · disponibili: <strong>{{ stock_disponibile }}</strong> pezzi.</div>
@@ -151,4 +124,6 @@
         </div>
     </div>
 </form>
+{% endif %}
+
 {% endif %}

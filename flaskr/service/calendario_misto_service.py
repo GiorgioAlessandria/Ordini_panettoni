@@ -84,12 +84,45 @@ def _modelli_misti(inizio: date, fine: date):
     ).all()
 
 
+
+def _gruppi_cottura_per_slot(bozza, slot_forni: dict, nomi_forni: dict[int, str]) -> list[dict]:
+    """Un evento di cottura per piano e slot, aggregando i forni effettivamente prenotati.
+
+    I dati fisici delle singole cotte NON sono calcolati: NumeroCotte deriva dallo
+    snapshot manuale del forno. La distribuzione ordini per forno deriva dalla
+    bozza salvata, non dalla vecchia tabella facoltativa di composizioni.
+    """
+    gruppi: dict[tuple[date, str], dict[int, dict]] = defaultdict(dict)
+    for forno in bozza.forni:
+        ordini = [o for o in bozza.ordini if o.IdForno == forno.IdForno]
+        quantita_articoli: dict[str, int] = defaultdict(int)
+        for ordine in ordini:
+            quantita_articoli[ordine.CodArt] += int(ordine.QtaPianificata)
+        descrizione = nomi_forni.get(forno.IdForno, f'Forno #{forno.IdForno}')
+        dettaglio = {
+            'id_forno': int(forno.IdForno), 'nome': descrizione,
+            'numero_cotte': int(forno.NumeroCotte),
+            'quantita': sum(quantita_articoli.values()),
+            'articoli': dict(quantita_articoli),
+            'ordini': sorted(f'{o.IdDocumento}-{o.IdRigaDoc}' for o in ordini),
+        }
+        # La prenotazione reale comprende tutte le occupazioni multi-blocco.
+        for giorno, blocco in set(slot_forni.get((bozza.IdBozza, forno.IdForno), ())):
+            gruppi[(giorno, blocco)][forno.IdForno] = dettaglio
+    risultato = []
+    for (giorno, blocco), forni in sorted(gruppi.items()):
+        risultato.append({
+            'giorno': giorno, 'blocco': blocco,
+            'forni': [forni[id_forno] for id_forno in sorted(forni)],
+        })
+    return risultato
+
 def righe_fasi_miste(inizio: date, fine: date, ruolo: str) -> list[dict]:
     """Ritorna righe normalizzate per UI e PDF, una per slot effettivo.
 
-    La fase forno viene visualizzata per OGNI forno, senza sommare due volte le
-    cotte di articoli differenti nella stessa infornata. Una fase che dura piu'
-    blocchi occupa anche gli slot successivi.
+    La cottura e' visualizzata una volta per piano e blocco, con TUTTI i
+    forni prenotati in quello slot e le cotte dichiarate manualmente.
+    Le prenotazioni multi-blocco rimangono visibili per ogni slot effettivo.
     """
     if fine <= inizio:
         return []
@@ -155,32 +188,37 @@ def righe_fasi_miste(inizio: date, fine: date, ruolo: str) -> list[dict]:
                         'forno': ', '.join(sorted({forni.get(f.IdForno, f'Forno #{f.IdForno}') for f in bozza.forni})),
                         'numero_cotte': sum(int(f.NumeroCotte) for f in bozza.forni),
                     })
-        for forno in bozza.forni:
-            nome_forno = forni.get(forno.IdForno, f'Forno #{forno.IdForno}')
-            composizione = defaultdict(int)
-            for cotta in forno.cotte:
-                composizione[cotta.CodArt] += int(cotta.QtaPezzi)
-            if not composizione:
-                continue
-            articoli = ', '.join(f'{codice}: {pezzi} pz' for codice, pezzi in sorted(composizione.items()))
-            ordini_forno = [o for o in bozza.ordini if o.IdForno == forno.IdForno]
-            # La prenotazione registra gli slot realmente occupati, anche
-            # quando la durata della lavorazione e' superiore a un blocco.
-            occupazioni = sorted(slot_forni[(bozza.IdBozza, forno.IdForno)])
-            for indice, (data, blocco) in enumerate(occupazioni, start=1):
-                if inizio <= data < fine:
-                    output.append({**base,
-                        'quantita': sum(composizione.values()),
-                        'numero_ordini': len(ordini_forno),
-                        'ordini': sorted(f'{o.IdDocumento}-{o.IdRigaDoc}' for o in ordini_forno),
-                        'id_evento': f'misto-{bozza.IdBozza}-forno-{forno.IdForno}-{indice}',
-                        'giorno': data, 'blocco': blocco,
-                        'numero_fase': 2, 'id_lavorazione': 2, 'lavorazione': 'Cottura · ' + nome_forno,
-                        'descrizione': articoli,
-                        'colore_fase': None,
-                        'forno': nome_forno,
-                        'numero_cotte': int(forno.NumeroCotte),
-                    })
+        for gruppo in _gruppi_cottura_per_slot(bozza, slot_forni, forni):
+            # Se piu' forni lavorano nello stesso blocco, produciamo UN evento.
+            # Se occupano blocchi diversi, ognuno resta visibile nel proprio slot.
+            dettagli = gruppo['forni']
+            quantita_articoli = defaultdict(int)
+            ordini_cottura = set()
+            for dettaglio in dettagli:
+                ordini_cottura.update(dettaglio['ordini'])
+                for codart, qta in dettaglio['articoli'].items():
+                    quantita_articoli[codart] += qta
+            giorno, blocco = gruppo['giorno'], gruppo['blocco']
+            descrizione_articoli = ', '.join(
+                f'{codice}: {pezzi} pz' for codice, pezzi in sorted(quantita_articoli.items())
+            )
+            output.append({**base,
+                'quantita': sum(quantita_articoli.values()),
+                'numero_ordini': len(ordini_cottura),
+                'ordini': sorted(ordini_cottura),
+                'id_evento': f'misto-{bozza.IdBozza}-cottura-{giorno:%Y%m%d}-{blocco}',
+                'giorno': giorno, 'blocco': blocco,
+                'numero_fase': 2, 'id_lavorazione': 2, 'lavorazione': 'Cottura',
+                'descrizione': descrizione_articoli,
+                'colore_fase': None,
+                'forno': ' · '.join(f"{d['nome']} ({d['numero_cotte']} cotte)" for d in dettagli),
+                'forni_dettaglio': [
+                    {'id_forno': d['id_forno'], 'nome': d['nome'],
+                     'numero_cotte': d['numero_cotte'], 'quantita': d['quantita']}
+                    for d in dettagli
+                ],
+                'numero_cotte': sum(d['numero_cotte'] for d in dettagli),
+            })
     return sorted(output, key=lambda r: (r['giorno'], r['blocco'], r['id_grafico'], r['id_evento']))
 
 
@@ -211,6 +249,7 @@ def eventi_fasi_miste(inizio: date, fine: date, ruolo: str, url_dettaglio) -> li
                 'peso_totale_kg': r['peso_kg'],
                 'impastatrici': r['impastatrici'],
                 'numero_cotte': r['numero_cotte'],
+                'forni_dettaglio': r.get('forni_dettaglio', []),
                 'quantita_da_stock': 0,
                 'colore_fase': r['colore_fase'],
                 'detailUrl': url_dettaglio(r['id_bozza']),
@@ -230,4 +269,5 @@ def righe_pdf_miste(inizio: date, fine: date, ruolo: str) -> list[dict]:
         'colore_fase': r['colore_fase'],
         'impastatrici': r['impastatrici'], 'forno': r['forno'],
         'numero_cotte': r['numero_cotte'],
+        'forni_dettaglio': r.get('forni_dettaglio', []),
     } for r in righe_fasi_miste(inizio, fine, ruolo)]

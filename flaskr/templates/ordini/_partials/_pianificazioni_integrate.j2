@@ -1,0 +1,40 @@
+{# Panoramica comune. La vecchia tabella rimane disponibile per compatibilita'. #}
+<div class="pianificazioni-riepilogo-unico p-2">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <div><strong>Pianificazioni attive</strong>
+      <span class="text-secondary small">· {{ piani_unificati|length }} tra tradizionali e miste</span></div>
+    <input type="search" class="form-control form-control-sm" style="max-width:270px"
+           placeholder="Filtra pianificazioni..." aria-label="Filtra pianificazioni"
+           data-filter-pianificazioni>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle">
+      <thead class="table-light"><tr><th>Tipo</th><th>ID</th><th>Lotto</th><th>Data</th><th>Articoli</th><th>Ordini</th><th>Quantità</th><th>Cotte</th><th>Impasto</th><th>Forni</th><th></th></tr></thead>
+      <tbody>
+        {% for p in piani_unificati %}
+          <tr data-piano>
+            <td><span class="badge {{ 'text-bg-primary' if p.tipo == 'TRAD' else 'text-bg-info' }}">{{ 'Tradizionale' if p.tipo == 'TRAD' else 'Mista' }}</span></td>
+            <td class="fw-semibold">{{ '#' if p.tipo == 'TRAD' else 'M-' }}{{ p.id }}</td>
+            <td class="fw-semibold text-nowrap">{{ lotto_pianificazione(p.tipo, p.id) if lotto_pianificazione is defined else '—' }}</td>
+            <td class="text-nowrap">{{ p.data.strftime('%d/%m/%Y') }}</td>
+            <td>{{ p.articoli }}</td><td>{{ p.numero_ordini }}</td><td>{{ p.qta }}</td>
+            <td>{{ p.cotte }}</td><td>{{ '%.2f'|format(p.peso_kg) }} kg</td><td>{{ p.forni }}</td>
+            <td class="text-nowrap">
+              {% if p.tipo == 'TRAD' %}
+                <a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.gestione_pianificazione', IdPianificazione=p.id) }}">Dettaglio</a>
+              {% else %}
+                <a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=p.id) }}">Dettaglio</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="11" class="text-center text-secondary py-3">Nessuna pianificazione attiva.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<details class="border-top mt-2 px-2 pb-2">
+  <summary class="small text-secondary py-2" style="cursor:pointer">Mostra tabella dettagliata delle pianificazioni tradizionali</summary>
+  {% include 'ordini/_partials/_tabella_ordini.j2' %}
+</details>

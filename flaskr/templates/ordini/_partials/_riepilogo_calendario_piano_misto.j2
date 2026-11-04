@@ -82,18 +82,22 @@
   <div class="border rounded p-2 mb-2">
     <div class="fw-semibold mb-1">{{ nomi_forni.get(forno.IdForno, 'Forno #' ~ forno.IdForno) }} · {{ forno.NumeroCotte }} cotte</div>
     <div class="small text-secondary mb-2">{{ forno.DataFase.strftime('%d/%m/%Y') }} · Blocco {{ forno.Blocco }}</div>
+    {% if forno.cotte %}
     <div class="table-responsive"><table class="table table-sm mb-0">
-      <thead><tr><th>Cotta</th><th>Composizione</th></tr></thead>
+      <thead><tr><th>Cotta</th><th>Composizione storica</th></tr></thead>
       <tbody>
       {% for numero in range(1, forno.NumeroCotte + 1) %}
         <tr><td>{{ numero }}</td><td>
           {% for pezzo in forno.cotte|sort(attribute='CodArt') if pezzo.NumeroCotta == numero %}
             <span class="me-3">{{ pezzo.CodArt }}: <strong>{{ pezzo.QtaPezzi }}</strong> pz</span>
-          {% else %}<span class="text-danger">Composizione non disponibile</span>{% endfor %}
+          {% else %}<span class="text-secondary">Composizione non registrata</span>{% endfor %}
         </td></tr>
       {% endfor %}
       </tbody>
     </table></div>
+    {% else %}
+      <p class="small text-secondary mb-0">Cotte dichiarate dall'operatore. Composizione delle singole cotte non registrata.</p>
+    {% endif %}
   </div>
 {% endfor %}
 <h6 class="mt-3">Fasi dell'impasto comune</h6>

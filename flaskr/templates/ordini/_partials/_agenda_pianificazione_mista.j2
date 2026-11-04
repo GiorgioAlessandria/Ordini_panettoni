@@ -1,0 +1,30 @@
+<h6 class="pianificazione-titolo mb-2">Giornate della produzione mista</h6>
+{% if agenda_mista is defined and agenda_mista %}
+  <div class="d-flex flex-wrap gap-2 small mb-2">
+    <span class="pan-agenda-legend-draft">Da pianificare</span>
+    <span class="text-secondary">Una sola cottura logica, con tutti i forni</span>
+  </div>
+  <div class="pan-agenda-scroll" style="max-height:330px;overflow:auto" tabindex="0">
+    {% for evento in agenda_mista %}
+      <div class="pan-agenda-event pan-agenda-proposta mb-2" role="note">
+        <strong>{{ evento.data.strftime('%d/%m/%Y') }} · {{ evento.blocco }} —
+          {{ 'Cottura' if evento.tipo == 'cottura' else 'Impasto' }}</strong>
+        {% if evento.tipo == 'cottura' %}
+          <div class="small">Evento unico · <strong>{{ evento.forni|length }} forni</strong></div>
+          {% for forno_evento in evento.forni %}
+            <div class="small ps-2 border-start mt-1">
+              {{ nomi_forni.get(forno_evento.id_forno, 'Forno #' ~ forno_evento.id_forno) }}
+              · {{ forno_evento.cotte }} cotte dichiarate
+              · {{ forno_evento.data.strftime('%d/%m/%Y') }} {{ forno_evento.blocco }}
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="small">Fase di impasto condivisa · Lavorazione {{ evento.lavorazione }}</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+  <p class="small text-secondary mt-2 mb-0">Eventi della proposta: non sono ancora prenotazioni. Occupazioni e capacità vengono controllate dal backend al salvataggio.</p>
+{% else %}
+  <p class="small text-secondary mb-0">Imposta data, forni e cotte e premi «Verifica disponibilità e simula» per visualizzare le fasi.</p>
+{% endif %}

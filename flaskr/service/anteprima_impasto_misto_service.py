@@ -1,7 +1,7 @@
-"""Analisi NON persistente di impasto comune con cotte miste per forno.
+"""Analisi di impasto condiviso con numero di cotte dichiarato dall'operatore.
 
-Non produce PianificazioneProduzione: gli schemi di chiusura, stock,
-ripianificazione, PDF e calendario sono ancora monoricetta/monoforno.
+Il software calcola pesi, quantità e disponibilità delle risorse ma non
+calcola, stima o ricompone fisicamente le cotte miste.
 """
 from __future__ import annotations
 
@@ -129,7 +129,8 @@ def forni_per_articolo(articoli):
 
 def simula(*, gruppo_id: int, chiavi: list[str], forno_articolo: dict[str, int],
            cotte_per_forno: dict[int, int], data_inizio: date, blocco: str,
-           impastatrici_ids: list[int], include_cnf: bool = False):
+           impastatrici_ids: list[int], include_cnf: bool = False,
+           quantita_per_ordine: dict[str, int] | None = None):
     if not chiavi or len(chiavi) > 200:
         raise ErroreAnteprimaMista('Seleziona da 1 a 200 ordini.')
     if blocco not in ('M', 'P'):
@@ -141,6 +142,21 @@ def simula(*, gruppo_id: int, chiavi: list[str], forno_articolo: dict[str, int],
     if len(chiavi) != len(set(chiavi)) or any(k not in mappa_ordini for k in chiavi):
         raise ErroreAnteprimaMista('La selezione contiene ordini duplicati, assenti o già impegnati.')
     selezionati = [mappa_ordini[k] for k in chiavi]
+    # Di default tutto il saldo disponibile. Le quantita' possono essere ridotte
+    # manualmente per permettere anche pianificazioni miste parziali.
+    quantita_per_ordine = quantita_per_ordine or {}
+    if set(quantita_per_ordine) - set(chiavi):
+        raise ErroreAnteprimaMista('Quantità indicate per ordini non selezionati.')
+    quantita_richieste = {}
+    for chiave in chiavi:
+        ordine = mappa_ordini[chiave]
+        residuo = disponibili[(ordine.IdDocumento, ordine.IdRigaDoc)]
+        valore = quantita_per_ordine.get(chiave, residuo)
+        if type(valore) is not int or not (1 <= valore <= residuo):
+            raise ErroreAnteprimaMista(
+                f'Ordine {chiave}: inserisci una quantità da 1 a {residuo}.'
+            )
+        quantita_richieste[(ordine.IdDocumento, ordine.IdRigaDoc)] = valore
     codici_scelti = {o.CodArt for o in selezionati}
     articoli_per_codice = {a.CodArt: a for a in articoli if a.CodArt in codici_scelti}
     fasi_per_codice = {cod: _fasi_e_ricetta(cod) for cod in codici_scelti}
@@ -181,7 +197,8 @@ def simula(*, gruppo_id: int, chiavi: list[str], forno_articolo: dict[str, int],
 
     risultati = {}
     qta_pianificate = defaultdict(int)
-    # Per ciascun forno verifica blocco effettivo e cotte già impegnate.
+    # Verifica solo disponibilità dei blocchi e numero di cotte dichiarato.
+    # NON stima l'occupazione fisica dei formati nelle singole infornate.
     for id_forno, ordini_forno in sorted(gruppi_forni.items()):
         fasi_forno = []
         for cod in sorted({o.CodArt for o in ordini_forno}):
@@ -215,7 +232,7 @@ def simula(*, gruppo_id: int, chiavi: list[str], forno_articolo: dict[str, int],
             raise ErroreAnteprimaMista(f'Inserisci le cotte da utilizzare per il forno {id_forno}.')
         righe = [RigaCotta(
             documento=o.IdDocumento, riga=o.IdRigaDoc, codart=o.CodArt,
-            richiesti=disponibili[(o.IdDocumento, o.IdRigaDoc)],
+            richiesti=quantita_richieste[(o.IdDocumento, o.IdRigaDoc)],
             capienza_omogenea=capacita_per_codice[o.CodArt][id_forno],
             priorita=i,
         ) for i, o in enumerate(ordini_forno)]
@@ -233,7 +250,7 @@ def simula(*, gruppo_id: int, chiavi: list[str], forno_articolo: dict[str, int],
             qta_pianificate[chiave] += pezzi
 
     if not any(qta_pianificate.values()):
-        raise ErroreAnteprimaMista('Le cotte impostate non consentono di produrre pezzi.')
+        raise ErroreAnteprimaMista('Nessuna quantità pianificabile.')
     coefficients = {}
     for nome in ('PERCENTUALE_PESO_AGGIUNTIVO_GLASSATURA', 'PERCENTUALE_PESO_AGGIUNTIVO_IMPASTO'):
         c = db.session.scalars(db.select(Coefficienti).where(Coefficienti.Coefficiente == nome)).one_or_none()

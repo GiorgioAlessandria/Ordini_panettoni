@@ -118,6 +118,21 @@ def tabella_ordini_cliente_da_produrre():
     if ruolo_attuale() == "utente_produzione":
         ordini_cliente_assegnati = [r for r in ordini_cliente_assegnati if not articolo_cnf(r.get("CodArt"))]
 
+    # Colori/checkbox per SOTTOGRUPPO di impasto effettivamente compatibile.
+    # Appartenenza commerciale allo stesso gruppo non è sufficiente: le firme
+    # delle fasi di impasto devono coincidere. Il POST rivalida tutto.
+    from flaskr.service.compatibilita_visuale_misti_service import gruppi_compatibili_visibili
+    gruppi_per_articolo = gruppi_compatibili_visibili(
+        {r["CodArt"] for r in ordini_cliente_assegnati}
+    )
+    for riga in ordini_cliente_assegnati:
+        id_gruppo, nome_gruppo, firma = gruppi_per_articolo.get(
+            riga["CodArt"], (None, "", "")
+        )
+        riga["IdGruppoImpasto"] = id_gruppo
+        riga["NomeGruppoImpasto"] = nome_gruppo
+        riga["CompatibilitaImpasto"] = firma
+
     return render_template(
         "ordini/_partials/_tabella_ordini.j2",
         ordini_cliente=ordini_cliente_assegnati,
@@ -133,9 +148,15 @@ def tabella_ordini_cliente_in_produzione():
     if ruolo_attuale() == "utente_produzione":
         ordini_cliente_assegnati = [r for r in ordini_cliente_assegnati if not articolo_cnf(r.get("CodArt"))]
 
+    from flaskr.service.elenco_pianificazioni_unificato_service import righe_pianificazioni_unificate
+    piani_unificati = righe_pianificazioni_unificate(
+        ordini_cliente_assegnati,
+        nascondi_cnf=(ruolo_attuale() == "utente_produzione"),
+    )
     return render_template(
-        "ordini/_partials/_tabella_ordini.j2",
+        "ordini/_partials/_pianificazioni_integrate.j2",
         ordini_cliente=ordini_cliente_assegnati,
+        piani_unificati=piani_unificati,
         stato_tabella="In produzione",
     )
 
@@ -184,6 +205,21 @@ def aggiorna_priorita_ordine(IdDocumento: int, IdRigaDoc: int):
 @login_required
 def riepilogo_selezione():
     ids_selezionati = request.form.getlist("ordini_selezionati")
+    if request.form.get("tipo_pianificazione") == "mista":
+        from flaskr.routes_modules.pianificazione_mista_unificata import valida_selezione_mista
+        try:
+            risultato = valida_selezione_mista(ids_selezionati)
+            riepilogo_misto = {
+                "gruppo": risultato["gruppo"].Nome,
+                "numero_ordini": len(risultato["ordini"]),
+                "numero_articoli": len(risultato["codici"]),
+                "quantita": sum(risultato["disponibili"].values()),
+            }
+            return render_template("ordini/_partials/_riepilogo_ordini.j2",
+                                   riepilogo_misto=riepilogo_misto)
+        except ValueError as errore:
+            return render_template("ordini/_partials/_riepilogo_ordini.j2",
+                                   errore=str(errore))
     try:
         ordini = recupera_ordini_selezionati(ids_selezionati)
         _proteggi_ordini_cnf(ordini)
@@ -305,6 +341,9 @@ def _impastatrici_disponibili_su_blocchi(
 @login_required
 def anteprima_pianificazione():
     ids_selezionati = request.form.getlist("ordini_selezionati")
+    if request.form.get("tipo_pianificazione") == "mista":
+        from flaskr.routes_modules.pianificazione_mista_unificata import form_misto
+        return form_misto(ids_selezionati)
     template = "ordini/_partials/_form_pianificazione.j2"
     if not ids_selezionati:
         return render_template(template, error="Nessun ordine selezionato")
@@ -924,3 +963,8 @@ def conferma_annullamento_pianificazione(IdPianificazione: int):
 
 # AVVISO_CONSEGNA_20261103
 from flaskr.routes_modules import avviso_consegna_routes as _avviso_consegna_routes  # noqa: F401
+
+# Importato a caricamento del blueprint: registra gli endpoint misti nel
+# medesimo modulo di pianificazione e garantisce l'helper Jinja del lotto.
+from flaskr.routes_modules import lotto_pianificazione_routes as _lotto_routes  # noqa: E402,F401
+from flaskr.routes_modules import pianificazione_mista_unificata as _misto_unificato  # noqa: E402,F401

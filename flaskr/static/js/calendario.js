@@ -106,6 +106,12 @@
         return altri;
     }
 
+    function testoForniDichiarati(props) {
+        const forni = props?.forni_dettaglio;
+        if (!Array.isArray(forni) || !forni.length) return '';
+        return forni.map(f => `${f.nome} · ${f.numero_cotte} cotte`).join(' | ');
+    }
+
     function dettagliFase(evento) {
         const p = evento.extendedProps || {};
         const righe = [
@@ -115,6 +121,7 @@
             `Ordini: ${(p.ordini || []).join(', ')}`,
             `Quantità assegnata: ${p.quantita_assegnata ?? 'N/D'}`,
         ];
+        if (testoForniDichiarati(p)) righe.push(`Forni: ${testoForniDichiarati(p)}`);
         if (p.impastatrici?.length) righe.push(`Impastatrici: ${p.impastatrici.join(', ')}`);
         return righe.join('\n');
     }
@@ -150,6 +157,7 @@
         addText(scheda, 'cal-event-title', p.descrizione_articolo || evento.title || 'Articolo');
         addText(scheda, 'cal-event-summary',
             `${p.numero_ordini ?? 0} ordini · ${p.quantita_assegnata ?? 'N/D'} pz`);
+        if (testoForniDichiarati(p)) addText(scheda, 'cal-event-ovens', testoForniDichiarati(p));
         if (p.dati_incompleti) addText(scheda, 'cal-event-warning', 'Quantità da verificare');
         scheda.addEventListener('click', (click) => {
             click.preventDefault();
@@ -544,6 +552,7 @@
             if (produzione) {
                 addText(scheda, 'cal-event-summary',
                     `${props.numero_ordini ?? 0} ordini · ${props.quantita_assegnata ?? 'N/D'} pz assegnati`);
+                if (testoForniDichiarati(props)) addText(scheda, 'cal-event-ovens', testoForniDichiarati(props));
                 if (props.dati_incompleti) addText(scheda, 'cal-event-warning', 'Quantità da verificare');
             } else {
                 addText(scheda, 'cal-event-summary',
@@ -594,6 +603,7 @@
                     `Cotte: ${p.numero_cotte ?? 'N/D'}`,
                     `Peso: ${p.peso_totale_kg ?? 'N/D'} kg`,
                 );
+                if (testoForniDichiarati(p)) righe.push(`Forni: ${testoForniDichiarati(p)}`);
                 if (p.impastatrici?.length) righe.push(`Impastatrici: ${p.impastatrici.join(', ')}`);
             } else {
                 righe.push(

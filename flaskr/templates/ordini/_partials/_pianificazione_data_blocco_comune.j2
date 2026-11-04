@@ -1,0 +1,27 @@
+{# Le due modalità condividono markup e stile, ma preservano i nomi degli input e gli endpoint HTMX. #}
+{% set misto = tipo_pianificazione|default('tradizionale') == 'mista' %}
+<div class="mb-3">
+  <label class="form-label fw-semibold" for="{{ 'misto-data' if misto else 'data-inizio-produzione' }}">Data di inizio</label>
+  <input class="form-control" type="date" id="{{ 'misto-data' if misto else 'data-inizio-produzione' }}"
+         name="{{ 'data_inizio' if misto else 'data_inizio_produzione' }}" required
+         {% if not misto %}hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
+         hx-trigger="change" hx-sync="#form-pianificazione:replace" hx-include="#form-pianificazione"
+         hx-target="#riepilogo-pianificazione" hx-swap="innerHTML"{% endif %}>
+</div>
+<fieldset class="mb-3">
+  <legend class="form-label fw-semibold fs-6">Blocco iniziale</legend>
+  <div class="d-flex flex-wrap gap-3">
+    {% for valore, nome in [('0', 'Mattina (07:00–12:30)'), ('1', 'Pomeriggio (13:00–18:00)')] %}
+      <label class="form-check-label">
+        <input class="form-check-input me-1" type="radio"
+               name="{{ 'blocco' if misto else 'blocco_inizio_produzione' }}"
+               value="{{ ('M' if valore == '0' else 'P') if misto else valore }}"
+               {% if misto and valore == '0' %}checked{% endif %} {% if valore == '0' %}required{% endif %}
+               {% if not misto %}hx-post="{{ url_for('ordini_cliente.simulazione_pianificazione') }}"
+               hx-trigger="change" hx-sync="#form-pianificazione:replace" hx-include="#form-pianificazione"
+               hx-target="#riepilogo-pianificazione" hx-swap="innerHTML"{% endif %}>
+        {{ nome }}
+      </label>
+    {% endfor %}
+  </div>
+</fieldset>

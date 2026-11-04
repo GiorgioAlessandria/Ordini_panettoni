@@ -19,6 +19,7 @@ from flaskr.models.model_ordini import (
     TipologieLavorazione,
 )
 from flaskr.service.risorse_produzione_service import _blocchi_occupati
+from flaskr.service.calendario_misto_service import righe_fasi_miste
 from flaskr.service.scadenze_giornaliere_service import articolo_cnf
 
 _GIORNI = ("Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom")
@@ -193,11 +194,33 @@ def carica_agenda_giorni_interessati(
                 db.select(AnagraficaArticoli).where(AnagraficaArticoli.CodArt.in_(codici))
             ).all()
         }
-    return {
-        "selezionata": min(fase.DataFase for fase in fasi_proposte),
-        "giorni": organizza_eventi_giorni_interessati(
-            fasi_proposte, lavorazioni, righe, cod_art_proposto,
-            mostra_articoli_cnf=mostra_articoli_cnf,
-            descrizioni_articoli=descrizioni_articoli,
-        ),
-    }
+    giorni = organizza_eventi_giorni_interessati(
+        fasi_proposte, lavorazioni, righe, cod_art_proposto,
+        mostra_articoli_cnf=mostra_articoli_cnf,
+        descrizioni_articoli=descrizioni_articoli,
+    )
+    per_giorno = {giorno["data"]: giorno for giorno in giorni}
+    # Le prenotazioni miste sono gia' espanse per slot. Il servizio del
+    # calendario raggruppa le cotture dei forni nello stesso blocco.
+    ruolo_misto = 'utente_produzione' if not mostra_articoli_cnf else ''
+    for evento in righe_fasi_miste(prima, ultima + timedelta(days=1), ruolo_misto):
+        giorno = per_giorno.get(evento['giorno'])
+        if giorno is None:
+            continue
+        giorno['slot'][evento['blocco']].append({
+            'bozza': False, 'tipo_misto': True,
+            'id_bozza': evento['id_bozza'],
+            'id_pianificazione': evento['id_grafico'],
+            'cod_art': '',
+            'descrizione_articolo': evento['descrizione'],
+            'descrizione': evento['lavorazione'],
+            'categoria': 'forno' if evento.get('forni_dettaglio') else 'impasto',
+            'cotte': evento['numero_cotte'] if evento.get('forni_dettaglio') else None,
+            'forno': evento['forno'] if evento.get('forni_dettaglio') else None,
+        })
+    for giorno in giorni:
+        for blocco in ('M', 'P'):
+            giorno['slot'][blocco].sort(
+                key=lambda e: (e['bozza'], e['id_pianificazione'] or 0, e['descrizione'])
+            )
+    return {'selezionata': min(f.DataFase for f in fasi_proposte), 'giorni': giorni}

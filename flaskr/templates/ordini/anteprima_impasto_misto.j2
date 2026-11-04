@@ -14,8 +14,8 @@
   </div>
   <div class="alert alert-warning py-2 small" role="note">
     <strong>Anteprima e bozze:</strong> ora puoi salvare la proposta di pianificazione, ma la bozza non conferma la produzione, non prenota macchine o forni e non modifica stock o stati.
-    Le cotte miste sono stimate utilizzando la quota <code>pezzi / capienza omogenea</code> per ciascun formato: questa
-    proporzione deve essere verificata rispetto ai vincoli fisici reali di teglie e forno prima di abilitarne la conferma.
+    Per le cotte miste il numero per forno deve essere calcolato e dichiarato dall'operatore.
+    Il programma verifica disponibilità e peso dell'impasto, non la composizione fisica delle cotte.
   </div>
   <section class="card shadow-sm mb-3">
     <div class="card-body">
@@ -89,12 +89,12 @@
         <section class="card shadow-sm mb-3">
           <div class="card-header"><strong>3. Numero di cotte per forno</strong></div>
           <div class="card-body">
-            <p class="text-secondary small">Inserisci il numero di cotte che vuoi usare nel blocco effettivo. Il sistema verifica il massimo residuo e il fabbisogno degli ordini.</p>
+            <p class="text-secondary small">Calcola il numero di cotte miste necessarie per ogni forno e inseriscilo. Il software non usa stime di capienza fisica: verifica i blocchi disponibili.</p>
             <div class="row g-3">
             {% for id_forno in forni_id %}
               <div class="col-12 col-md-4">
                 <label class="form-label fw-semibold" for="cotte-{{ id_forno }}">{{ forni[id_forno].DescrizioneForno if forni.get(id_forno) else 'Forno ' ~ id_forno }}</label>
-                <input class="form-control" id="cotte-{{ id_forno }}" name="cotte_{{ id_forno }}" type="number" min="1" step="1" max="999" value="{{ cotte_form.get(id_forno, '1') }}">
+                <input class="form-control" id="cotte-{{ id_forno }}" name="cotte_{{ id_forno }}" type="number" min="1" step="1" max="999" placeholder="N. cotte" value="{{ cotte_form.get(id_forno, '') }}">
               </div>
             {% endfor %}
             </div>
@@ -164,12 +164,8 @@
           {% set dati = risultato.esito %}
           <div class="border rounded-3 p-3 mb-3">
             <h2 class="h6">{{ forni[id_forno].DescrizioneForno if forni.get(id_forno) else 'Forno ' ~ id_forno }} · {{ risultato.data.strftime('%d-%m-%Y') }} / {{ risultato.blocco }}</h2>
-            <p class="small text-secondary">Cotte inserite: <strong>{{ dati.numero_cotte }}</strong> · Cotte libere: <strong>{{ risultato.libere }}</strong> · Minimo stimato per coprire l'intero residuo: <strong>{{ dati.minimo_stimato }}</strong> · Massimo dal fabbisogno degli ordini: <strong>{{ dati.massimo_da_ordini }}</strong></p>
-            <div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead><tr><th>Cotta</th><th>Composizione dei formati</th><th>Occupazione stimata</th></tr></thead><tbody>
-              {% for cotta in dati.cotte %}
-                <tr><td>{{ loop.index }}</td><td>{% for codice, n in cotta.items() %}<span class="me-3">{{ codice }}: <strong>{{ n }}</strong></span>{% else %}<span class="text-muted">Cotta vuota</span>{% endfor %}</td><td>{{ '%.1f'|format((dati.occupazioni[loop.index0]|float) * 100) }}%</td></tr>
-              {% endfor %}
-            </tbody></table></div>
+            <p class="small text-secondary">Cotte dichiarate dall'operatore: <strong>{{ dati.numero_cotte }}</strong> · Cotte libere nel blocco: <strong>{{ risultato.libere }}</strong></p>
+            <p class="small text-secondary mb-0">Quantità e peso calcolati automaticamente. La composizione fisica delle singole cotte non viene stimata o salvata.</p>
           </div>
         {% endfor %}
         <div class="small text-secondary">Le quantità indicate sono una proposta simulata. Il sistema non ha modificato nessun ordine.</div>

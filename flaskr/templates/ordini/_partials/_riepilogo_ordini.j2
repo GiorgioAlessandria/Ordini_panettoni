@@ -1,6 +1,13 @@
 {# Riepilogo compatto esclusivo della barra "Ordini da gestire".
    Non modifica _riepilogo_contenuto.j2 usato nei dettagli della pianificazione. #}
-{% if errore %}
+{% if riepilogo_misto is defined and riepilogo_misto %}
+    <div class="ordini-riepilogo-linea" role="status" aria-label="Riepilogo impasto misto">
+      <span class="ordini-riepilogo-voce">Impasto misto: <strong>{{ riepilogo_misto.gruppo }}</strong></span>
+      <span class="ordini-riepilogo-voce">Ordini <strong>{{ riepilogo_misto.numero_ordini }}</strong></span>
+      <span class="ordini-riepilogo-voce">Articoli <strong>{{ riepilogo_misto.numero_articoli }}</strong></span>
+      <span class="ordini-riepilogo-voce">Pezzi disponibili <strong>{{ riepilogo_misto.quantita }}</strong></span>
+    </div>
+{% elif errore %}
     <span class="small {{ 'text-muted' if errore == 'Nessun ordine selezionato' else 'text-danger' }}" role="status">{{ errore }}</span>
 {% elif riepilogo %}
     <div class="ordini-riepilogo-linea" role="status" aria-label="Riepilogo ordini selezionati">

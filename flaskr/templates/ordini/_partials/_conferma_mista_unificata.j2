@@ -1,0 +1,7 @@
+<div class="modal-header"><h5 class="modal-title">Pianificazione confermata</h5>
+<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>
+<div class="modal-body"><div class="alert alert-success" role="status">
+  Pianificazione mista M-{{ id_bozza }} confermata. Ordini, impastatrici, forni e lotto sono stati salvati.
+</div>
+<a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=id_bozza) }}">Apri dettaglio pianificazione</a>
+</div>

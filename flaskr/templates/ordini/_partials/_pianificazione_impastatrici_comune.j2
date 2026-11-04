@@ -1,0 +1,18 @@
+{% set misto = tipo_pianificazione|default('tradizionale') == 'mista' %}
+<fieldset class="mb-3">
+  <legend class="form-label fw-semibold fs-6">Impastatrici {{ 'disponibili' if not misto else '' }}</legend>
+  {% if misto %}
+    <p class="small text-secondary mb-2">Le impastatrici sono controllate per tutte le fasi di impasto condivise.</p>
+    <div class="border rounded p-2" style="max-height:175px;overflow:auto">
+      {% for m in impastatrici %}
+        <label class="d-block small mb-1">
+          <input type="checkbox" class="form-check-input me-2" name="impastatrici" value="{{ m.IdImpastatrice }}">
+          {{ m.DescrizioneImpastatrice or m.ModelloImpastatrice }} · {{ m.CapienzaImpastatrice }} {{ m.UdM }}
+        </label>
+      {% else %}<span class="text-secondary">Nessuna impastatrice configurata.</span>{% endfor %}
+    </div>
+  {% else %}
+    <p class="small text-secondary mb-2">Seleziona le macchine candidate. Il programma distribuirà automaticamente il peso effettivo e prenoterà solo le macchine necessarie.</p>
+    {% include 'ordini/_partials/_impastatrici_disponibili.j2' %}
+  {% endif %}
+</fieldset>

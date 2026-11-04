@@ -1,0 +1,35 @@
+{% if errore %}
+<div class="alert alert-danger" role="alert">{{ errore }}</div>
+{% elif esito %}
+<div class="row g-2 mb-3">
+  <div class="col-6"><div class="border rounded p-2"><small class="text-secondary d-block">Pezzi pianificati</small><strong>{{ esito.totale_pezzi }}</strong></div></div>
+  <div class="col-6"><div class="border rounded p-2"><small class="text-secondary d-block">Cotte dichiarate</small><strong>{{ esito.totale_cotte }}</strong></div></div>
+  <div class="col-6"><div class="border rounded p-2"><small class="text-secondary d-block">Impasto</small><strong>{{ '%.2f'|format(esito.peso_kg) }} kg</strong></div></div>
+  <div class="col-6"><div class="border rounded p-2"><small class="text-secondary d-block">Capacità impastatrici</small><strong>{{ '%.2f'|format(esito.capacita_kg) }} kg</strong></div></div>
+</div>
+<div class="table-responsive mb-3"><table class="table table-sm align-middle">
+  <thead><tr><th>Ordine</th><th>Articolo</th><th class="text-end">Previsti</th><th class="text-end">Residui</th></tr></thead>
+  <tbody>{% for voce in esito.ordini %}
+    <tr><td>{{ voce.ordine.IdDocumento }}-{{ voce.ordine.IdRigaDoc }}</td><td>{{ voce.ordine.CodArt }}</td>
+    <td class="text-end">{{ voce.pianificata }}</td><td class="text-end">{{ voce.residuo }}</td></tr>
+  {% endfor %}</tbody></table></div>
+{% for id_forno, risultato in esito.risultati|dictsort %}
+<div class="border rounded p-2 mb-2">
+  <div class="fw-semibold">Forno #{{ id_forno }} · {{ risultato.data.strftime('%d/%m/%Y') }} · {{ risultato.blocco }}</div>
+  <div class="small text-secondary">Cotte dichiarate dall'operatore: <strong>{{ risultato.esito.numero_cotte }}</strong> · Disponibili nel blocco: {{ risultato.libere }}</div>
+  <div class="small">Articoli assegnati: {% for ordine in risultato.ordini|sort(attribute='CodArt') %}{{ ordine.CodArt }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+  <div class="small text-secondary">La composizione fisica delle singole cotte non è calcolata né registrata.</div>
+</div>
+{% endfor %}
+<div class="small text-secondary mb-1">Fasi di impasto condivise:</div>
+{% for fase in esito.fasi_impasto|sort(attribute='OffsetBlocchi') %}
+<div class="small">{{ fase.DataFase.strftime('%d/%m/%Y') }} · {{ fase.Blocco }} · Lavorazione {{ fase.IdLavorazione }}</div>
+{% endfor %}
+<div class="alert alert-warning small mt-2 mb-0">Numero cotte fornito dall'operatore. Il software verifica pesi, quantità e disponibilità, ma non certifica la capienza fisica della cotta mista.</div>
+{% endif %}
+
+{% if agenda_mista is defined %}
+  <div id="agenda-pianificazione-mista" hx-swap-oob="innerHTML">
+    {% include 'ordini/_partials/_agenda_pianificazione_mista.j2' %}
+  </div>
+{% endif %}

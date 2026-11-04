@@ -716,7 +716,8 @@ def anteprima_impasto_misto():
     # Valori del modulo non cambiano finché non viene avviata un'altra anteprima.
     scelte = request.form.getlist('ordini') if request.method == 'POST' else []
     forni_form = {cod: request.form.get(f'forno_{cod}', '') for cod in forni_compatibili}
-    cotte_form = {fid: request.form.get(f'cotte_{fid}', '1') for fid in forni_id}
+    # L'operatore deve indicare il numero di cotte: nessun valore precompilato.
+    cotte_form = {fid: request.form.get(f'cotte_{fid}', '') for fid in forni_id}
     mixers_form = request.form.getlist('impastatrici')
     data_form = request.form.get('data_inizio', '')
     blocco_form = request.form.get('blocco', 'M')
@@ -868,8 +869,8 @@ from flaskr.service.attivazione_impasto_misto_service import (
 @solo_ruoli('admin', 'utente_produzione')
 def conferma_piano_misto(id_bozza: int):
     _verifica_csrf()
-    # La capienza per cotta mista è una stima proporzionale, da autorizzare
-    # esplicitamente dopo prova fisica dell'allestimento dei forni.
+    # Numero di cotte dichiarato dall'operatore: la conferma produttiva
+    # resta subordinata all'autorizzazione server e alla verifica fisica.
     if not current_app.config.get('ABILITA_CONFERMA_PIANI_MISTI', False):
         flash('Attivazione disabilitata: validare prima la capienza fisica delle cotte miste.', 'warning')
         return redirect(url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=id_bozza))

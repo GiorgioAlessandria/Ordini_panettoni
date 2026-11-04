@@ -314,9 +314,6 @@
                                 data-bs-target="#modal-pianificazione">
                             Pianifica ordini selezionati
                         </button>
-                        <a class="btn btn-outline-secondary btn-sm flex-shrink-0"
-                           href="{{ url_for('ordini_cliente.anteprima_impasto_misto') }}"
-                           title="Simulazione, senza salvataggio di pianificazioni">Simula cotte miste</a>
                         <div id="riepilogo-ordini" class="ordini-sommario" aria-live="polite" aria-atomic="true">
                             <span class="text-muted">Nessun ordine selezionato</span>
                         </div>
@@ -355,6 +352,6 @@
 
 {% block scripts %}
     {{ super() }}
-    <script src="{{ url_for('static', filename='js/selezione_ordini.js', v='20261020-2') }}"></script>
+    <script src="{{ url_for('static', filename='js/selezione_ordini.js', v='20261103-misti1') }}"></script>
     <script src="{{ url_for('static', filename='js/ordini_scorrimento.js', v='20261030-2') }}" defer></script>
 {% endblock %}

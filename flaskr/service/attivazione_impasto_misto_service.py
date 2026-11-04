@@ -101,12 +101,19 @@ def _valida_e_ricalcola(bozza: BozzaPianificazioneMista, *, include_cnf: bool) -
             blocco=bozza.BloccoIniziale,
             impastatrici_ids=[m.IdImpastatrice for m in bozza.impastatrici],
             include_cnf=include_cnf,
+            # Ricalcola le quantità impegnate nella bozza, anche se parziali,
+            # senza dedurle da una ripartizione fisica delle cotte.
+            quantita_per_ordine={
+                f'{o.IdDocumento}-{o.IdRigaDoc}': int(o.QtaPianificata)
+                for o in bozza.ordini
+            },
         )
     except (ErroreAnteprimaMista, ValueError) as exc:
         raise ErroreAttivazioneMista(f'La proposta non è più confermabile: {exc}') from exc
     if _firma_bozza(bozza) != _firma_esito(esito, bozza):
         raise ErroreAttivazioneMista(
-            'La disponibilità degli ordini o la composizione delle cotte è cambiata. '
+            'La bozza non corrisponde più ai calcoli attuali (potrebbe contenere '
+            'una vecchia ripartizione stimata delle cotte). '
             'Riapri la proposta, ripeti la simulazione e crea una nuova bozza.'
         )
     if abs(Decimal(str(esito['peso_kg'])) * 1000 - Decimal(str(bozza.PesoTotaleGrammi))) > Decimal('0.005'):
@@ -167,7 +174,8 @@ def _log(bozza: BozzaPianificazioneMista, operatore: str, stato: str, adesso: da
         ))
 
 
-def conferma_bozza(id_bozza: int, operatore: str, *, include_cnf: bool = False) -> int:
+def conferma_bozza(id_bozza: int, operatore: str, *, include_cnf: bool = False,
+                   transazione_gestita: bool = False) -> int:
     """Prenota sotto BEGIN IMMEDIATE: ordini, impastatrici e cotte per foro/blocco.
 
     Nessuna scrittura a stock. La richiesta deve essere autorizzata e protetta
@@ -176,7 +184,8 @@ def conferma_bozza(id_bozza: int, operatore: str, *, include_cnf: bool = False) 
     if not operatore or len(operatore) > 120:
         raise ErroreAttivazioneMista('Operatore non valido.')
     try:
-        _transazione_sqlite_immediata()
+        if not transazione_gestita:
+            _transazione_sqlite_immediata()
         bozza = db.session.get(BozzaPianificazioneMista, id_bozza)
         if bozza is None:
             raise ErroreAttivazioneMista('Bozza non trovata.')
@@ -230,7 +239,10 @@ def conferma_bozza(id_bozza: int, operatore: str, *, include_cnf: bool = False) 
         for r in bozza.ordini:
             _rileggi_stato(r.IdDocumento, r.IdRigaDoc, adesso, operatore)
         _log(bozza, operatore, 'In produzione', adesso)
-        db.session.commit()
+        if transazione_gestita:
+            db.session.flush()
+        else:
+            db.session.commit()
         return id_bozza
     except ErroreAttivazioneMista:
         db.session.rollback()

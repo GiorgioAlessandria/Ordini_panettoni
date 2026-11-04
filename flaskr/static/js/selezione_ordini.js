@@ -21,6 +21,7 @@
                 filtri: {},
                 ordinamento: null,
                 selezionati: new Set(),
+                misti: false,
                 scrollX: 0,
                 scrollY: 0,
                 focus: null,
@@ -121,15 +122,50 @@
         }
     }
 
+    const COLORI_GRUPPI = [
+        ["#e3efff", "#d2e4fb"], ["#e5f5e8", "#d4ecd9"],
+        ["#fff0d8", "#f9e1bd"], ["#f2e7ff", "#e7d5fc"],
+        ["#ddf5f4", "#c9ecea"], ["#fce7ee", "#f8d5e2"],
+    ];
+
+    function applicaModalitaMista(contenitore) {
+        if (contenitore.id !== "ordini_cliente_da_produrre") return;
+        const stato = statoDi(contenitore);
+        const form = contenitore.querySelector(".ordini-form");
+        form?.classList.toggle("ordini-modalita-mista", stato.misti);
+        const hidden = contenitore.querySelector("[data-tipo-pianificazione]");
+        if (hidden) hidden.value = stato.misti ? "mista" : "tradizionale";
+        const toggle = contenitore.querySelector("[data-toggle-impasti-misti]");
+        if (toggle) {
+            toggle.textContent = `Impasti misti: ${stato.misti ? "ON" : "OFF"}`;
+            toggle.setAttribute("aria-pressed", stato.misti ? "true" : "false");
+            toggle.classList.toggle("btn-primary", stato.misti);
+            toggle.classList.toggle("btn-outline-primary", !stato.misti);
+        }
+        righe(contenitore).forEach((riga) => {
+            const idGruppo = riga.dataset.mixGruppo;
+            if (!idGruppo) return;
+            const index = [...idGruppo].reduce((n, c) => n * 31 + c.charCodeAt(0), 0) % COLORI_GRUPPI.length;
+            riga.style.setProperty("--misto-riga-bg", COLORI_GRUPPI[index][0]);
+            riga.style.setProperty("--misto-riga-hover", COLORI_GRUPPI[index][1]);
+        });
+    }
+
     function aggiornaCompatibilita(contenitore) {
         if (contenitore.id !== "ordini_cliente_da_produrre") return;
         const checkbox = Array.from(contenitore.querySelectorAll('input[name="ordini_selezionati"]'));
         const riferimento = checkbox.find((input) => input.checked);
+        const misti = statoDi(contenitore).misti;
         checkbox.forEach((input) => {
-            input.disabled = Boolean(riferimento) && (
-                input.dataset.codArt !== riferimento.dataset.codArt ||
-                input.dataset.prezzatura !== riferimento.dataset.prezzatura
-            );
+            if (misti) {
+                const gruppo = input.dataset.gruppoImpasto || "";
+                input.disabled = !gruppo || (Boolean(riferimento) && gruppo !== riferimento.dataset.gruppoImpasto);
+            } else {
+                input.disabled = Boolean(riferimento) && (
+                    input.dataset.codArt !== riferimento.dataset.codArt ||
+                    input.dataset.prezzatura !== riferimento.dataset.prezzatura
+                );
+            }
         });
     }
 
@@ -174,6 +210,7 @@
             checkbox.forEach((input) => {
                 input.checked = stato.selezionati.has(input.value);
             });
+            applicaModalitaMista(contenitore);
             aggiornaCompatibilita(contenitore);
         }
         applicaOrdinamento(contenitore);
@@ -217,6 +254,14 @@
 
     document.body.addEventListener("input", (event) => {
         const elemento = event.target;
+        if (elemento?.matches?.("[data-filter-pianificazioni]")) {
+            const pannello = elemento.closest('.pianificazioni-riepilogo-unico');
+            const testo = elemento.value.toLocaleLowerCase('it');
+            pannello?.querySelectorAll('tbody tr[data-piano]').forEach((riga) => {
+                riga.hidden = !riga.textContent.toLocaleLowerCase('it').includes(testo);
+            });
+            return;
+        }
         if (!elemento?.matches?.("[data-filter]")) return;
         const contenitore = contenitoreDi(elemento);
         if (!contenitore) return;
@@ -259,6 +304,23 @@
             };
             applicaOrdinamento(contenitore);
             applicaFiltri(contenitore);
+            return;
+        }
+        const mistiToggle = event.target.closest?.("[data-toggle-impasti-misti]");
+        if (mistiToggle) {
+            const contenitore = contenitoreDi(mistiToggle);
+            if (!contenitore) return;
+            const stato = statoDi(contenitore);
+            stato.misti = !stato.misti;
+            stato.selezionati.clear();
+            contenitore.querySelectorAll('input[name="ordini_selezionati"]').forEach((input) => {
+                input.checked = false;
+            });
+            applicaModalitaMista(contenitore);
+            aggiornaCompatibilita(contenitore);
+            applicaFiltri(contenitore);
+            const riepilogo = document.getElementById("riepilogo-ordini");
+            if (riepilogo) riepilogo.textContent = "Nessun ordine selezionato";
             return;
         }
         const reset = event.target.closest?.("[data-reset-filters]");

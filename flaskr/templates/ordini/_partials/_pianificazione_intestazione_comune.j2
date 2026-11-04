@@ -1,0 +1,12 @@
+{# Identica testata dei due percorsi; differiscono soltanto i dati sottostanti. #}
+<div class="modal-header">
+  <div>
+    <h5 class="modal-title">Pianificazione produzione</h5>
+    {% if tipo_pianificazione|default('tradizionale') == 'mista' %}
+      <small class="text-secondary">Impasto misto · {{ gruppo.Nome }} · {{ ordini|length }} ordini · {{ codici|length }} articoli</small>
+    {% else %}
+      <small class="text-secondary">Giornate coinvolte a sinistra; impostazioni al centro; simulazione a destra</small>
+    {% endif %}
+  </div>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+</div>
