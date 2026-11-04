@@ -100,7 +100,13 @@ def stock_articoli_tabella():
         .outerjoin(AnagraficaArticoli, Stock.CodArt == AnagraficaArticoli.CodArt)
         .order_by(Stock.CodArt)
     ).all()
-    return render_template("ordini/_partials/_stock_tabella.j2", righe=righe)
+    seconde = {
+        cod: qta for cod, qta in db.session.execute(
+            db.select(GiacenzaSecondaScelta.CodArt, GiacenzaSecondaScelta.Quantita)
+        )
+    }
+    return render_template("ordini/_partials/_stock_tabella.j2",
+                           righe=righe, seconde=seconde)
 
 
 @bp_ordini_cliente.route("/tabella_ordini_da_produrre")
