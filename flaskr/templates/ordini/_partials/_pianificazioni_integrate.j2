@@ -1,40 +1,186 @@
-{# Panoramica comune. La vecchia tabella rimane disponibile per compatibilita'. #}
+{# Vista unificata: ogni piano attivo espone TUTTE le righe ordine e i commenti collegati. #}
+<style>
+  #ordini_cliente_in_produzione .pianificazioni-riepilogo-unico {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+    width: 100%;
+    overflow: hidden;
+  }
+  #ordini_cliente_in_produzione .pan-pianificazioni-toolbar { flex: 0 0 auto; }
+  #ordini_cliente_in_produzione .pan-pianificazioni-elenco {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding: .3rem .35rem .75rem .1rem;
+    gap: .8rem;
+  }
+  #ordini_cliente_in_produzione .pan-piano-card {
+    display: block;
+    flex: 0 0 auto;
+    min-width: 0;
+    background: var(--bs-body-bg, #fff);
+    border: 1px solid var(--bs-border-color, #d6dee7);
+    border-radius: .6rem;
+    overflow: hidden;
+  }
+  #ordini_cliente_in_produzione .pan-piano-card[hidden] { display: none !important; }
+  #ordini_cliente_in_produzione .pan-piano-intestazione {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: .6rem;
+    background: var(--bs-tertiary-bg, #f8f9fa);
+    border-bottom: 1px solid var(--bs-border-color, #d6dee7);
+    padding: .65rem .8rem;
+  }
+  #ordini_cliente_in_produzione .pan-piano-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3rem .9rem;
+    align-items: baseline;
+    padding: .5rem .8rem;
+    font-size: .84rem;
+    color: var(--bs-secondary-color, #64748b);
+  }
+  #ordini_cliente_in_produzione .pan-piano-meta strong { color: var(--bs-body-color, #212529); }
+  #ordini_cliente_in_produzione .pan-piano-tabella {
+    width: 100%;
+    min-width: 1360px;
+    table-layout: fixed;
+    margin: 0;
+  }
+  #ordini_cliente_in_produzione .pan-piano-tabella th {
+    font-size: .78rem;
+    font-weight: 650;
+    color: var(--bs-secondary-color, #64748b);
+    background: var(--bs-tertiary-bg, #f8f9fa);
+    white-space: nowrap;
+    padding: .45rem .55rem;
+  }
+  #ordini_cliente_in_produzione .pan-piano-tabella td {
+    vertical-align: top;
+    padding: .55rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+  #ordini_cliente_in_produzione .pan-piano-tabella .pan-piano-note {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: .8rem;
+  }
+  #ordini_cliente_in_produzione .pan-piano-note + .pan-piano-note { border-top: 1px solid var(--bs-border-color, #e9ecef); margin-top: .45rem; padding-top: .4rem; }
+  #ordini_cliente_in_produzione .pan-piano-note-autore {
+    display: block;
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--bs-secondary-color, #64748b);
+    margin-bottom: .15rem;
+  }
+  #ordini_cliente_in_produzione .pan-piano-ordini-scroll { width: 100%; overflow-x: auto; }
+  #ordini_cliente_in_produzione .pan-piano-numero { font-variant-numeric: tabular-nums; white-space: nowrap; }
+</style>
 <div class="pianificazioni-riepilogo-unico p-2">
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-    <div><strong>Pianificazioni attive</strong>
-      <span class="text-secondary small">· {{ piani_unificati|length }} tra tradizionali e miste</span></div>
-    <input type="search" class="form-control form-control-sm" style="max-width:270px"
-           placeholder="Filtra pianificazioni..." aria-label="Filtra pianificazioni"
-           data-filter-pianificazioni>
+  <div class="pan-pianificazioni-toolbar d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <div>
+      <strong>Pianificazioni in produzione</strong>
+      <span class="text-secondary small">· {{ piani_unificati|length }} pianificazioni · {{ piani_unificati|sum(attribute='numero_ordini') }} righe d'ordine associate</span>
+    </div>
+    <label class="visually-hidden" for="filtro-pianificazioni">Cerca per ordine, cliente, articolo, lotto o commento</label>
+    <input id="filtro-pianificazioni" type="search" class="form-control form-control-sm"
+           style="max-width:min(100%,370px)" data-filter-pianificazioni
+           placeholder="Cerca ordine, cliente, articolo, commento..."
+           aria-label="Filtra pianificazioni e ordini">
   </div>
-  <div class="table-responsive">
-    <table class="table table-sm table-hover align-middle">
-      <thead class="table-light"><tr><th>Tipo</th><th>ID</th><th>Lotto</th><th>Data</th><th>Articoli</th><th>Ordini</th><th>Quantità</th><th>Cotte</th><th>Impasto</th><th>Forni</th><th></th></tr></thead>
-      <tbody>
-        {% for p in piani_unificati %}
-          <tr data-piano>
-            <td><span class="badge {{ 'text-bg-primary' if p.tipo == 'TRAD' else 'text-bg-info' }}">{{ 'Tradizionale' if p.tipo == 'TRAD' else 'Mista' }}</span></td>
-            <td class="fw-semibold">{{ '#' if p.tipo == 'TRAD' else 'M-' }}{{ p.id }}</td>
-            <td class="fw-semibold text-nowrap">{{ lotto_pianificazione(p.tipo, p.id) if lotto_pianificazione is defined else '—' }}</td>
-            <td class="text-nowrap">{{ p.data.strftime('%d/%m/%Y') }}</td>
-            <td>{{ p.articoli }}</td><td>{{ p.numero_ordini }}</td><td>{{ p.qta }}</td>
-            <td>{{ p.cotte }}</td><td>{{ '%.2f'|format(p.peso_kg) }} kg</td><td>{{ p.forni }}</td>
-            <td class="text-nowrap">
-              {% if p.tipo == 'TRAD' %}
-                <a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.gestione_pianificazione', IdPianificazione=p.id) }}">Dettaglio</a>
-              {% else %}
-                <a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=p.id) }}">Dettaglio</a>
-              {% endif %}
-            </td>
-          </tr>
+  <div class="pan-pianificazioni-elenco" aria-label="Elenco completo delle pianificazioni" tabindex="0">
+    {% for p in piani_unificati %}
+    <article class="pan-piano-card" data-piano aria-label="{{ 'Pianificazione' if p.tipo == 'TRAD' else 'Pianificazione mista' }} {{ p.id }}">
+      <div class="pan-piano-intestazione">
+        <div>
+          <span class="badge {{ 'bg-primary' if p.tipo == 'TRAD' else 'bg-info text-dark' }} me-2">{{ 'Tradizionale' if p.tipo == 'TRAD' else 'Mista' }}</span>
+          <strong>{{ '#' if p.tipo == 'TRAD' else 'M-' }}{{ p.id }}</strong>
+          <span class="ms-2 text-secondary small">{{ p.data.strftime('%d/%m/%Y') }}</span>
+          <div class="small mt-1">Lotto:
+            <span class="fw-semibold font-monospace">{{ lotto_pianificazione(p.tipo, p.id) or 'Non assegnato' if lotto_pianificazione is defined else 'Non assegnato' }}</span>
+          </div>
+        </div>
+        {% if p.tipo == 'TRAD' %}
+          <a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.gestione_pianificazione', IdPianificazione=p.id) }}">Gestisci pianificazione</a>
         {% else %}
-          <tr><td colspan="11" class="text-center text-secondary py-3">Nessuna pianificazione attiva.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+          <a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=p.id) }}">Gestisci pianificazione</a>
+        {% endif %}
+      </div>
+      <div class="pan-piano-meta">
+        <span>Articolo/i: <strong>{{ p.articoli }}</strong></span>
+        <span>Righe: <strong>{{ p.numero_ordini }}</strong></span>
+        <span>Pezzi assegnati: <strong>{{ p.qta_assegnata }}</strong></span>
+        <span>Cotte: <strong>{{ p.cotte }}</strong></span>
+        <span>Impasto: <strong>{{ '%.2f'|format(p.peso_kg) }} kg</strong></span>
+        <span>Forno/i: <strong>{{ p.forni }}</strong></span>
+      </div>
+      <div class="pan-piano-ordini-scroll">
+        <table class="table table-sm table-striped table-hover pan-piano-tabella align-middle">
+          <colgroup>
+            <col style="width:9%"><col style="width:13%"><col style="width:12%"><col style="width:9%">
+            <col style="width:9%"><col style="width:16%"><col style="width:16%"><col style="width:16%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col">Ordine / riga</th>
+              <th scope="col">Cliente</th>
+              <th scope="col">Panettone</th>
+              <th scope="col">Consegna</th>
+              <th scope="col" class="text-end">Pz assegnati</th>
+              <th scope="col">Commenti vendite</th>
+              <th scope="col">Commenti produzione</th>
+              <th scope="col">Commento etichetta</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for o in p.ordini %}
+            <tr data-piano-ordine>
+              <td class="pan-piano-numero fw-semibold">{{ o.IdDocumento }}-{{ o.IdRigaDoc }}</td>
+              <td>{{ o.Cliente }}</td>
+              <td><strong>{{ o.CodArt }}</strong>{% if o.DesArt %}<div class="small text-secondary">{{ o.DesArt }}</div>{% endif %}</td>
+              <td class="text-nowrap">{{ o.DataConsegna.strftime('%d/%m/%Y') if o.DataConsegna else '—' }}</td>
+              <td class="text-end fw-semibold pan-piano-numero">{{ o.QtaPianificata }}{% if o.QtaDaStock %}<div class="small text-secondary fw-normal">di cui stock {{ o.QtaDaStock }}</div>{% endif %}</td>
+              <td>
+                {% for nota in o.NoteVendite %}
+                  <div class="pan-piano-note"><span class="pan-piano-note-autore">{{ nota.AutoreNome }}</span>{{ nota.Testo }}</div>
+                {% else %}<span class="text-secondary small">—</span>{% endfor %}
+              </td>
+              <td>
+                {% for nota in o.NoteProduzione %}
+                  <div class="pan-piano-note"><span class="pan-piano-note-autore">{{ nota.AutoreNome }}</span>{{ nota.Testo }}</div>
+                {% else %}<span class="text-secondary small">—</span>{% endfor %}
+              </td>
+              <td>
+                {% if o.CommentoEtichetta %}
+                  <div class="pan-piano-note">
+                    <span class="pan-piano-note-autore">C{{ o.CommentoEtichetta.tipo }}</span>
+                    {{ o.CommentoEtichetta.testo }}
+                  </div>
+                {% else %}<span class="text-secondary small">—</span>{% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="8" class="text-secondary text-center py-3">Nessuna associazione ordine disponibile per questa pianificazione. Controllare lo storico e la sincronizzazione ERP.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+    {% else %}
+      <div class="text-center text-secondary py-5">Nessuna pianificazione attiva.</div>
+    {% endfor %}
   </div>
 </div>
-<details class="border-top mt-2 px-2 pb-2">
-  <summary class="small text-secondary py-2" style="cursor:pointer">Mostra tabella dettagliata delle pianificazioni tradizionali</summary>
-  {% include 'ordini/_partials/_tabella_ordini.j2' %}
-</details>

@@ -22,6 +22,7 @@
                 ordinamento: null,
                 selezionati: new Set(),
                 misti: false,
+                filtroPianificazioni: "",
                 scrollX: 0,
                 scrollY: 0,
                 focus: null,
@@ -180,6 +181,10 @@
 
     function acquisisciStato(contenitore) {
         const stato = statoDi(contenitore);
+        if (contenitore.id === "ordini_cliente_in_produzione") {
+            const filtro = contenitore.querySelector("[data-filter-pianificazioni]");
+            if (filtro) stato.filtroPianificazioni = filtro.value;
+        }
         contenitore.querySelectorAll("[data-filter]").forEach((input) => {
             stato.filtri[input.dataset.filter] = input.value;
         });
@@ -201,8 +206,24 @@
         } : null;
     }
 
+    function filtraPianificazioni(pannello, testo) {
+        if (!pannello) return;
+        const cercato = String(testo || "").trim().toLocaleLowerCase("it");
+        pannello.querySelectorAll("[data-piano]").forEach((piano) => {
+            piano.hidden = Boolean(cercato) &&
+                !piano.textContent.toLocaleLowerCase("it").includes(cercato);
+        });
+    }
+
     function ripristinaStato(contenitore) {
         const stato = statoDi(contenitore);
+        if (contenitore.id === "ordini_cliente_in_produzione") {
+            const filtro = contenitore.querySelector("[data-filter-pianificazioni]");
+            if (filtro) {
+                filtro.value = stato.filtroPianificazioni;
+                filtraPianificazioni(filtro.closest(".pianificazioni-riepilogo-unico"), filtro.value);
+            }
+        }
         contenitore.querySelectorAll("[data-filter]").forEach((input) => {
             const salvato = stato.filtri[input.dataset.filter] || "";
             // Se una voce di select non esiste più, torniamo a 'Tutte'.
@@ -264,11 +285,9 @@
     document.body.addEventListener("input", (event) => {
         const elemento = event.target;
         if (elemento?.matches?.("[data-filter-pianificazioni]")) {
-            const pannello = elemento.closest('.pianificazioni-riepilogo-unico');
-            const testo = elemento.value.toLocaleLowerCase('it');
-            pannello?.querySelectorAll('tbody tr[data-piano]').forEach((riga) => {
-                riga.hidden = !riga.textContent.toLocaleLowerCase('it').includes(testo);
-            });
+            const contenitore = contenitoreDi(elemento);
+            if (contenitore) statoDi(contenitore).filtroPianificazioni = elemento.value;
+            filtraPianificazioni(elemento.closest(".pianificazioni-riepilogo-unico"), elemento.value);
             return;
         }
         if (!elemento?.matches?.("[data-filter]")) return;
