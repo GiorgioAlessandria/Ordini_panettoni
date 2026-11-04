@@ -156,16 +156,25 @@
         const checkbox = Array.from(contenitore.querySelectorAll('input[name="ordini_selezionati"]'));
         const riferimento = checkbox.find((input) => input.checked);
         const misti = statoDi(contenitore).misti;
+
         checkbox.forEach((input) => {
-            if (misti) {
-                const gruppo = input.dataset.gruppoImpasto || "";
-                input.disabled = !gruppo || (Boolean(riferimento) && gruppo !== riferimento.dataset.gruppoImpasto);
-            } else {
-                input.disabled = Boolean(riferimento) && (
-                    input.dataset.codArt !== riferimento.dataset.codArt ||
-                    input.dataset.prezzatura !== riferimento.dataset.prezzatura
-                );
-            }
+            // Le regole sono le stesse già utilizzate per disabilitare le
+            // checkbox incompatibili. La verifica definitiva resta al server.
+            const gruppo = input.dataset.gruppoImpasto || "";
+            const compatibile = Boolean(riferimento) && (misti
+                ? Boolean(gruppo) && gruppo === riferimento.dataset.gruppoImpasto
+                : input.dataset.codArt === riferimento.dataset.codArt &&
+                  input.dataset.prezzatura === riferimento.dataset.prezzatura);
+
+            input.disabled = misti
+                ? !gruppo || (Boolean(riferimento) && !compatibile)
+                : Boolean(riferimento) && !compatibile;
+
+            const riga = input.closest("tr[data-record]");
+            if (!riga) return;
+            riga.classList.toggle("ordini-riga-selezionata", input.checked);
+            riga.classList.toggle("ordini-riga-compatibile", compatibile && !input.checked);
+            riga.classList.toggle("ordini-riga-non-compatibile", Boolean(riferimento) && !compatibile);
         });
     }
 

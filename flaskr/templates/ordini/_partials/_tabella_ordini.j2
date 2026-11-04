@@ -11,6 +11,30 @@
 }
 #ordini_cliente_da_produrre .ordini-modalita-mista tr[data-record][data-mix-gruppo=""] > td { opacity: .55; }
 #ordini_cliente_da_produrre .ordini-modalita-mista [data-nome-misto] { display: block !important; color: #344054; }
+/* Evidenzia le righe che possono partecipare alla stessa pianificazione.
+   Le regole in modalita' mista sono piu' specifiche dei colori di gruppo. */
+#ordini_cliente_da_produrre .ordini-form tr[data-record].ordini-riga-compatibile > td,
+#ordini_cliente_da_produrre .ordini-form tr[data-record].ordini-riga-compatibile:hover > td,
+#ordini_cliente_da_produrre .ordini-form.ordini-modalita-mista tr[data-record][data-mix-gruppo].ordini-riga-compatibile > td,
+#ordini_cliente_da_produrre .ordini-form.ordini-modalita-mista tr[data-record][data-mix-gruppo].ordini-riga-compatibile:hover > td {
+  background: #def3e5 !important;
+  --bs-table-bg: #def3e5;
+  --bs-table-accent-bg: transparent;
+}
+#ordini_cliente_da_produrre .ordini-form tr[data-record].ordini-riga-selezionata > td,
+#ordini_cliente_da_produrre .ordini-form tr[data-record].ordini-riga-selezionata:hover > td,
+#ordini_cliente_da_produrre .ordini-form.ordini-modalita-mista tr[data-record][data-mix-gruppo].ordini-riga-selezionata > td,
+#ordini_cliente_da_produrre .ordini-form.ordini-modalita-mista tr[data-record][data-mix-gruppo].ordini-riga-selezionata:hover > td {
+  background: #cfe1fd !important;
+  --bs-table-bg: #cfe1fd;
+  --bs-table-accent-bg: transparent;
+}
+#ordini_cliente_da_produrre .ordini-form tr[data-record].ordini-riga-selezionata > td:first-child {
+  box-shadow: inset 4px 0 0 #0d6efd !important;
+}
+#ordini_cliente_da_produrre .ordini-form tr[data-record].ordini-riga-compatibile > td:first-child {
+  box-shadow: inset 4px 0 0 #198754 !important;
+}
 </style>
 {# Frammento usato da entrambe le route; stato_tabella = Nuovo / In produzione. #}
 {% set selezione_attiva = (stato_tabella == 'Nuovo') %}
@@ -125,7 +149,7 @@
     <div class="ordini-barra pan-meta">
         <span data-contatore-righe>{{ ordini_cliente|length }} ordini</span>
         {% if selezione_attiva %}
-            <span class="ordini-legenda">Residuo inferiore all'ordinato</span>
+            <span class="ordini-legenda">Residuo inferiore all'ordinato · Dopo la selezione: blu = selezionato, verde = compatibile</span>
         {% else %}
             <span>Scorri in orizzontale per leggere tutte le colonne.</span>
         {% endif %}

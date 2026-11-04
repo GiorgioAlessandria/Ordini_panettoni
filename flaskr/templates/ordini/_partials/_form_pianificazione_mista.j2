@@ -73,7 +73,7 @@
           <div id="lotto-misto-proposta" class="mb-3"
                hx-get="{{ url_for('ordini_cliente.proposta_lotto_pianificazione', tipo='MISTA') }}"
                hx-trigger="load, change from:#misto-data, change from:input[name='blocco']"
-               hx-include="#form-pianificazione-mista" hx-swap="innerHTML">
+               hx-include="#form-pianificazione-mista" hx-target="this" hx-swap="innerHTML">
              <div class="small text-secondary">Seleziona la data per proporre il lotto unico.</div>
           </div>
         </div>
