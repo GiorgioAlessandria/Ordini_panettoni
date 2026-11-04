@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload
 from flaskr.extensions import db
 from flaskr.models.model_ordini import (
     OrdiniCliente, PianificazioneOrdini, PianificazioneProduzione,
-    PianificazioneMistaAttiva, BozzaPianificazioneMistaOrdine,
+    PianificazioneMistaAttiva, BozzaPianificazioneMistaOrdine, Spedizione, SpedizioneOrdine,
 )
 from flaskr.service.scadenze_giornaliere_service import eseguito
 
@@ -79,11 +79,29 @@ def righe_ordini_vendite() -> list[dict]:
         if stato_misto == 'Chiuso':
             chiuse[(documento, riga)] += int(qta or 0)
 
+    # Le righe spedite sono assenti dalla schermata operativa Vendite,
+    # ma restano nello storico locale anche se scompaiono dal feed ERP.
+    spedite = set(db.session.execute(
+        db.select(SpedizioneOrdine.IdDocumento, SpedizioneOrdine.IdRigaDoc)
+        .join(Spedizione, Spedizione.IdSpedizione == SpedizioneOrdine.IdSpedizione)
+        .where(Spedizione.Stato == "Spedita")
+    ).all())
+    preparate = set(db.session.execute(
+        db.select(SpedizioneOrdine.IdDocumento, SpedizioneOrdine.IdRigaDoc)
+        .join(Spedizione, Spedizione.IdSpedizione == SpedizioneOrdine.IdSpedizione)
+        .where(Spedizione.Stato == "Preparata")
+    ).all())
+
     righe = []
     for ordine in ordini:
+        if (ordine.IdDocumento, ordine.IdRigaDoc) in spedite:
+            continue
         chiave = (ordine.IdDocumento, ordine.IdRigaDoc)
         presa, chiusa = prese[chiave], chiuse[chiave]
         stato, classe_stato = _stato_visivo(ordine, presa, chiusa)
+        # La preparazione è un'informazione logistica separata, mai un nuovo stato ordine.
+        if chiave in preparate and stato == "Eseguito":
+            stato = "Eseguito (spedizione preparata)"
         data = ordine.DataConsegna
         righe.append({
             'IdDocumento': ordine.IdDocumento,

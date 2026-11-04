@@ -20,6 +20,8 @@ from flaskr.routes_modules import (
     calendario,
     impostazioni,
     lotto_pianificazione_routes,
+    pianificazione_mista_unificata,
+    ripianificazione_mista_routes,
     note_vendite,
     note_produzione,
     ordini,

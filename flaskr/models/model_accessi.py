@@ -4,7 +4,7 @@ from sqlalchemy import CheckConstraint, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from flaskr.extensions import db
 
-RUOLI = ("admin", "utente_produzione", "utente_vendite")
+RUOLI = ("admin", "utente_produzione", "utente_vendite", "utente_spedizioni")
 
 class RuoloUtente(db.Model):
     __tablename__ = "ruoli_utente"
@@ -12,7 +12,7 @@ class RuoloUtente(db.Model):
     UserId: Mapped[int] = mapped_column(primary_key=True)
     Ruolo: Mapped[str] = mapped_column(String(32), nullable=False)
     __table_args__ = (CheckConstraint(
-        "Ruolo IN ('admin', 'utente_produzione', 'utente_vendite')",
+        "Ruolo IN ('admin', 'utente_produzione', 'utente_vendite', 'utente_spedizioni')",
         name="ck_ruoli_utente_ruolo"),)
 
 class NotaVenditeOrdine(db.Model):

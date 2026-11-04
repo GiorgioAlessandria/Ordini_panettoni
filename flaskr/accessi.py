@@ -34,6 +34,19 @@ VENDITE_POST = frozenset({
 })
 
 
+# Profilo logistico: whitelist chiusa anche per le GET.
+# La pagina spedizioni è l'unica schermata operativa accessibile;
+# le note sono lette in batch dalla pagina, senza endpoint di modifica.
+SPEDIZIONI_GET = frozenset({
+    "ordini_cliente.spedizioni_index",
+})
+SPEDIZIONI_POST = frozenset({
+    "ordini_cliente.spedizioni_prepara",
+    "ordini_cliente.spedizioni_partenza",
+    "ordini_cliente.spedizioni_annulla",
+})
+
+
 def ruolo_attuale():
     if getattr(g, "user", None) is None:
         return None
@@ -96,6 +109,14 @@ def init_accessi(app):
             if request.method == "POST" and endpoint in VENDITE_POST:
                 return None
             abort(403, description="La funzione non e' disponibile per il profilo vendite.")
+        if ruolo == "utente_spedizioni":
+            if request.method in ("GET", "HEAD") and endpoint in SPEDIZIONI_GET:
+                return None
+            if request.method == "POST" and endpoint in SPEDIZIONI_POST:
+                return None
+            # Blocca anche le pagine degli ordini, i dettagli, i commenti,
+            # le etichette e gli endpoint produttivi, anche per POST/HTMX.
+            abort(403, description="La funzione non e' disponibile per il profilo spedizioni.")
         abort(403, description="Nessun ruolo assegnato. Contatta un amministratore.")
 
     @app.context_processor

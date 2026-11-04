@@ -253,6 +253,7 @@ def impastatrici_libere(
     impastatrici: Sequence[AnagraficaImpastatrici],
     fasi_impasto: Sequence[tuple[PianificazioneFasi, TipologieLavorazione]],
     escludi_id_pianificazione: int | None = None,
+    escludi_id_bozza_mista: int | None = None,
 ) -> tuple[dict[int, Decimal], list[tuple[PianificazioneFasi, list[tuple[date, str]]]]]:
     """Capacita' in kg delle sole macchine libere in TUTTI i blocchi di impasto.
 
@@ -304,7 +305,9 @@ def impastatrici_libere(
         ).join(PianificazioneMistaAttiva,
                PianificazioneMistaAttiva.IdBozza == PrenotazioneMistaImpastatrice.IdBozza)
          .where(PrenotazioneMistaImpastatrice.IdImpastatrice.in_(ids),
-                PianificazioneMistaAttiva.Stato.in_(('In produzione', 'Chiuso')))
+                PianificazioneMistaAttiva.Stato.in_(('In produzione', 'Chiuso')),
+                *([PrenotazioneMistaImpastatrice.IdBozza != escludi_id_bozza_mista]
+                  if escludi_id_bozza_mista is not None else []))
     ).all())
     occupate |= _occupazioni_impastatrici_storiche(ids, escludi_id_pianificazione)
     disponibili = {
@@ -377,6 +380,7 @@ def disponibilita_forno(
     ricetta_fase_forno: RicettaFasi,
     id_forno: int,
     escludi_id_pianificazione: int | None = None,
+    escludi_id_bozza_mista: int | None = None,
 ) -> tuple[int, int]:
     """Restituisce (cotte_libere, limite_condiviso) nel blocco piu' saturo.
 
@@ -435,7 +439,9 @@ def disponibilita_forno(
         .join(PianificazioneMistaAttiva,
               PianificazioneMistaAttiva.IdBozza == PrenotazioneMistaForno.IdBozza)
         .where(PrenotazioneMistaForno.IdForno == id_forno,
-               PianificazioneMistaAttiva.Stato.in_(('In produzione', 'Chiuso')))
+               PianificazioneMistaAttiva.Stato.in_(('In produzione', 'Chiuso')),
+               *([PrenotazioneMistaForno.IdBozza != escludi_id_bozza_mista]
+                 if escludi_id_bozza_mista is not None else []))
     ).all()
     for giorno, blocco, cotte, massimo in miste:
         slot = (giorno, blocco)

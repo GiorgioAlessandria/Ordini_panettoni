@@ -18,10 +18,20 @@ def register():
     abort(403)
 
 
+def _destinazione_accesso(id_utente: int) -> str:
+    """Home in base al ruolo, senza dipendere dalla cache g.user del POST login."""
+    from flaskr.models.model_accessi import RuoloUtente
+
+    ruolo = db.session.get(RuoloUtente, id_utente)
+    if ruolo is not None and ruolo.Ruolo == "utente_spedizioni":
+        return "ordini_cliente.spedizioni_index"
+    return "ordini_cliente.ordini_cliente"
+
+
 @bp_login.route('/login', methods=('GET', 'POST'))
 def login():
     if getattr(g, 'user', None) is not None:
-        return redirect(url_for('ordini_cliente.ordini_cliente'))
+        return redirect(url_for(_destinazione_accesso(g.user.id)))
 
     if request.method == 'POST':
         token = request.form.get('csrf_login', '')
@@ -41,7 +51,7 @@ def login():
                 session.clear()
                 session.permanent = False
                 session['user_id'] = utente.id
-                return redirect(url_for('ordini_cliente.ordini_cliente'))
+                return redirect(url_for(_destinazione_accesso(utente.id)))
             registra_errore(ip)
             flash('Password non valida.', 'danger')
 

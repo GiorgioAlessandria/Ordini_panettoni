@@ -968,3 +968,6 @@ from flaskr.routes_modules import avviso_consegna_routes as _avviso_consegna_rou
 # medesimo modulo di pianificazione e garantisce l'helper Jinja del lotto.
 from flaskr.routes_modules import lotto_pianificazione_routes as _lotto_routes  # noqa: E402,F401
 from flaskr.routes_modules import pianificazione_mista_unificata as _misto_unificato  # noqa: E402,F401
+
+# Le nuove route logistiche condividono il blueprint ordini_cliente.
+from flaskr.routes_modules import spedizioni as _spedizioni_routes  # noqa: E402,F401

@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, ForeignKey, ForeignKeyConstraint, Numeric, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKey, ForeignKeyConstraint, Numeric, UniqueConstraint, Index, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from flaskr.extensions import db
@@ -603,4 +603,50 @@ class PrenotazioneMistaForno(db.Model):
         CheckConstraint("Blocco IN ('M','P')", name="ck_misto_forno_blocco"),
         CheckConstraint("NumeroCotte > 0 AND MaxCotteBlocco >= NumeroCotte",
                         name="ck_misto_forno_limite"),
+    )
+
+
+# Le spedizioni sono LOCALI: nessuna FK verso ordini_cliente_aperti.
+# Gli ordini ERP possono essere eliminati dalla sincronizzazione, ma lo storico
+# dei colli partiti deve rimanere consultabile.
+class Spedizione(db.Model):
+    __tablename__ = "spedizioni"
+    IdSpedizione: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    CodCliFor: Mapped[int] = mapped_column(nullable=False)
+    ClienteSnapshot: Mapped[str] = mapped_column(db.String(250), nullable=False)
+    Stato: Mapped[str] = mapped_column(db.String(16), nullable=False, default="Preparata")
+    DataPrevista: Mapped[date | None] = mapped_column(nullable=True)
+    DataPartenza: Mapped[datetime | None] = mapped_column(nullable=True)
+    DataCreazione: Mapped[datetime] = mapped_column(nullable=False)
+    OperatoreCreazione: Mapped[str] = mapped_column(db.String(120), nullable=False)
+    OperatorePartenza: Mapped[str | None] = mapped_column(db.String(120), nullable=True)
+    OperatoreAnnullamento: Mapped[str | None] = mapped_column(db.String(120), nullable=True)
+    DataAnnullamento: Mapped[datetime | None] = mapped_column(nullable=True)
+    Note: Mapped[str | None] = mapped_column(db.String(600), nullable=True)
+    righe: Mapped[list["SpedizioneOrdine"]] = relationship(
+        back_populates="spedizione", cascade="all, delete-orphan")
+    __table_args__ = (
+        CheckConstraint("Stato IN ('Preparata','Spedita','Annullata')", name="ck_spedizioni_stato"),
+    )
+
+
+class SpedizioneOrdine(db.Model):
+    __tablename__ = "spedizioni_ordini"
+    IdSpedizione: Mapped[int] = mapped_column(
+        ForeignKey("spedizioni.IdSpedizione", ondelete="CASCADE"), primary_key=True)
+    IdDocumento: Mapped[int] = mapped_column(primary_key=True)
+    IdRigaDoc: Mapped[int] = mapped_column(primary_key=True)
+    CodArtSnapshot: Mapped[str] = mapped_column(db.String(100), nullable=False)
+    DesArtSnapshot: Mapped[str] = mapped_column(db.String(500), nullable=False)
+    Quantita: Mapped[int] = mapped_column(nullable=False)
+    QtaAssegnata: Mapped[int] = mapped_column(nullable=False)
+    LottiSnapshot: Mapped[str | None] = mapped_column(db.String(4000), nullable=True)
+    Attiva: Mapped[bool] = mapped_column(db.Boolean, nullable=False, server_default=text("1"))
+    spedizione: Mapped["Spedizione"] = relationship(back_populates="righe")
+    __table_args__ = (
+        # Le righe annullate restano nello storico, ma non bloccano nuove spedizioni.
+        Index("uq_spedizione_ordine_attivo", "IdDocumento", "IdRigaDoc", unique=True,
+              sqlite_where=text('"Attiva" = 1')),
+        CheckConstraint("Quantita > 0 AND QtaAssegnata >= Quantita", name="ck_spedizioni_quantita"),
+        CheckConstraint("Attiva IN (0,1)", name="ck_spedizioni_attiva"),
     )

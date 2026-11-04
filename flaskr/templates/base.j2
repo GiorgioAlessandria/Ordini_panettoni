@@ -23,6 +23,7 @@
     'ordini_cliente.ordini_calendario': 'Calendario produzione e scadenze',
     'ordini_cliente.calendario_macchine': 'Impiego impastatrici',
     'ordini_cliente.stock_articoli': 'Stock panettoni',
+    'ordini_cliente.spedizioni_index': 'Gestione spedizioni',
     'ordini_cliente.pianificazioni_chiuse': 'Storico pianificazioni',
     'ordini_cliente.gestione_pianificazione': 'Gestione pianificazione',
     'ordini_cliente.impostazioni_index': 'Impostazioni produzione',
@@ -67,12 +68,19 @@
         {% set pan_is_calendar = pan_current_endpoint == 'ordini_cliente.ordini_calendario' %}
         {% set pan_is_machines = pan_current_endpoint == 'ordini_cliente.calendario_macchine' %}
         {% set pan_is_stock = pan_current_endpoint == 'ordini_cliente.stock_articoli' %}
+        {% set pan_is_spedizioni = pan_current_endpoint == 'ordini_cliente.spedizioni_index' %}
         {% set pan_is_history = pan_current_endpoint == 'ordini_cliente.pianificazioni_chiuse' %}
         {% set pan_is_settings = pan_current_endpoint in ('ordini_cliente.impostazioni_index', 'ordini_cliente.impostazioni_pagina') %}
         {% set pan_is_users = pan_current_endpoint == 'ordini_cliente.admin_utenti' %}
+        {% if pan_role != 'utente_spedizioni' %}
         <div class="pan-nav-caption">Consultazione</div>
         <a class="pan-nav-item{{ ' is-active' if pan_is_orders else '' }}" href="{{ url_for('ordini_cliente.ordini_cliente') }}" {% if pan_is_orders %}aria-current="page"{% endif %}>Gestione ordini</a>
         <a class="pan-nav-item{{ ' is-active' if pan_is_calendar else '' }}" href="{{ url_for('ordini_cliente.ordini_calendario') }}" {% if pan_is_calendar %}aria-current="page"{% endif %}>Calendario produzione</a>
+        {% endif %}
+        {% if pan_role in ('admin', 'utente_spedizioni') %}
+        <div class="pan-nav-caption mt-3">Logistica</div>
+        <a class="pan-nav-item{{ ' is-active' if pan_is_spedizioni else '' }}" href="{{ url_for('ordini_cliente.spedizioni_index') }}" {% if pan_is_spedizioni %}aria-current="page"{% endif %}>Gestione spedizioni</a>
+        {% endif %}
         {% if pan_can_produce %}
         <div class="pan-nav-caption mt-3">Produzione</div>
         <a class="pan-nav-item{{ ' is-active' if pan_is_machines else '' }}" href="{{ url_for('ordini_cliente.calendario_macchine') }}" {% if pan_is_machines %}aria-current="page"{% endif %}>Impiego impastatrici</a>

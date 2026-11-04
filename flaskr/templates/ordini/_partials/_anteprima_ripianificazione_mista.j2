@@ -1,0 +1,46 @@
+{% if errore %}
+  <div class="alert alert-danger small mb-0" role="alert">{{ errore }}</div>
+{% elif dati %}
+  {% if dati.conflitti %}<div class="alert alert-danger small mb-2" role="alert">
+    <strong>Data non disponibile:</strong> {% for conflitto in dati.conflitti %}<div>{{ conflitto }}</div>{% endfor %}
+  </div>{% endif %}
+  <div class="alert alert-info small mb-2" role="status">
+    <strong>Nuovo lotto proposto: {{ dati.lotto_proposto }}</strong>
+    · precedente: {{ dati.lotto_vecchio }}. La disponibilità sarà verificata nuovamente alla conferma.
+  </div>
+  <div class="row g-2">
+    <div class="col-12 col-lg-6">
+      <h6 class="small fw-semibold mb-1">Impastatrici · nuova disponibilità</h6>
+      <ul class="list-group list-group-flush small">
+        {% for m in dati.macchine %}
+        <li class="list-group-item d-flex justify-content-between gap-2">
+          <span>Impastatrice #{{ m.id }} · {{ '%.3f'|format(m.kg) }} kg assegnati / {{ '%.3f'|format(m.capacita) }} kg</span>
+          <strong class="{{ 'text-success' if m.libera else 'text-danger' }}">{{ 'Libera' if m.libera else 'Occupata / insufficiente' }}</strong>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="col-12 col-lg-6">
+      <h6 class="small fw-semibold mb-1">Cottura · forni prenotabili</h6>
+      <ul class="list-group list-group-flush small">
+        {% for f in dati.forni %}
+        <li class="list-group-item d-flex justify-content-between gap-2">
+          <span>Forno #{{ f.id }} · {{ f.data.strftime('%d/%m/%Y') }} ({{ f.blocco }})</span>
+          <strong class="{{ 'text-success' if f.cotte <= f.libere else 'text-danger' }}">{{ f.cotte }} dichiarate / {{ f.libere }} libere</strong>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  <h6 class="small fw-semibold mt-3 mb-1">Calendario delle fasi previste</h6>
+  <div class="table-responsive"><table class="table table-bordered table-sm small mb-1">
+    <thead><tr><th>Data</th><th>Blocco</th><th>Fase impasto</th><th>Durata</th></tr></thead>
+    <tbody>{% for f in dati.fasi|sort(attribute='OffsetBlocchi') %}
+      <tr><td>{{ f.DataFase.strftime('%d/%m/%Y') }}</td><td>{{ f.Blocco }}</td>
+          <td>{{ f.IdRicettaFase }} · lavorazione {{ f.IdLavorazione }}</td>
+          <td>{{ f.DurataBlocchi }} blocchi</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+{% else %}
+  <div class="text-secondary small">Seleziona una nuova data.</div>
+{% endif %}

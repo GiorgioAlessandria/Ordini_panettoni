@@ -24,15 +24,37 @@
     <div class="alert alert-warning small" role="note"><strong>{{ bozza.Stato }} · non attiva.</strong>
       Le quantità, le cotte e le risorse qui riportate sono snapshot, non prenotazioni.</div>
   {% endif %}
+  {% set ripianificazioni = storico_piano_misto(bozza.IdBozza) %}
   {% set lotto_attuale = lotto_pianificazione('MISTA', bozza.IdBozza) %}
   <div class="border rounded-3 p-3 mb-3 bg-light" aria-label="Lotto della pianificazione mista">
     <span class="d-block text-secondary small fw-semibold">Lotto di pianificazione</span>
     {% if lotto_attuale %}
       <span class="font-monospace fw-bold fs-5">{{ lotto_attuale }}</span>
+    {% elif ripianificazioni.successiva %}
+      <span class="font-monospace fw-bold fs-5">{{ ripianificazioni.successiva.LottoPrecedente }}</span> <span class="small text-secondary">(storico, sostituito)</span>
     {% else %}
       <span class="text-secondary small">Non assegnato (storico)</span>
     {% endif %}
   </div>
+  {% if ripianificazioni.precedente or ripianificazioni.successiva %}
+  <section class="card shadow-sm mb-3" aria-label="Storico ripianificazioni miste">
+    <div class="card-header fw-semibold">Collegamenti tra ripianificazioni</div>
+    <div class="card-body small">
+      {% if ripianificazioni.precedente %}
+      <div>Origine:
+        <a href="{{ url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=ripianificazioni.precedente.IdBozzaPrecedente) }}">M-{{ ripianificazioni.precedente.IdBozzaPrecedente }}</a>
+        (lotto {{ ripianificazioni.precedente.LottoPrecedente }}) · Motivo: {{ ripianificazioni.precedente.Motivo }}
+      </div>
+      {% endif %}
+      {% if ripianificazioni.successiva %}
+      <div>Sostituita da:
+        <a href="{{ url_for('ordini_cliente.dettaglio_bozza_impasto_misto', id_bozza=ripianificazioni.successiva.IdBozzaNuova) }}">M-{{ ripianificazioni.successiva.IdBozzaNuova }}</a>
+        (lotto {{ ripianificazioni.successiva.LottoNuovo }}) · Motivo: {{ ripianificazioni.successiva.Motivo }}
+      </div>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
   <div class="d-flex flex-wrap gap-4 mb-3">
     <div><span class="small text-muted d-block">Totale cotte</span><strong class="h5">{{ bozza.NumeroCotte }}</strong></div>
     <div><span class="small text-muted d-block">Impasto</span><strong class="h5">{{ '%.2f'|format(bozza.PesoTotaleGrammi / 1000) }} kg</strong></div>
@@ -101,6 +123,34 @@
       {% if not conferma_abilitata %}<div class="small text-danger mt-2">Conferma disabilitata in configurazione server. Per abilitarla è richiesta la validazione del modello di capienza.</div>{% endif %}
     </form>
   {% elif piano_misto and piano_misto.Stato == 'In produzione' %}
+    <section class="card border-primary shadow-sm mb-3" aria-labelledby="ripianificazione-mista-titolo">
+      <div class="card-header fw-semibold" id="ripianificazione-mista-titolo">Ripianifica impasto misto</div>
+      <div class="card-body">
+        <p class="small text-secondary">La nuova pianificazione conserverà ordini, quantità, forni, cotte dichiarate e ripartizione delle impastatrici. Verranno assegnati un nuovo identificativo M- e un nuovo lotto; la versione precedente resterà nello storico.</p>
+        <form method="post" action="{{ url_for('ordini_cliente.conferma_ripianificazione_mista', id_bozza=bozza.IdBozza) }}"
+              onsubmit="return confirm('Confermi la creazione di una nuova pianificazione mista e la sostituzione della precedente?');">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+          <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-4"><label class="form-label fw-semibold" for="mista-nuova-data">Nuova data iniziale</label>
+              <input id="mista-nuova-data" class="form-control" type="date" name="nuova_data" required
+                     hx-get="{{ url_for('ordini_cliente.anteprima_ripianificazione_mista', id_bozza=bozza.IdBozza) }}"
+                     hx-trigger="change" hx-include="this" hx-target="#esito-ripianificazione-mista" hx-swap="innerHTML">
+            </div>
+            <div class="col-12 col-md-8"><label class="form-label fw-semibold" for="mista-motivo">Motivazione</label>
+              <input id="mista-motivo" class="form-control" type="text" name="motivo" minlength="5" maxlength="500" required>
+            </div>
+          </div>
+          <div id="esito-ripianificazione-mista" class="my-3" aria-live="polite"><span class="text-secondary small">Scegli una data per verificare forni, impastatrici e blocchi.</span></div>
+          <label class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" name="conferma_capienza_mista" value="1" required>
+            <span class="form-check-label">Confermo che il numero di cotte già dichiarato è stato verificato fisicamente per i forni nella nuova data.</span>
+          </label>
+          <button type="submit" class="btn btn-primary btn-sm" {% if not conferma_abilitata %}disabled{% endif %}>Verifica e ripianifica</button>
+          {% if not conferma_abilitata %}<p class="text-danger small mt-2 mb-0">La conferma delle pianificazioni miste è disabilitata nella configurazione server.</p>{% endif %}
+        </form>
+      </div>
+    </section>
+
     <div class="d-flex gap-3 flex-wrap mb-3">
       <form method="post" action="{{ url_for('ordini_cliente.chiudi_piano_misto', id_bozza=bozza.IdBozza) }}"
             onsubmit="return confirm('Confermi la chiusura di TUTTI gli ordini associati?');">
