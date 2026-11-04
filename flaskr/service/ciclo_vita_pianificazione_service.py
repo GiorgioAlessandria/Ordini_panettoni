@@ -211,8 +211,9 @@ def _scrivi_log(
 def chiudi_pianificazione(id_pianificazione: int, operatore: str, prodotte: dict, articoli: dict) -> None:
     """Conclude il piano e le sue righe, mantenendo le occupazioni nello storico.
 
-    Non accredita nuovamente il surplus: il sistema lo ha già accreditato
-    al momento della conferma iniziale (comportamento legacy).
+    Registra quantita' effettive, movimenti di prima e seconda scelta.
+    Per i piani legacy riconcilia l'eventuale surplus anticipato prima di
+    aggiornare stato e log, tutto nella medesima transazione.
     """
     try:
         piano, righe = _prepara(id_pianificazione)
