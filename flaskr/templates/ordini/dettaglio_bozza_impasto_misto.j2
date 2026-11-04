@@ -7,7 +7,24 @@
       <p class="text-secondary mb-0">{{ bozza.DataProduzione.strftime('%d-%m-%Y') }} · Blocco {{ bozza.BloccoIniziale }} · Creata {{ bozza.CreataIl.strftime('%d-%m-%Y %H:%M') }} da {{ bozza.Operatore }}</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-      {% if bozza.Stato == 'Bozza' and not piano_misto %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.anteprima_impasto_misto', bozza=bozza.IdBozza) }}">Riapri in simulazione</a>{% endif %}
+      {% if piano_misto and piano_misto.Stato == 'Chiuso' and consuntivo_ordini %}
+  <section class="card my-3"><div class="card-body">
+    <h2 class="h5">Consuntivo effettivo per articolo</h2>
+    {% set seen = namespace(codici=[]) %}
+    {% for r in bozza.ordini|sort(attribute='CodArt') %}
+      {% if r.CodArt not in seen.codici %}
+        {% set seen.codici = seen.codici + [r.CodArt] %}
+        {% set c = consuntivo_articoli.get(r.CodArt) %}
+        <h3 class="h6 mt-3">{{ r.CodArt }} · seconda scelta {{ c.QtaSecondaScelta if c else '—' }} · magazzino {{ c.QtaMagazzino if c else '—' }}</h3>
+        {% for o in bozza.ordini if o.CodArt == r.CodArt %}
+          {% set co = consuntivo_ordini.get((o.IdDocumento, o.IdRigaDoc)) %}
+          <div class="small border-bottom py-1">Ordine {{ o.IdDocumento }}-{{ o.IdRigaDoc }} · pianificati {{ o.QtaPianificata }} · prodotti <strong>{{ co.QtaProdotta if co else '—' }}</strong></div>
+        {% endfor %}
+      {% endif %}
+    {% endfor %}
+  </div></section>
+  {% endif %}
+  {% if bozza.Stato == 'Bozza' and not piano_misto %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('ordini_cliente.anteprima_impasto_misto', bozza=bozza.IdBozza) }}">Riapri in simulazione</a>{% endif %}
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('ordini_cliente.elenco_bozze_impasto_misto') }}">Elenco bozze</a>
     </div>
   </header>
@@ -152,10 +169,31 @@
     </section>
 
     <div class="d-flex gap-3 flex-wrap mb-3">
-      <form method="post" action="{{ url_for('ordini_cliente.chiudi_piano_misto', id_bozza=bozza.IdBozza) }}"
-            onsubmit="return confirm('Confermi la chiusura di TUTTI gli ordini associati?');">
+      <form method="post" class="w-100 border rounded-3 p-3" action="{{ url_for('ordini_cliente.chiudi_piano_misto', id_bozza=bozza.IdBozza) }}"
+            onsubmit="return confirm('Registrare tutti i consuntivi e chiudere definitivamente la pianificazione mista?');">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-        <button class="btn btn-success btn-sm" type="submit">Chiudi pianificazione mista</button>
+        <h3 class="h6">Consuntivo produzione mista, per codice articolo</h3>
+        <p class="small text-secondary">Le quantità prodotte sono riferite esclusivamente agli ordini. Magazzino e seconda scelta sono quantità fisiche aggiuntive. Non ci sono limiti rispetto al pianificato.</p>
+        {% set codici = namespace(visitati=[]) %}
+        {% for r in bozza.ordini|sort(attribute='CodArt') %}
+          {% if r.CodArt not in codici.visitati %}
+            {% set codici.visitati = codici.visitati + [r.CodArt] %}
+            <div class="border rounded bg-light p-3 mb-3">
+              <h4 class="h6">{{ r.CodArt }}</h4>
+              {% for o in bozza.ordini if o.CodArt == r.CodArt %}
+              <div class="row align-items-center g-2 mb-2">
+                <label class="col-sm-7 col-form-label" for="mprod-{{ o.IdDocumento }}-{{ o.IdRigaDoc }}">Ordine {{ o.IdDocumento }}-{{ o.IdRigaDoc }} · pianificati {{ o.QtaPianificata }}</label>
+                <div class="col-sm-5"><input id="mprod-{{ o.IdDocumento }}-{{ o.IdRigaDoc }}" name="prodotta_{{ o.IdDocumento }}_{{ o.IdRigaDoc }}" class="form-control" type="number" min="0" step="1" value="{{ o.QtaPianificata }}" required></div>
+              </div>
+              {% endfor %}
+              <div class="row g-2">
+                <div class="col-sm-6"><label class="form-label">Seconda scelta {{ r.CodArt }}</label><input name="seconda_{{ r.CodArt }}" class="form-control" type="number" value="0" min="0" step="1" required></div>
+                <div class="col-sm-6"><label class="form-label">Magazzino {{ r.CodArt }}</label><input name="magazzino_{{ r.CodArt }}" class="form-control" type="number" value="0" min="0" step="1" required></div>
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+        <button class="btn btn-success btn-sm" type="submit">Registra consuntivo e chiudi</button>
       </form>
       <form class="d-flex gap-2 align-items-center" method="post"
             action="{{ url_for('ordini_cliente.annulla_piano_misto', id_bozza=bozza.IdBozza) }}"
