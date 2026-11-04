@@ -257,7 +257,7 @@ def conferma_bozza(id_bozza: int, operatore: str, *, include_cnf: bool = False,
 
 
 def chiudi_piano_misto(id_bozza: int, operatore: str, prodotte: dict, articoli: dict) -> None:
-    """Completa gli ordini assegnati; nessuna operazione stock (surplus nullo)."""
+    """Chiude con consuntivo per CodArt e per riga ordine, senza surplus stimato."""
     try:
         _transazione_sqlite_immediata()
         piano = db.session.get(PianificazioneMistaAttiva, id_bozza)
