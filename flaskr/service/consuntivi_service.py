@@ -17,7 +17,7 @@ class ErroreConsuntivo(ValueError):
     pass
 
 def quantita_intera(valore, campo):
-    if isinstance(valore, bool) or re.fullmatch(r"[0-9]+", str(valore or "")) is None:
+    if isinstance(valore, bool) or re.fullmatch(r"[0-9]+", str(valore) if valore is not None else "") is None:
         raise ErroreConsuntivo(f"{campo}: inserire un intero non negativo")
     n = int(valore)
     if n > MAX_QTA:
