@@ -105,8 +105,17 @@ def stock_articoli_tabella():
             db.select(GiacenzaSecondaScelta.CodArt, GiacenzaSecondaScelta.Quantita)
         )
     }
+    righe_stock = [dict(CodArt=r.CodArt, Quantita=int(r.Quantita or 0),
+                        DesArt=r.DesArt) for r in righe]
+    codici_prima = {r["CodArt"] for r in righe_stock}
+    # Mostra anche articoli presenti SOLO nella seconda scelta.
+    for cod in sorted(set(seconde) - codici_prima):
+        articolo = db.session.get(AnagraficaArticoli, cod)
+        righe_stock.append(dict(CodArt=cod, Quantita=0,
+                                DesArt=articolo.DesArt if articolo else None))
+    righe_stock.sort(key=lambda r: r["CodArt"])
     return render_template("ordini/_partials/_stock_tabella.j2",
-                           righe=righe, seconde=seconde)
+                           righe=righe_stock, seconde=seconde)
 
 
 @bp_ordini_cliente.route("/tabella_ordini_da_produrre")
