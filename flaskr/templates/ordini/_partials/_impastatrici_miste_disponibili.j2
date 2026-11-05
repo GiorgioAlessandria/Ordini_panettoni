@@ -1,0 +1,30 @@
+{% if errore_macchine %}
+<div class="alert alert-danger small" role="alert">{{ errore_macchine }}</div>
+{% elif not impastatrici_calcolate %}
+<p class="small text-secondary mb-2">Seleziona data e blocco per verificare le macchine in tutte le fasi di impasto.</p>
+{% else %}
+<p class="small text-secondary mb-2">Impastatrici libere in tutte le fasi: <strong>{{ ids_impastatrici_disponibili|length }} su {{ impastatrici|length }}</strong></p>
+{% endif %}
+<div class="d-grid gap-2 pan-mixer-list">
+{% for impastatrice in impastatrici %}
+  {% set libera = impastatrici_calcolate and impastatrice.IdImpastatrice in ids_impastatrici_disponibili %}
+  <label class="pianificazione-selettore {% if not libera %}opacity-50{% endif %}">
+    <input class="form-check-input flex-shrink-0 m-0" type="checkbox" name="impastatrici"
+           value="{{ impastatrice.IdImpastatrice }}" {% if not libera %}disabled{% endif %}
+           {% if libera and impastatrice.IdImpastatrice in ids_impastatrici_selezionate %}checked{% endif %}>
+    <span class="flex-grow-1">
+      <strong>{{ impastatrice.ModelloImpastatrice }}</strong>
+      <small class="text-secondary d-block">{{ impastatrice.DescrizioneImpastatrice }}</small>
+    </span>
+    <span class="d-flex flex-column align-items-end gap-1">
+      <span class="badge bg-secondary">{{ impastatrice.CapienzaImpastatrice }} {{ impastatrice.UdM }}</span>
+      {% if libera %}<span class="badge bg-success">Disponibile</span>
+      {% elif impastatrici_calcolate %}<span class="badge bg-secondary">Occupata in almeno una fase</span>
+      {% else %}<span class="badge bg-secondary">Da verificare</span>{% endif %}
+    </span>
+  </label>
+{% endfor %}
+</div>
+{% if impastatrici_calcolate and not ids_impastatrici_disponibili %}
+  <div class="alert alert-warning small mt-2 mb-0">Nessuna impastatrice libera. Scegli un'altra data o blocco.</div>
+{% endif %}

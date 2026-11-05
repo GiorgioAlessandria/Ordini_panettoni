@@ -1,30 +1,44 @@
-<h6 class="pianificazione-titolo mb-2">Giornate della produzione mista</h6>
+{# La simulazione HTMX aggiorna questo contenitore tramite hx-swap-oob. #}
+<h6 class="pianificazione-titolo mb-2">Giornate della produzione</h6>
 {% if agenda_mista is defined and agenda_mista %}
-  <div class="d-flex flex-wrap gap-2 small mb-2">
+  <div class="d-flex flex-wrap align-items-center gap-2 small mb-2" aria-label="Legenda delle pianificazioni">
     <span class="pan-agenda-legend-draft">Da pianificare</span>
-    <span class="text-secondary">Una sola cottura logica, con tutti i forni</span>
   </div>
-  <div class="pan-agenda-scroll" style="max-height:330px;overflow:auto" tabindex="0">
-    {% for evento in agenda_mista %}
-      <div class="pan-agenda-event pan-agenda-proposta mb-2" role="note">
-        <strong>{{ evento.data.strftime('%d/%m/%Y') }} · {{ evento.blocco }} —
-          {{ 'Cottura' if evento.tipo == 'cottura' else 'Impasto' }}</strong>
-        {% if evento.tipo == 'cottura' %}
-          <div class="small">Evento unico · <strong>{{ evento.forni|length }} forni</strong></div>
-          {% for forno_evento in evento.forni %}
-            <div class="small ps-2 border-start mt-1">
-              {{ nomi_forni.get(forno_evento.id_forno, 'Forno #' ~ forno_evento.id_forno) }}
-              · {{ forno_evento.cotte }} cotte dichiarate
-              · {{ forno_evento.data.strftime('%d/%m/%Y') }} {{ forno_evento.blocco }}
+  <p class="small text-secondary mb-2">Fasi dell'impasto condiviso e cottura unica con elenco dei forni interessati.</p>
+  <div class="pan-agenda-scroll" role="region" aria-label="Giornate coinvolte dalla pianificazione mista" tabindex="0">
+    {% for giorno, eventi in agenda_mista|groupby('data') %}
+      <div class="pan-agenda-day {% if loop.first %}pan-agenda-day-selected{% endif %}">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <strong class="small">{{ giorno.strftime('%d/%m/%Y') }}</strong>
+          {% if loop.first %}<span class="badge bg-primary">Inizio</span>{% endif %}
+        </div>
+        {% for blocco in ['M', 'P'] %}
+          <div class="pan-agenda-slot">
+            <span class="pan-agenda-slot-marker">{{ blocco }}</span>
+            <div class="flex-grow-1 min-width-0">
+              {% set slot_eventi = eventi|selectattr('blocco', 'equalto', blocco)|list %}
+              {% for evento in slot_eventi %}
+                <div class="pan-agenda-event pan-agenda-proposta" role="note">
+                  <strong>Da pianificare</strong> · {{ 'Cottura' if evento.tipo == 'cottura' else 'Impasto condiviso' }}
+                  {% if evento.tipo == 'cottura' %}
+                    <small class="d-block">{{ evento.forni|length }} forni coinvolti</small>
+                    {% for f in evento.forni %}
+                      <small class="d-block">{{ nomi_forni.get(f.id_forno, 'Forno #' ~ f.id_forno) }} · {{ f.cotte }} cotte · {{ f.data.strftime('%d/%m/%Y') }} {{ f.blocco }}</small>
+                    {% endfor %}
+                  {% else %}
+                    <small class="d-block">Lavorazione {{ evento.lavorazione }}</small>
+                  {% endif %}
+                </div>
+              {% else %}
+                <span class="text-secondary small">Nessun evento</span>
+              {% endfor %}
             </div>
-          {% endfor %}
-        {% else %}
-          <div class="small">Fase di impasto condivisa · Lavorazione {{ evento.lavorazione }}</div>
-        {% endif %}
+          </div>
+        {% endfor %}
       </div>
     {% endfor %}
   </div>
-  <p class="small text-secondary mt-2 mb-0">Eventi della proposta: non sono ancora prenotazioni. Occupazioni e capacità vengono controllate dal backend al salvataggio.</p>
+  <p class="small text-secondary mt-2 mb-0">Le fasi tratteggiate in arancione sono provvisorie. Le risorse vengono prenotate soltanto alla conferma.</p>
 {% else %}
-  <p class="small text-secondary mb-0">Imposta data, forni e cotte e premi «Verifica disponibilità e simula» per visualizzare le fasi.</p>
+  <div class="text-secondary small py-3 text-center" role="status">Seleziona data, forni, cotte e impastatrici, quindi premi «Verifica disponibilità e simula».</div>
 {% endif %}

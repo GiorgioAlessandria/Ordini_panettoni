@@ -1,0 +1,50 @@
+/* Pianificazione mista: scroll nella parte centrale del form.
+   Aggiungere ALLA FINE di flaskr/static/css/tema_panettoni.css.
+   #contenuto-pianificazione e' gia' .modal-content nel template ordini.j2.
+   Non modifica la pianificazione tradizionale. */
+
+#modal-pianificazione #contenuto-pianificazione:has(#form-pianificazione-mista) {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - 1rem);
+    overflow: hidden;
+}
+
+#modal-pianificazione #contenuto-pianificazione:has(#form-pianificazione-mista) > .modal-header {
+    flex: 0 0 auto;
+}
+
+#modal-pianificazione #form-pianificazione-mista {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+#modal-pianificazione #form-pianificazione-mista > .modal-body {
+    display: block;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+#modal-pianificazione #form-pianificazione-mista > .modal-footer {
+    flex: 0 0 auto;
+    max-height: 32dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+#modal-pianificazione #form-pianificazione-mista .row > [class*="col-"] {
+    min-width: 0;
+}
+
+@media (max-width: 991.98px) {
+    #modal-pianificazione #form-pianificazione-mista > .modal-body {
+        padding: .75rem;
+    }
+}
