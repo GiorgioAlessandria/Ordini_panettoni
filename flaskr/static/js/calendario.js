@@ -1,7 +1,7 @@
 // FullCalendar 7: raggruppamento verificato delle fasi su colonne e righe per blocco.
 (function () {
     'use strict';
-    console.info('[Ordini_panettoni] calendario overflow fix v2 caricato');
+    console.info('[Ordini_panettoni] calendario FullCalendar 7 - layout blocchi 20261106');
     const calendarEl = document.getElementById('calendar');
     if (!calendarEl || calendarEl.dataset.calendarInitialized === '1') return;
     if (!window.FullCalendar?.Calendar) {
@@ -105,59 +105,6 @@
     let altezzaSlotAttuale = ALTEZZA_MINIMA_SLOT;
     let aggiornamentoDimensioneInCorso = false;
 
-    // Questo stile viene aggiunto dopo i CSS della pagina: prevale sulla
-    // precedente regola "height: 56px !important" senza cambiare altre viste.
-    const stileDimensionamento = document.createElement('style');
-    stileDimensionamento.id = 'calendario-slot-adattivi';
-    stileDimensionamento.textContent = `
-        #calendar .fc-timeGridWeek-view .fc-timegrid-slot {
-            height: var(--pan-altezza-slot, 56px) !important;
-            min-height: var(--pan-altezza-slot, 56px) !important;
-        }
-        #calendar .fc-timeGridWeek-view .evento-blocco-piani {
-            max-height: 100% !important;
-            min-height: 0 !important;
-            overflow: hidden !important;
-        }
-        /* Il contenitore FullCalendar non deve crescere per il contenuto
-           delle schede: il contenuto eccedente scorre SOLO all'interno. */
-        #calendar .fc-timeGridWeek-view .fc-timegrid-event-harness:has(> .evento-blocco-piani) {
-            overflow: hidden !important;
-            min-height: 0 !important;
-        }
-        #calendar .fc-timeGridWeek-view .evento-blocco-piani {
-            position: absolute !important;
-            inset: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            min-height: 0 !important;
-            box-sizing: border-box !important;
-        }
-        #calendar .fc-timeGridWeek-view .evento-blocco-piani .fc-event-main,
-        #calendar .fc-timeGridWeek-view .evento-blocco-piani .fc-event-main-frame {
-            position: relative !important;
-            width: 100% !important;
-            height: 100% !important;
-            min-height: 0 !important;
-            overflow: hidden !important;
-        }
-        #calendar .fc-timeGridWeek-view .evento-blocco-piani .cal-blocco-griglia {
-            position: absolute !important;
-            inset: 0 !important;
-            box-sizing: border-box !important;
-            width: 100% !important;
-            height: 100% !important;
-            min-height: 0 !important;
-            max-height: 100% !important;
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-            overscroll-behavior: contain;
-            align-content: start !important;
-            grid-auto-rows: max-content !important;
-        }
-    `;
-    document.head.appendChild(stileDimensionamento);
-
     function altezzaSlotNecessaria(eventi) {
         const conteggi = new Map();
         for (const evento of eventi) {
@@ -189,13 +136,12 @@
         const nuova = altezzaSlotNecessaria(eventi);
         if (nuova === altezzaSlotAttuale) return;
         altezzaSlotAttuale = nuova;
-        calendarEl.style.setProperty('--pan-altezza-slot', `${nuova}px`);
+        calendario.setOption('slotMinHeight', nuova);
         // FullCalendar deve ricalcolare le coordinate delle fasce e dei gruppi.
         if (!aggiornamentoDimensioneInCorso) {
             aggiornamentoDimensioneInCorso = true;
             requestAnimationFrame(() => {
                 aggiornamentoDimensioneInCorso = false;
-                calendario.updateSize();
                 pianificaLarghezzeGiorni();
             });
         }
@@ -301,6 +247,10 @@
             `${p.numero_ordini ?? 0} ordini · ${quantitaOrdiniCalendario(p)}`);
         addText(scheda, 'cal-event-weight', pesoImpastoCalendario(p));
         if (p.dati_incompleti) addText(scheda, 'cal-event-warning', 'Quantità da verificare');
+        // Il gestore tastiera dell'evento esterno non deve intercettare il pulsante.
+        scheda.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') event.stopPropagation();
+        });
         scheda.addEventListener('click', (click) => {
             click.preventDefault();
             click.stopPropagation();
@@ -477,39 +427,6 @@
         }));
     }
 
-    // L'altezza delle fasi raggruppate deve restare quella assegnata da
-    // FullCalendar per 07–12:30 e 13–18, non crescere con il numero di schede.
-    function limitaAltezzaGruppo(elemento) {
-        const harness = elemento.closest('.fc-timegrid-event-harness');
-        const griglia = elemento.querySelector('.cal-blocco-griglia');
-        if (!harness || !griglia) return;
-        // Non usare scrollHeight: il contenuto puo' essere piu' alto del
-        // blocco. Misurare invece la cella disegnata da FullCalendar.
-        const altezza = Math.floor(harness.getBoundingClientRect().height);
-        if (altezza < 25) return;
-        harness.style.setProperty('overflow', 'hidden', 'important');
-        elemento.style.setProperty('position', 'absolute', 'important');
-        elemento.style.setProperty('inset', '0', 'important');
-        elemento.style.setProperty('width', '100%', 'important');
-        elemento.style.setProperty('height', '100%', 'important');
-        elemento.style.setProperty('min-height', '0', 'important');
-        elemento.style.setProperty('max-height', '100%', 'important');
-        elemento.style.setProperty('overflow', 'hidden', 'important');
-        for (const main of elemento.querySelectorAll('.fc-event-main, .fc-event-main-frame')) {
-            main.style.setProperty('position', 'relative', 'important');
-            main.style.setProperty('height', '100%', 'important');
-            main.style.setProperty('max-height', '100%', 'important');
-            main.style.setProperty('min-height', '0', 'important');
-            main.style.setProperty('overflow', 'hidden', 'important');
-        }
-        griglia.style.setProperty('position', 'absolute', 'important');
-        griglia.style.setProperty('inset', '0', 'important');
-        griglia.style.setProperty('height', '100%', 'important');
-        griglia.style.setProperty('max-height', '100%', 'important');
-        griglia.style.setProperty('overflow-y', 'auto', 'important');
-        griglia.style.setProperty('overflow-x', 'hidden', 'important');
-    }
-
     function applicaVisibilitaWeekend() {
         // La vista giornaliera non ha colonne da comprimere: mantenere il giorno
         // scelto dall'utente, anche quando e' sabato o domenica.
@@ -610,7 +527,6 @@
     });
 
     const calendario = new FullCalendar.Calendar(calendarEl, {
-        themeSystem: 'classic',
         datesSet(info) {
             aggiornaIntestazione(info.view);
             aggiornaWeekendPerVista(info.view);
@@ -622,6 +538,7 @@
         firstDay: 1,
         timeZone: 'local',
         height: 'auto',
+        slotMinHeight: ALTEZZA_MINIMA_SLOT,
         expandRows: true,
         allDaySlot: true,
         lazyFetching: false, // Ricalcola raggruppamento al cambio della vista.
@@ -634,12 +551,11 @@
         slotMinTime: '07:00:00',
         slotMaxTime: '18:00:00',
         slotDuration: '00:30:00',
-        slotLabelInterval: '01:00:00',
         nowIndicator: true,
         // Navigazione e scelta viste sono nella barra HTML permanente.
         headerToolbar: false,
         views: {
-            timeGridWeek: { dayHeaderFormat: { weekday: 'long', day: 'numeric', month: 'short' } },
+            timeGridWeek: { className: 'calendario-vista-ore', dayHeaderFormat: { weekday: 'long', day: 'numeric', month: 'short' } },
             dayGridWeek: { dayHeaderFormat: { weekday: 'long', day: 'numeric', month: 'short' } },
         },
         eventSources: [
@@ -660,15 +576,15 @@
                 },
             },
         ],
-        eventClassNames(info) {
+        eventClass(info) {
             const gruppo = info.event.extendedProps.tipo_evento === 'gruppo_fasi';
-            if (gruppo) return ['evento-blocco-piani'];
+            if (gruppo) return 'evento-blocco-piani';
             const produzione = info.event.source?.id === 'pianificazione' ||
                 (info.event.extendedProps.id_pianificazione != null &&
                  info.event.extendedProps.tipo_evento !== 'scadenze_giorno');
             return produzione
-                ? ['evento-produzione', 'lavorazione-' + tipoLavorazione(info.event.extendedProps.lavorazione)]
-                : ['evento-scadenza', propsStato(info.event.extendedProps)];
+                ? 'evento-produzione lavorazione-' + tipoLavorazione(info.event.extendedProps.lavorazione)
+                : 'evento-scadenza ' + propsStato(info.event.extendedProps);
         },
         eventContent(info) {
             const props = info.event.extendedProps;
@@ -717,20 +633,7 @@
         },
         eventDidMount(info) {
             const p = info.event.extendedProps;
-            if (p.tipo_evento === 'gruppo_fasi') {
-                // Aspettiamo che il posizionamento assoluto della libreria sia terminato.
-                const aggiorna = () => limitaAltezzaGruppo(info.el);
-                requestAnimationFrame(aggiorna);
-                if (typeof ResizeObserver !== 'undefined') {
-                    const harness = info.el.closest('.fc-timegrid-event-harness');
-                    if (harness) {
-                        const osservatore = new ResizeObserver(aggiorna);
-                        osservatore.observe(harness);
-                        info.el._bloccoResizeObserver = osservatore;
-                    }
-                }
-                return;
-            }
+            if (p.tipo_evento === 'gruppo_fasi') return;
             const produzione = info.event.source?.id === 'pianificazione' ||
                 (info.event.extendedProps.id_pianificazione != null &&
                  info.event.extendedProps.tipo_evento !== 'scadenze_giorno');
@@ -771,12 +674,6 @@
                 );
             }
             info.el.title = righe.join('\n');
-        },
-        eventWillUnmount(info) {
-            if (info.el._bloccoResizeObserver) {
-                info.el._bloccoResizeObserver.disconnect();
-                delete info.el._bloccoResizeObserver;
-            }
         },
         eventsSet() {
             aggiornaAltezzaSlot(eventiPerDimensionamento);
@@ -833,3 +730,4 @@
         aggiornaWeekendPerVista(calendario.view);
     });
 })();
+
