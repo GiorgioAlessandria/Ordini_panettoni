@@ -1,6 +1,7 @@
 // FullCalendar 7: raggruppamento verificato delle fasi su colonne e righe per blocco.
 (function () {
     'use strict';
+    console.info('[Ordini_panettoni] calendario overflow fix v2 caricato');
     const calendarEl = document.getElementById('calendar');
     if (!calendarEl || calendarEl.dataset.calendarInitialized === '1') return;
     if (!window.FullCalendar?.Calendar) {
@@ -66,6 +67,146 @@
     // Nella vista oraria, gli eventi che occupano lo stesso identico intervallo
     // diventano un unico contenitore, visualizzato come griglia di schede.
     // L'endpoint Flask e gli eventi delle altre viste non vengono modificati.
+    function prioritaCalendario(props) {
+        const nome = String(props?.lavorazione || '').toLowerCase();
+        if (nome.includes('impast')) return 0;
+        if (String(props?.id_lavorazione ?? '') === '2' ||
+                nome.includes('cott') || nome.includes('forno') || nome.includes('inforn')) return 2;
+        return 1;
+    }
+
+    function quantitaOrdiniCalendario(props) {
+        const valori = props?.quantita_per_ordine;
+        if (Array.isArray(valori) && valori.length > 0) {
+            const quantita = valori.map(v => Number(v));
+            if (quantita.every(v => Number.isInteger(v) && v >= 0)) {
+                return quantita.length > 1
+                    ? quantita.join(' pz / ') + ' pz'
+                    : quantita[0] + ' pz';
+            }
+        }
+        return props?.quantita_assegnata == null ? 'N/D' : `${props.quantita_assegnata} pz`;
+    }
+
+    function pesoImpastoCalendario(props) {
+        const kg = Number(props?.peso_totale_kg);
+        return props?.peso_totale_kg == null || !Number.isFinite(kg)
+            ? 'Impasto: N/D' : `Impasto previsto: ${kg.toLocaleString('it-IT', {
+                minimumFractionDigits: 2, maximumFractionDigits: 2
+            })} kg`;
+    }
+
+    // La griglia oraria di FullCalendar ha un'altezza fissa per mezz'ora.
+    // Una settimana affollata richiede blocchi piu' alti, altrimenti gli eventi
+    // finiscono oltre la fascia M/P. L'altezza si adatta alla settimana visibile.
+    const ALTEZZA_MINIMA_SLOT = 56;
+    const ALTEZZA_MASSIMA_SLOT = 150;
+    let eventiPerDimensionamento = [];
+    let altezzaSlotAttuale = ALTEZZA_MINIMA_SLOT;
+    let aggiornamentoDimensioneInCorso = false;
+
+    // Questo stile viene aggiunto dopo i CSS della pagina: prevale sulla
+    // precedente regola "height: 56px !important" senza cambiare altre viste.
+    const stileDimensionamento = document.createElement('style');
+    stileDimensionamento.id = 'calendario-slot-adattivi';
+    stileDimensionamento.textContent = `
+        #calendar .fc-timeGridWeek-view .fc-timegrid-slot {
+            height: var(--pan-altezza-slot, 56px) !important;
+            min-height: var(--pan-altezza-slot, 56px) !important;
+        }
+        #calendar .fc-timeGridWeek-view .evento-blocco-piani {
+            max-height: 100% !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+        }
+        /* Il contenitore FullCalendar non deve crescere per il contenuto
+           delle schede: il contenuto eccedente scorre SOLO all'interno. */
+        #calendar .fc-timeGridWeek-view .fc-timegrid-event-harness:has(> .evento-blocco-piani) {
+            overflow: hidden !important;
+            min-height: 0 !important;
+        }
+        #calendar .fc-timeGridWeek-view .evento-blocco-piani {
+            position: absolute !important;
+            inset: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            min-height: 0 !important;
+            box-sizing: border-box !important;
+        }
+        #calendar .fc-timeGridWeek-view .evento-blocco-piani .fc-event-main,
+        #calendar .fc-timeGridWeek-view .evento-blocco-piani .fc-event-main-frame {
+            position: relative !important;
+            width: 100% !important;
+            height: 100% !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+        }
+        #calendar .fc-timeGridWeek-view .evento-blocco-piani .cal-blocco-griglia {
+            position: absolute !important;
+            inset: 0 !important;
+            box-sizing: border-box !important;
+            width: 100% !important;
+            height: 100% !important;
+            min-height: 0 !important;
+            max-height: 100% !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            overscroll-behavior: contain;
+            align-content: start !important;
+            grid-auto-rows: max-content !important;
+        }
+    `;
+    document.head.appendChild(stileDimensionamento);
+
+    function altezzaSlotNecessaria(eventi) {
+        const conteggi = new Map();
+        for (const evento of eventi) {
+            if (evento.allDay || typeof evento.start !== 'string') continue;
+            const props = evento.extendedProps || {};
+            if (props.tipo_evento === 'scadenze_giorno') continue;
+            // Stesso intervallo = stesso gruppo di schede.
+            const chiave = `${evento.start}|${evento.end}`;
+            conteggi.set(chiave, (conteggi.get(chiave) || 0) + 1);
+        }
+        // La griglia CSS passa a una colonna sui monitor stretti.
+        const colonne = window.innerWidth <= 1150 ? 1 : 2;
+        let maggiore = ALTEZZA_MINIMA_SLOT;
+        for (const [chiave, numero] of conteggi) {
+            const righe = Math.ceil(numero / colonne);
+            const pomeriggio = /T13:00/.test(chiave);
+            const mezzeOre = pomeriggio ? 10 : 11;
+            // 130px/scheda e' un valore prudente per descrizioni lunghe,
+            // kg e quantita' per ordine. Margine per gli spazi fra le righe.
+            const spazio = righe * 130 + Math.max(0, righe - 1) * 5 + 14;
+            const stimata = Math.ceil(spazio / mezzeOre);
+            maggiore = Math.max(maggiore, stimata);
+        }
+        return Math.min(ALTEZZA_MASSIMA_SLOT, maggiore);
+    }
+
+    function aggiornaAltezzaSlot(eventi) {
+        if (!calendario || calendario.view?.type !== 'timeGridWeek') return;
+        const nuova = altezzaSlotNecessaria(eventi);
+        if (nuova === altezzaSlotAttuale) return;
+        altezzaSlotAttuale = nuova;
+        calendarEl.style.setProperty('--pan-altezza-slot', `${nuova}px`);
+        // FullCalendar deve ricalcolare le coordinate delle fasce e dei gruppi.
+        if (!aggiornamentoDimensioneInCorso) {
+            aggiornamentoDimensioneInCorso = true;
+            requestAnimationFrame(() => {
+                aggiornamentoDimensioneInCorso = false;
+                calendario.updateSize();
+                pianificaLarghezzeGiorni();
+            });
+        }
+    }
+
+    window.addEventListener('resize', () => {
+        if (calendario.view?.type === 'timeGridWeek') {
+            aggiornaAltezzaSlot(eventiPerDimensionamento);
+        }
+    }, { passive: true });
+
     function raggruppaFasiPerBlocco(eventi) {
         if (!Array.isArray(eventi)) return [];
         const gruppi = new Map();
@@ -89,7 +230,8 @@
             fasi.sort((a, b) => {
                 const aa = a.extendedProps || {};
                 const bb = b.extendedProps || {};
-                return Number(aa.id_pianificazione || 0) - Number(bb.id_pianificazione || 0) ||
+                return prioritaCalendario(aa) - prioritaCalendario(bb) ||
+                    Number(aa.id_pianificazione || 0) - Number(bb.id_pianificazione || 0) ||
                     Number(aa.numero_fase || 0) - Number(bb.numero_fase || 0) ||
                     String(a.id).localeCompare(String(b.id));
             });
@@ -119,9 +261,9 @@
             `Fase: ${p.numero_fase ?? '?'} · ${p.lavorazione || 'Lavorazione'}`,
             `Articolo: ${p.descrizione_articolo || evento.title || 'N/D'}`,
             `Ordini: ${(p.ordini || []).join(', ')}`,
-            `Quantità assegnata: ${p.quantita_assegnata ?? 'N/D'}`,
+            `Quantità per ordine: ${quantitaOrdiniCalendario(p)}`,
         ];
-        if (testoForniDichiarati(p)) righe.push(`Forni: ${testoForniDichiarati(p)}`);
+        righe.push(pesoImpastoCalendario(p));
         if (p.impastatrici?.length) righe.push(`Impastatrici: ${p.impastatrici.join(', ')}`);
         return righe.join('\n');
     }
@@ -156,8 +298,8 @@
         }
         addText(scheda, 'cal-event-title', p.descrizione_articolo || evento.title || 'Articolo');
         addText(scheda, 'cal-event-summary',
-            `${p.numero_ordini ?? 0} ordini · ${p.quantita_assegnata ?? 'N/D'} pz`);
-        if (testoForniDichiarati(p)) addText(scheda, 'cal-event-ovens', testoForniDichiarati(p));
+            `${p.numero_ordini ?? 0} ordini · ${quantitaOrdiniCalendario(p)}`);
+        addText(scheda, 'cal-event-weight', pesoImpastoCalendario(p));
         if (p.dati_incompleti) addText(scheda, 'cal-event-warning', 'Quantità da verificare');
         scheda.addEventListener('click', (click) => {
             click.preventDefault();
@@ -341,18 +483,29 @@
         const harness = elemento.closest('.fc-timegrid-event-harness');
         const griglia = elemento.querySelector('.cal-blocco-griglia');
         if (!harness || !griglia) return;
+        // Non usare scrollHeight: il contenuto puo' essere piu' alto del
+        // blocco. Misurare invece la cella disegnata da FullCalendar.
         const altezza = Math.floor(harness.getBoundingClientRect().height);
         if (altezza < 25) return;
-        elemento.style.setProperty('height', `${altezza}px`, 'important');
-        elemento.style.setProperty('max-height', `${altezza}px`, 'important');
+        harness.style.setProperty('overflow', 'hidden', 'important');
+        elemento.style.setProperty('position', 'absolute', 'important');
+        elemento.style.setProperty('inset', '0', 'important');
+        elemento.style.setProperty('width', '100%', 'important');
+        elemento.style.setProperty('height', '100%', 'important');
+        elemento.style.setProperty('min-height', '0', 'important');
+        elemento.style.setProperty('max-height', '100%', 'important');
+        elemento.style.setProperty('overflow', 'hidden', 'important');
         for (const main of elemento.querySelectorAll('.fc-event-main, .fc-event-main-frame')) {
-            main.style.setProperty('height', `${altezza}px`, 'important');
-            main.style.setProperty('max-height', `${altezza}px`, 'important');
+            main.style.setProperty('position', 'relative', 'important');
+            main.style.setProperty('height', '100%', 'important');
+            main.style.setProperty('max-height', '100%', 'important');
             main.style.setProperty('min-height', '0', 'important');
             main.style.setProperty('overflow', 'hidden', 'important');
         }
-        griglia.style.setProperty('height', `${altezza - 2}px`, 'important');
-        griglia.style.setProperty('max-height', `${altezza - 2}px`, 'important');
+        griglia.style.setProperty('position', 'absolute', 'important');
+        griglia.style.setProperty('inset', '0', 'important');
+        griglia.style.setProperty('height', '100%', 'important');
+        griglia.style.setProperty('max-height', '100%', 'important');
         griglia.style.setProperty('overflow-y', 'auto', 'important');
         griglia.style.setProperty('overflow-x', 'hidden', 'important');
     }
@@ -499,6 +652,8 @@
                 // Questo è il punto che impediva il precedente raggruppamento.
                 success(eventi) {
                     const visibili = fasiFiltrate(eventi);
+                    eventiPerDimensionamento = visibili;
+                    aggiornaAltezzaSlot(visibili);
                     return calendario.view?.type === 'timeGridWeek'
                         ? raggruppaFasiPerBlocco(visibili)
                         : visibili;
@@ -551,8 +706,8 @@
 
             if (produzione) {
                 addText(scheda, 'cal-event-summary',
-                    `${props.numero_ordini ?? 0} ordini · ${props.quantita_assegnata ?? 'N/D'} pz assegnati`);
-                if (testoForniDichiarati(props)) addText(scheda, 'cal-event-ovens', testoForniDichiarati(props));
+                    `${props.numero_ordini ?? 0} ordini · ${quantitaOrdiniCalendario(props)}`);
+                addText(scheda, 'cal-event-weight', pesoImpastoCalendario(props));
                 if (props.dati_incompleti) addText(scheda, 'cal-event-warning', 'Quantità da verificare');
             } else {
                 addText(scheda, 'cal-event-summary',
@@ -597,13 +752,14 @@
                     `Pianificazione: ${p.etichetta_piano || p.id_pianificazione}`,
                     `Lavorazione: ${p.lavorazione}`,
                     `Ordini: ${(p.ordini || []).join(', ')}`,
-                    `Quantità assegnata: ${p.quantita_assegnata ?? 'N/D'}`,
-                    `Produzione: ${p.panettoni_previsti ?? 'N/D'}`,
+                    `Quantità per ordine: ${quantitaOrdiniCalendario(p)}`,
+                    ...(Array.isArray(p.quantita_per_ordine) && p.quantita_per_ordine.length > 1
+                        ? [] : [`Produzione: ${p.panettoni_previsti ?? 'N/D'}`]),
                     `Da stock: ${p.quantita_da_stock ?? 0} pz`,
                     `Cotte: ${p.numero_cotte ?? 'N/D'}`,
                     `Peso: ${p.peso_totale_kg ?? 'N/D'} kg`,
                 );
-                if (testoForniDichiarati(p)) righe.push(`Forni: ${testoForniDichiarati(p)}`);
+                // Il dettaglio delle macchine resta accessibile nel riepilogo del piano.
                 if (p.impastatrici?.length) righe.push(`Impastatrici: ${p.impastatrici.join(', ')}`);
             } else {
                 righe.push(
@@ -622,7 +778,10 @@
                 delete info.el._bloccoResizeObserver;
             }
         },
-        eventsSet() { pianificaLarghezzeGiorni(); },
+        eventsSet() {
+            aggiornaAltezzaSlot(eventiPerDimensionamento);
+            pianificaLarghezzeGiorni();
+        },
         eventClick(info) {
             const url = info.event.extendedProps.detailUrl;
             if (url && window.apriRiepilogoCalendario) {

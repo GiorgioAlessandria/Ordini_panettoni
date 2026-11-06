@@ -72,6 +72,8 @@
     </div>
   </section>
   {% endif %}
+  <div id="avviso-anomalia-misto" hx-get="{{ url_for('ordini_cliente.anomalie_erp_banner') }}"
+    hx-trigger="load" hx-swap="innerHTML"></div>
   <div class="d-flex flex-wrap gap-4 mb-3">
     <div><span class="small text-muted d-block">Totale cotte</span><strong class="h5">{{ bozza.NumeroCotte }}</strong></div>
     <div><span class="small text-muted d-block">Impasto</span><strong class="h5">{{ '%.2f'|format(bozza.PesoTotaleGrammi / 1000) }} kg</strong></div>

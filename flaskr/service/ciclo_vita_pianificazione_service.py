@@ -11,6 +11,10 @@ from sqlalchemy import delete, update
 from sqlalchemy.exc import SQLAlchemyError
 
 from flaskr.extensions import db
+from flaskr.service.anomalie_erp_service import (
+    ErroreAnomalia, verifica_scelte_piano, aggiorna_spedizioni_a_chiusura,
+    _record_assente_riconosciuto,
+)
 from flaskr.models.model_ordini import (
     LogOperazioni,
     OrdiniCliente,
@@ -39,6 +43,10 @@ def _rileggi_stato_ordine(id_documento: int, id_riga: int, adesso: datetime, ope
     """
     originale = db.session.get(OrdiniCliente, (id_documento, id_riga))
     if originale is None:
+        # FK ERP rimossa dal sync, ma audit dell'anomalia mantenuto.
+        # La chiusura controlla separatamente che la decisione sia stata presa.
+        if _record_assente_riconosciuto(id_documento,id_riga):
+            return
         raise ErroreCicloVita(f"Ordine {id_documento}-{id_riga} non trovato: aggiornamento interrotto")
     if originale.QTA_SALDO_DOC is None:
         raise ErroreCicloVita(f"Saldo ERP mancante per l'ordine {id_documento}-{id_riga}")
@@ -96,8 +104,10 @@ def _prepara(id_pianificazione: int) -> tuple[PianificazioneProduzione, list[Pia
             PianificazioneOrdini.IdPianificazione == id_pianificazione
         )
     ).all()
-    if not righe or any(r.Stato != "In produzione" for r in righe):
-        raise ErroreCicloVita("Le righe associate non hanno uno stato coerente con la pianificazione")
+    # Le righe escluse con decisione A restano nello storico con Stato=Annullato.
+    righe = [r for r in righe if r.Stato == "In produzione"]
+    if not righe:
+        raise ErroreCicloVita("Nessuna riga produttiva attiva nella pianificazione")
     if any(r.QtaPianificata is None or int(r.QtaPianificata) <= 0 for r in righe):
         raise ErroreCicloVita("Quantità impegnata mancante in una o più righe: correggere prima di procedere")
     if any(int(r.QtaDaStock or 0) > int(r.QtaPianificata) for r in righe):
@@ -217,6 +227,7 @@ def chiudi_pianificazione(id_pianificazione: int, operatore: str, prodotte: dict
     """
     try:
         piano, righe = _prepara(id_pianificazione)
+        verifica_scelte_piano("TRAD",id_pianificazione)
         registra_consuntivo(
             "TRAD", id_pianificazione,
             [(r.IdDocumento, r.IdRiga, piano.CodArt, int(r.QtaPianificata)) for r in righe],
@@ -241,8 +252,9 @@ def chiudi_pianificazione(id_pianificazione: int, operatore: str, prodotte: dict
         for documento, nriga in chiavi:
             _rileggi_stato_ordine(documento, nriga, adesso, operatore)
         _scrivi_log(piano, righe, "Chiuso", operatore, adesso)
+        aggiorna_spedizioni_a_chiusura("TRAD",id_pianificazione)
         db.session.commit()
-    except (ErroreCicloVita, ErroreConsuntivo):
+    except (ErroreCicloVita, ErroreConsuntivo, ErroreAnomalia):
         db.session.rollback()
         raise
     except SQLAlchemyError as err:

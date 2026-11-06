@@ -9,6 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import joinedload
 
 from flaskr.extensions import db
+from flaskr.service.anomalie_erp_service import ErroreAnomalia, ordine_proxy_mancante
 from flaskr.service.consuntivi_service import leggi_form_consuntivo, ErroreConsuntivo
 from flaskr.models.model_consuntivi import ConsuntivoProduzioneOrdine, ConsuntivoProduzioneArticolo, GiacenzaSecondaScelta
 from flaskr.service.lotto_pianificazione_service import (
@@ -226,7 +227,33 @@ def riepilogo_selezione():
         from flaskr.routes_modules.pianificazione_mista_unificata import valida_selezione_mista
         try:
             risultato = valida_selezione_mista(ids_selezionati)
+            from decimal import Decimal
+            from flaskr.models.model_ordini import Coefficienti
+            from flaskr.service.anteprima_impasto_misto_service import _prezzo_peso_unitario
+
+            nomi_coefficienti = (
+                'PERCENTUALE_PESO_AGGIUNTIVO_GLASSATURA',
+                'PERCENTUALE_PESO_AGGIUNTIVO_IMPASTO',
+            )
+            coefficienti = {
+                c.Coefficiente: Decimal(str(c.Valore))
+                for c in db.session.scalars(db.select(Coefficienti).where(
+                    Coefficienti.Coefficiente.in_(nomi_coefficienti)
+                )).all()
+            }
+            mancanti = set(nomi_coefficienti) - set(coefficienti)
+            if mancanti:
+                raise ValueError('Coefficienti impasto mancanti: ' + ', '.join(sorted(mancanti)))
+            peso_grammi = sum((
+                _prezzo_peso_unitario(
+                    ordine.articolo,
+                    coefficienti['PERCENTUALE_PESO_AGGIUNTIVO_GLASSATURA'],
+                    coefficienti['PERCENTUALE_PESO_AGGIUNTIVO_IMPASTO'],
+                ) * Decimal(str(risultato['disponibili'][(ordine.IdDocumento, ordine.IdRigaDoc)]))
+                for ordine in risultato['ordini']
+            ), Decimal('0'))
             riepilogo_misto = {
+                "peso_impasto_kg": peso_grammi / Decimal('1000'),
                 "gruppo": risultato["gruppo"].Nome,
                 "numero_ordini": len(risultato["ordini"]),
                 "numero_articoli": len(risultato["codici"]),
@@ -824,13 +851,16 @@ def gestione_pianificazione(IdPianificazione: int):
         abort(404)
     assoc = db.session.execute(
         db.select(PianificazioneOrdini, OrdiniCliente)
-        .join(OrdiniCliente,
+        .outerjoin(OrdiniCliente,
               (PianificazioneOrdini.IdDocumento == OrdiniCliente.IdDocumento) &
               (PianificazioneOrdini.IdRiga == OrdiniCliente.IdRigaDoc))
         .options(joinedload(OrdiniCliente.Cliente))
         .where(PianificazioneOrdini.IdPianificazione == IdPianificazione)
         .order_by(OrdiniCliente.DataConsegna)
     ).all()
+    # Mantenere visibili le righe eliminate dal feed ERP senza inventare i dati.
+    assoc = [(a, o if o is not None else ordine_proxy_mancante(
+        'TRAD',IdPianificazione,a.IdDocumento,a.IdRiga)) for a,o in assoc]
     log = db.session.scalars(
         db.select(PianificazioneOperazioni)
         .where(PianificazioneOperazioni.IdPianificazione == IdPianificazione)
@@ -842,7 +872,7 @@ def gestione_pianificazione(IdPianificazione: int):
         .order_by(StoricoRipianificazioni.Id.desc())
     ).all()
     # QtaStockGenerata=NULL e' previsto per i piani creati prima della migrazione.
-    surplus_teorico = calcola_surplus_teorico_storico(piano, [a for a, _ in assoc])
+    surplus_teorico = calcola_surplus_teorico_storico(piano, [a for a, _ in assoc if a.Stato != "Annullato"])
     consuntivo_ordini = {
         (c.IdDocumento, c.IdRigaDoc): c
         for c in db.session.scalars(db.select(ConsuntivoProduzioneOrdine).where(
@@ -863,7 +893,7 @@ def gestione_pianificazione(IdPianificazione: int):
                            puo_ripianificare=ruolo_attuale() in ("admin", "utente_produzione"),
                            surplus_teorico=surplus_teorico,
                            puo_riconciliare=g.user.username in current_app.config.get("STOCK_RECONCILIATION_USERS", ()),
-                           totale_da_stock=sum(int(a.QtaDaStock or 0) for a, _ in assoc))
+                           totale_da_stock=sum(int(a.QtaDaStock or 0) for a, _ in assoc if a.Stato != "Annullato"))
 
 
 # --- Ripianificazione senza cambiare ordini, impastatrici, kg o stock ---
@@ -970,13 +1000,14 @@ def conferma_chiusura_pianificazione(IdPianificazione: int):
         if piano is None:
             abort(404)
         righe = db.session.scalars(db.select(PianificazioneOrdini).where(
-            PianificazioneOrdini.IdPianificazione == IdPianificazione
+            PianificazioneOrdini.IdPianificazione == IdPianificazione,
+                PianificazioneOrdini.Stato == "In produzione"
         )).all()
         prodotte, articoli = leggi_form_consuntivo(request.form, [
             (r.IdDocumento, r.IdRiga, piano.CodArt, int(r.QtaPianificata)) for r in righe
         ])
         chiudi_pianificazione(IdPianificazione, g.user.username, prodotte, articoli)
-    except (ErroreCicloVita, ErroreConsuntivo) as errore:
+    except (ErroreCicloVita, ErroreConsuntivo, ErroreAnomalia) as errore:
         flash(str(errore), "danger")
         return redirect(url_for("ordini_cliente.gestione_pianificazione", IdPianificazione=IdPianificazione), code=303)
     flash(f"Pianificazione #{IdPianificazione} chiusa correttamente.", "success")
@@ -1006,3 +1037,6 @@ from flaskr.routes_modules import pianificazione_mista_unificata as _misto_unifi
 
 # Le nuove route logistiche condividono il blueprint ordini_cliente.
 from flaskr.routes_modules import spedizioni as _spedizioni_routes  # noqa: E402,F401
+
+# Il blueprint e condiviso: importa le route solo una volta.
+from flaskr.routes_modules import anomalie_erp as _anomalie_erp_routes  # noqa: E402,F401

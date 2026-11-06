@@ -876,6 +876,7 @@ from flaskr.service.attivazione_impasto_misto_service import (
     ErroreAttivazioneMista, conferma_bozza, chiudi_piano_misto, annulla_piano_misto,
 )
 from flaskr.service.consuntivi_service import leggi_form_consuntivo, ErroreConsuntivo
+from flaskr.service.anomalie_erp_service import ErroreAnomalia
 from flaskr.models.model_consuntivi import ConsuntivoProduzioneOrdine, ConsuntivoProduzioneArticolo
 
 
@@ -917,7 +918,7 @@ def chiudi_piano_misto_route(id_bozza: int):
             for r in bozza.ordini
         ])
         chiudi_piano_misto(id_bozza, _operatore_bozza_mista(), prodotte, articoli)
-    except (ErroreAttivazioneMista, ErroreConsuntivo) as exc:
+    except (ErroreAttivazioneMista, ErroreConsuntivo, ErroreAnomalia) as exc:
         flash(str(exc), 'danger')
     else:
         flash('Pianificazione mista chiusa. Consuntivi e stock aggiornati.', 'success')

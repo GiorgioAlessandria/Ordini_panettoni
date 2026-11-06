@@ -149,9 +149,20 @@ def _dati_post() -> dict:
     forni_articolo = {
         codice: int(request.form[f'forno_{codice}']) for codice in scelta['codici']
     }
-    cotte_per_forno = {
-        forno: int(request.form[f'cotte_{forno}']) for forno in set(forni_articolo.values())
-    }
+    cotte_per_forno = {}
+    for forno in set(forni_articolo.values()):
+        raw = request.form.get(f'cotte_{forno}', '').strip()
+        if not raw:
+            nome = db.session.get(AnagraficaForni, forno)
+            nome = ((nome.DescrizioneForno or nome.ModelloForno) if nome else f'#{forno}')
+            raise ValueError(f'Inserisci il numero di cotte per il forno {nome}.')
+        try:
+            numero = int(raw)
+        except ValueError as exc:
+            raise ValueError(f'Numero cotte non valido per il forno #{forno}.') from exc
+        if not 1 <= numero <= 999:
+            raise ValueError(f'Il forno #{forno} richiede da 1 a 999 cotte.')
+        cotte_per_forno[forno] = numero
     # Le quantità proposte sono i residui disponibili, modificabili dall'operatore.
     # Lato server validiamo l'intero e il limite per ordine.
     quantita_per_ordine = {}
@@ -197,8 +208,18 @@ def simulazione_mista_unificata():
                       for f in db.session.scalars(db.select(AnagraficaForni).where(
                           AnagraficaForni.IdForno.in_(esito['risultati'])
                       )).all()}
+        nomi_impastatrici = {
+            m.IdImpastatrice: (m.ModelloImpastatrice or m.DescrizioneImpastatrice)
+            for m in db.session.scalars(
+                db.select(AnagraficaImpastatrici).where(
+                    AnagraficaImpastatrici.IdImpastatrice.in_(dati['ids_macchine'])
+                )
+            ).all()
+        }
         return render_template(_ESITO, esito=esito, errore=None,
-                               agenda_mista=eventi_proposta_mista(esito), nomi_forni=nomi_forni)
+                               agenda_mista=eventi_proposta_mista(esito),
+                               nomi_forni=nomi_forni,
+                               nomi_impastatrici=nomi_impastatrici)
     except (ValueError, KeyError, TypeError, ErroreAnteprimaMista,
             ErroreCalcoloPianificazione) as exc:
         return render_template(_ESITO, esito=None, errore=str(exc),
@@ -259,3 +280,56 @@ def conferma_mista_unificata():
     ))
     response.headers['HX-Trigger'] = 'pianificazioneSalvata, stockAggiornato'
     return response
+
+
+@bp_ordini_cliente.post('/pianificazione/mista/impastatrici-disponibili',
+                        endpoint='impastatrici_miste_disponibilita')
+@login_required
+@solo_ruoli('admin', 'utente_produzione')
+def impastatrici_miste_disponibilita():
+    # Controlla la libertà delle impastatrici in tutte le fasi.
+    from flaskr.models.model_ordini import PianificazioneProduzione
+    from flaskr.service.pianificazione_service import blocchi_fase
+    from flaskr.service.risorse_produzione_service import (
+        individua_fasi_risorse, impastatrici_libere,
+    )
+
+    _verifica_csrf()
+    macchine = db.session.scalars(
+        db.select(AnagraficaImpastatrici).order_by(
+            AnagraficaImpastatrici.IdImpastatrice
+        )
+    ).all()
+    ids_selezionate = set()
+    for raw in request.form.getlist('impastatrici'):
+        try:
+            ids_selezionate.add(int(raw))
+        except (ValueError, TypeError):
+            pass
+    disponibili = set()
+    calcolate = False
+    errore = None
+    raw_data = request.form.get('data_inizio', '').strip()
+    blocco = request.form.get('blocco', '')
+    if raw_data and blocco in ('M', 'P'):
+        try:
+            selezione = valida_selezione_mista(request.form.getlist('ordini'))
+            codice = sorted(selezione['codici'])[0]
+            fasi_db, _, _ = _fasi_e_ricetta(codice)
+            fasi = blocchi_fase(
+                fasi_db, PianificazioneProduzione(), raw_data,
+                0 if blocco == 'M' else 1,
+            )
+            impasti, _ = individua_fasi_risorse(fasi)
+            libere, _ = impastatrici_libere(macchine, impasti)
+            disponibili = set(libere)
+            calcolate = True
+        except (ValueError, TypeError, ErroreAnteprimaMista, ErroreCalcoloPianificazione) as exc:
+            errore = str(exc)
+    return render_template(
+        'ordini/_partials/_impastatrici_miste_disponibili.j2',
+        impastatrici=macchine, impastatrici_calcolate=calcolate,
+        ids_impastatrici_disponibili=disponibili,
+        ids_impastatrici_selezionate=ids_selezionate,
+        errore_macchine=errore,
+    )

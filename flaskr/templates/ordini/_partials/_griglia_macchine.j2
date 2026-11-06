@@ -57,8 +57,8 @@
                             {% for m in slot.macchine %}
                                 <article class="cm-machine {% if m.legacy %}cm-machine-legacy{% elif m.occupata %}cm-machine-used{% else %}cm-machine-free{% endif %}"
                                   {% if m.occupata %}role="button" tabindex="0" style="cursor:pointer"
-                                  data-riepilogo-url="{{ url_for('ordini_cliente.calendario_riepilogo_piano', IdPianificazione=m.piano) }}"
-                                  aria-label="Apri il riepilogo della pianificazione {{ m.piano }}"{% endif %}>
+                                  data-riepilogo-url="{{ url_for('ordini_cliente.calendario_riepilogo_piano_misto', id_bozza=m.piano) if m.misto else url_for('ordini_cliente.calendario_riepilogo_piano', IdPianificazione=m.piano) }}"
+                                  aria-label="Apri il riepilogo della pianificazione {{ 'M-' if m.misto else '#' }}{{ m.piano }}"{% endif %}>
                                     <div class="cm-machine-head">
                                         <strong title="Impastatrice {{ m.id }}">{{ m.nome }}</strong>
                                         <span>{{ '%.1f'|format(m.capacita_kg) }} kg</span>
@@ -67,8 +67,8 @@
                                         <div class="cm-machine-status">Libera</div>
                                     {% else %}
                                         <button type="button" class="btn btn-link btn-sm fw-semibold p-0 cm-machine-plan"
-                                            data-riepilogo-url="{{ url_for('ordini_cliente.calendario_riepilogo_piano', IdPianificazione=m.piano) }}"
-                                            title="Apri riepilogo della pianificazione">Piano #{{ m.piano }} · Riepilogo</button>
+                                            data-riepilogo-url="{{ url_for('ordini_cliente.calendario_riepilogo_piano_misto', id_bozza=m.piano) if m.misto else url_for('ordini_cliente.calendario_riepilogo_piano', IdPianificazione=m.piano) }}"
+                                            title="Apri riepilogo della pianificazione">Piano {{ 'M-' if m.misto else '#' }}{{ m.piano }} · Riepilogo</button>
                                         <div class="cm-machine-article" title="{{ m.articolo }}">{{ m.articolo }}</div>
                                         {% if m.legacy %}
                                             <div class="cm-machine-status">Prenotata · kg N/D</div>

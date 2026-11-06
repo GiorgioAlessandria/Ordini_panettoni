@@ -1,0 +1,7 @@
+{% if anomalie %}
+<div class="alert alert-warning border-warning mb-3" role="alert" aria-live="polite">
+  <div class="fw-semibold mb-1">{{ anomalie|length }} righe ordine eliminate dall'ERP durante una produzione</div>
+  <div class="small mb-2">Occorre decidere se continuare con i pezzi già assegnati oppure ricalcolare la pianificazione escludendo la riga. La chiusura resta bloccata fino alla decisione.</div>
+  <a class="btn btn-outline-dark btn-sm" href="{{ url_for('ordini_cliente.anomalie_erp_elenco') }}">Gestisci anomalie ERP</a>
+</div>
+{% endif %}

@@ -140,9 +140,19 @@ def leggi_fasi_settimana(inizio: date, fine: date, ruolo: str) -> list[dict]:
     ).all()
     quantita = defaultdict(int)
     num_ordini = defaultdict(int)
+    # Pezzi per riga ordine: lo stock non e' impasto da produrre.
+    righe_per_piano = defaultdict(list)
     for link in associazioni:
         quantita[link.IdPianificazione] += int(link.QtaPianificata or 0)
         num_ordini[link.IdPianificazione] += 1
+        righe_per_piano[link.IdPianificazione].append((
+            (link.IdDocumento, link.IdRiga),
+            max(0, int(link.QtaPianificata or 0) - int(link.QtaDaStock or 0)),
+        ))
+    quantita_per_piano = {
+        id_piano: [pezzi for _, pezzi in sorted(voci)]
+        for id_piano, voci in righe_per_piano.items()
+    }
     eventi = []
     for fase, piano, lavorazione, descrizione, ricetta_fase in righe:
         if not num_ordini[piano.IdPianificazione]:
@@ -157,17 +167,21 @@ def leggi_fasi_settimana(inizio: date, fine: date, ruolo: str) -> list[dict]:
             "blocco": fase.Blocco,
             "piano": piano.IdPianificazione,
             "fase": getattr(ricetta_fase, "IdFase", None),
+            "id_ricetta_fase": fase.IdRicettaFase,
             "id_lavorazione": fase.IdLavorazione,
             "lavorazione": lavorazione.DescrizioneLavorazione or "Lavorazione",
             "descrizione": descrizione or piano.CodArt or "Articolo",
             "quantita": quantita[piano.IdPianificazione],
             "numero_ordini": num_ordini[piano.IdPianificazione],
+            "quantita_per_ordine": quantita_per_piano.get(piano.IdPianificazione, []),
             "colore_fase": colore,
             "impastatrici": macchine_per_fase.get(fase.IdPianificazioneFase)
                              or macchine_per_piano.get(piano.IdPianificazione, []),
             "forno": forni.get(piano.IdForno, f"Forno #{piano.IdForno}"),
         })
     eventi.extend(righe_pdf_miste(inizio, fine, ruolo))
+    # Usa esclusivamente il colore impostato in RicettaFasi.Colore.
+    # Nessuna sostituzione automatica se fasi diverse condividono lo stesso colore.
     return eventi
 
 
@@ -267,49 +281,31 @@ def _a_capo(testo: str, font: str, dimensione: float, larghezza: float) -> list[
 
 
 def _dati_scheda(evento: dict) -> list[tuple[str, str]]:
-    """Informazioni operative per fase, mantenendo il formato PDF esistente.
+    """Riepilogo operativo PDF senza dati dei forni.
 
-    Solo per le cotture miste usa i dati dei forni prenotati: le cotte sono
-    dichiarate dall'operatore e NON derivano da stime di capienza o da una
-    ripartizione inventata delle singole infornate.
+    Per piu' ordini le quantita' sono mostrate separatamente, come nel
+    calendario web. I dati originali aggregati restano invariati.
     """
     descr = evento.get("descrizione") or "Articolo"
-    ordinati = f'{evento.get("numero_ordini", 0)} ord.  ·  {evento.get("quantita", 0)} pz'
+    quantita_ordini = evento.get("quantita_per_ordine")
+    if isinstance(quantita_ordini, (list, tuple)) and quantita_ordini:
+        pezzi = " / ".join(f"{int(q)} pz" for q in quantita_ordini)
+        numero_ordini = len(quantita_ordini)
+    else:
+        pezzi = f'{int(evento.get("quantita") or 0)} pz'
+        numero_ordini = int(evento.get("numero_ordini") or 0)
+    riga_quantita = f"{numero_ordini} ord.  ·  {pezzi}"
+
     imp = evento.get("impastatrici") or []
-    imp_names = ", ".join(_riduci_etichetta_risorsa(n, "impastatrice") for n in imp) or "N/D"
-
-    # Il calendario misto espone una cottura unica per piano e blocco,
-    # con l'elenco strutturato dei forni effettivamente prenotati.
-    dettagli = evento.get("forni_dettaglio") or []
-    if dettagli and _fase_e_cottura(evento):
-        # Un evento puo' riguardare piu' forni nello stesso blocco: non
-        # ridistribuire mai i pezzi in singole cotte. Le quantita' qui
-        # mostrate sono somme degli ordini associati a ciascun forno.
-        dettagli_ordinati = sorted(
-            dettagli,
-            key=lambda d: (str(d.get("nome") or ""), int(d.get("id_forno") or 0)),
-        )
-        cotte_dichiarate = sum(int(d.get("numero_cotte") or 0) for d in dettagli_ordinati)
-        dati = [
-            (str(descr), "Helvetica-Bold"),
-            (ordinati, "Helvetica-Bold"),
-            (f"Cotte dichiarate: {cotte_dichiarate} · {len(dettagli_ordinati)} forni", "Helvetica-Bold"),
-            (f"Imp.: {imp_names}", "Helvetica"),
-        ]
-        for forno in dettagli_ordinati:
-            nome = _riduci_etichetta_risorsa(forno.get("nome") or f"#{forno.get('id_forno', '?')}", "forno")
-            cotte = int(forno.get("numero_cotte") or 0)
-            pezzi = int(forno.get("quantita") or 0)
-            dati.append((f"Forno: {nome} · {cotte} cotte · {pezzi} pz", "Helvetica"))
-        return dati
-
-    forno = _riduci_etichetta_risorsa(evento.get("forno") or "N/D", "forno")
-    return [
+    imp_names = ", ".join(
+        _riduci_etichetta_risorsa(n, "impastatrice") for n in imp
+    ) or "N/D"
+    dati = [
         (str(descr), "Helvetica-Bold"),
-        (ordinati, "Helvetica-Bold"),
+        (riga_quantita, "Helvetica-Bold"),
         (f"Imp.: {imp_names}", "Helvetica"),
-        (f"Forno: {forno}", "Helvetica"),
     ]
+    return dati
 
 
 def _layout_scheda(dati: list[tuple[str, str]], larghezza: float,
@@ -397,7 +393,17 @@ def _griglia_fasi(canvas: Canvas, eventi: list[dict], x: float, y: float,
                   larghezza: float, altezza: float) -> None:
     if not eventi:
         return
-    elementi = sorted(eventi, key=lambda e: (e["piano"], e["fase"] or 0))
+    def priorita(evento):
+        nome = str(evento.get("lavorazione") or "").casefold()
+        if "impast" in nome:
+            return 0
+        if _fase_e_cottura(evento) or "inforn" in nome:
+            return 2
+        return 1
+
+    elementi = sorted(eventi, key=lambda e: (
+        priorita(e), e["piano"], e.get("fase") or 0,
+    ))
     # Riduzione sostanziale di margini e interspazi; spazio recuperato per
     # caratteri e testo a capo invece che per bordo bianco.
     pad, gap = 1.2, .9
@@ -437,12 +443,7 @@ def crea_pdf_settimana(inizio: date, fasi: list[dict], scadenze: list[dict],
     c.setFillColor(colors.HexColor("#475569"))
     fine = inizio + timedelta(days=6)
     c.drawRightString(w - MARGINE, h - 28,
-                      f"{inizio.strftime('%d/%m/%Y')} - {fine.strftime('%d/%m/%Y')}  |  A3 orizzontale")
-    c.setFont("Helvetica", 7.4)
-    intestazione_fasi = "Fasi 07:00-12:30 / 13:00-18:00  -  Colore scheda: pianificazione  -  Etichetta: fase"
-    if nascondi_cottura:
-        intestazione_fasi += "  -  Cottura nascosta"
-    c.drawString(MARGINE, h - 44, intestazione_fasi)
+                      f"{inizio.strftime('%d/%m/%Y')} - {fine.strftime('%d/%m/%Y')}")
 
     asse_x = MARGINE + ASSE_ORE
     griglia_w = w - asse_x - MARGINE
@@ -459,11 +460,11 @@ def crea_pdf_settimana(inizio: date, fasi: list[dict], scadenze: list[dict],
         giorni_x.append(p)
         p += lunghezza + GAP_GIORNI
 
-    header_y = h - 72
+    # Nessuna fascia scadenze: la griglia produttiva inizia subito sotto
+    # l'intestazione dei giorni, recuperando spazio per le schede delle fasi.
+    header_y = h - 54
     header_h = 19
-    all_day_h = 33
-    all_day_y = header_y - all_day_h - 2
-    grid_top = all_day_y - 4
+    grid_top = header_y - header_h - 4
     grid_bottom = MARGINE + 6
     interruzione = 15
     grid_h = grid_top - grid_bottom - interruzione
@@ -472,14 +473,6 @@ def crea_pdf_settimana(inizio: date, fasi: list[dict], scadenze: list[dict],
     mattina_y = grid_top - mattina_h
     pomeriggio_y = grid_bottom
 
-    c.setFillColor(colors.HexColor("#f1f5fa"))
-    c.setStrokeColor(colors.HexColor("#ced6df"))
-    c.roundRect(MARGINE, all_day_y, ASSE_ORE - 5, all_day_h + header_h + 2, 2, fill=1, stroke=0)
-    c.setFillColor(colors.HexColor("#475569"))
-    c.setFont("Helvetica-Bold", 6.7)
-    c.drawString(MARGINE + 3, all_day_y + 15, "Scadenze")
-
-    scadenze_mappa = {s["giorno"]: s for s in scadenze}
     fasi_per_blocco = defaultdict(list)
     for evento in fasi:
         fasi_per_blocco[(evento["giorno"], evento["blocco"])].append(evento)
@@ -490,19 +483,6 @@ def crea_pdf_settimana(inizio: date, fasi: list[dict], scadenze: list[dict],
         c.setFillColor(colors.HexColor("#111827"))
         _fit(c, f"{GIORNI[data.weekday()]} {data.strftime('%d/%m')}", x + 5,
              header_y + 7, width - 10, "Helvetica-Bold", 9.3, 5)
-        c.setFillColor(colors.white)
-        c.setStrokeColor(colors.HexColor("#d0dae5"))
-        c.rect(x, all_day_y, width, all_day_h, fill=1, stroke=1)
-        scad = scadenze_mappa.get(data)
-        if scad:
-            c.setFillColor(colors.HexColor("#c9e2fb"))
-            c.setStrokeColor(colors.HexColor("#2776ba"))
-            c.roundRect(x + 2, all_day_y + 3, width - 4, all_day_h - 6, 3, fill=1, stroke=1)
-            c.setFillColor(colors.HexColor("#12365c"))
-            _fit(c, f'{scad["numero_ordini"]} ordini in scadenza - {scad["quantita_ordinata"]} pz',
-                 x + 6, all_day_y + 22, width - 12, "Helvetica-Bold", 8, 4.5)
-            _fit(c, f'{scad["completati"]} eseguiti - {scad["da_eseguire"]} da eseguire',
-                 x + 6, all_day_y + 9, width - 12, "Helvetica", 7.4, 4.5)
         for blocco, basso, alto in (("M", mattina_y, mattina_h), ("P", pomeriggio_y, pomeriggio_h)):
             c.setFillColor(colors.HexColor("#f8fafc"))
             c.setStrokeColor(colors.HexColor("#c5d1dd"))

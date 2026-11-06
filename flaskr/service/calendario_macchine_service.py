@@ -20,6 +20,9 @@ from flaskr.models.model_ordini import (
     PianificazioneOrdiniImpastatrici,
     PianificazioneProduzione,
     TipologieLavorazione,
+    PianificazioneMistaAttiva,
+    PrenotazioneMistaImpastatrice,
+    BozzaPianificazioneMistaOrdine,
 )
 from flaskr.service.risorse_produzione_service import _blocchi_occupati, _capacita_kg
 
@@ -152,6 +155,59 @@ def riepilogo_settimana_macchine(data_richiesta: date) -> dict:
                 "legacy": True,
             })
 
+    # Integra soltanto le prenotazioni miste confermate, non le bozze.
+    occupazioni_miste = db.session.execute(
+        db.select(
+            PrenotazioneMistaImpastatrice.IdImpastatrice,
+            PrenotazioneMistaImpastatrice.DataFase,
+            PrenotazioneMistaImpastatrice.Blocco,
+            PrenotazioneMistaImpastatrice.KgAssegnati,
+            PrenotazioneMistaImpastatrice.IdBozza,
+        )
+        .join(PianificazioneMistaAttiva,
+              PianificazioneMistaAttiva.IdBozza == PrenotazioneMistaImpastatrice.IdBozza)
+        .where(
+            PrenotazioneMistaImpastatrice.DataFase >= lunedi,
+            PrenotazioneMistaImpastatrice.DataFase < esclusiva_fine,
+            PianificazioneMistaAttiva.Stato.in_(("In produzione", "Chiuso")),
+        )
+    ).all()
+    ids_misti = {r.IdBozza for r in occupazioni_miste}
+    nomi_misti = defaultdict(set)
+    if ids_misti:
+        righe_miste = db.session.execute(
+            db.select(
+                BozzaPianificazioneMistaOrdine.IdBozza,
+                BozzaPianificazioneMistaOrdine.CodArt,
+                AnagraficaArticoli.DesArt,
+            )
+            .outerjoin(AnagraficaArticoli,
+                       AnagraficaArticoli.CodArt == BozzaPianificazioneMistaOrdine.CodArt)
+            .where(BozzaPianificazioneMistaOrdine.IdBozza.in_(ids_misti))
+            .distinct()
+        ).all()
+        for id_bozza, codart, descrizione in righe_miste:
+            nomi_misti[id_bozza].add(str(descrizione or codart or "Articolo non disponibile"))
+
+    for id_macchina, giorno, blocco, kg, id_bozza in occupazioni_miste:
+        if id_macchina not in macchina_per_id:
+            continue
+        key = (giorno, blocco, id_macchina)
+        if key in prenotazioni:
+            # Non nascondere una sovrapposizione incoerente con una prenotazione classica.
+            raise RuntimeError(
+                f"Impastatrice {id_macchina} prenotata due volte nel blocco "
+                f"{giorno} {blocco}, incluso piano misto M-{id_bozza}"
+            )
+        titoli = sorted(nomi_misti.get(id_bozza, ()))
+        prenotazioni[key] = {
+            "id_piano": id_bozza,
+            "articolo": "Impasto misto: " + "; ".join(titoli) if titoli else "Impasto misto",
+            "kg": Decimal(str(kg)),
+            "legacy": False,
+            "misto": True,
+        }
+
     # Espone le due viste separate per chiarezza: macchine occupate e carico kg.
     giorni = []
     slot_settimanali = []
@@ -181,6 +237,7 @@ def riepilogo_settimana_macchine(data_richiesta: date) -> dict:
                     "kg": kg,
                     "saturazione": _percentuale(kg, capacita[id_macchina]) if kg is not None else None,
                     "piano": attiva["id_piano"] if attiva else None,
+                    "misto": bool(attiva and attiva.get("misto", False)),
                     "articolo": attiva["articolo"] if attiva else None,
                     "legacy": legacy_senza_kg,
                 })

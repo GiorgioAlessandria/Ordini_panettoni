@@ -9,16 +9,18 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, datetime, time
 from decimal import Decimal
+import re
 
 from sqlalchemy import or_, tuple_
 from sqlalchemy.orm import selectinload
 
 from flaskr.extensions import db
 from flaskr.models.model_ordini import (
-    AnagraficaForni, AnagraficaImpastatrici, BozzaPianificazioneMista,
+    AnagraficaArticoli, AnagraficaForni, AnagraficaImpastatrici, BozzaPianificazioneMista,
     BozzaPianificazioneMistaForno, BozzaPianificazioneMistaOrdine,
     PianificazioneMistaAttiva, PrenotazioneMistaForno,
     PrenotazioneMistaImpastatrice, RicettaFasi, TipologieLavorazione,
+    TipRicetteAnagArticoli,
 )
 from flaskr.service.risorse_produzione_service import _blocchi_occupati
 from flaskr.service.scadenze_giornaliere_service import articolo_cnf
@@ -117,6 +119,53 @@ def _gruppi_cottura_per_slot(bozza, slot_forni: dict, nomi_forni: dict[int, str]
         })
     return risultato
 
+
+def _colore_medio(colori: list[str | None]) -> str | None:
+    """Media aritmetica RGB dei colori validi; un colore solo resta identico.
+
+    I colori non configurati non contribuiscono alla media. Quando nessuna
+    ricetta ha un colore valido, restituisce None (fallback grafico esistente).
+    """
+    validi = [c.upper() for c in colori
+              if isinstance(c, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", c)]
+    if not validi:
+        return None
+    if len(set(validi)) == 1:
+        return validi[0]
+    canali = [[int(c[i:i + 2], 16) for i in (1, 3, 5)] for c in validi]
+    n = len(canali)
+    medi = [(sum(rgb[i] for rgb in canali) * 2 + n) // (2 * n)
+            for i in range(3)]
+    return "#" + "".join(f"{valore:02X}" for valore in medi)
+
+
+def _colori_cottura_per_articolo(codici: set[str]) -> dict[str, str | None]:
+    """Recupera in una query il colore forno di ogni ricetta associata all'articolo."""
+    if not codici:
+        return {}
+    righe = db.session.execute(
+        db.select(
+            TipRicetteAnagArticoli.CodArt,
+            RicettaFasi.Colore,
+            RicettaFasi.IdLavorazione,
+            TipologieLavorazione.TipologiaLavorazione,
+            TipologieLavorazione.CodiceLavorazione,
+            TipologieLavorazione.DescrizioneLavorazione,
+        )
+        .join(RicettaFasi, RicettaFasi.IdRicetta == TipRicetteAnagArticoli.IdRicetta)
+        .join(TipologieLavorazione, TipologieLavorazione.IdLavorazione == RicettaFasi.IdLavorazione)
+        .where(TipRicetteAnagArticoli.CodArt.in_(codici))
+    ).all()
+    colori = defaultdict(list)
+    for codice, colore, id_lavorazione, categoria, codice_lavorazione, descrizione in righe:
+        nome = " ".join(str(x or "") for x in (
+            categoria, codice_lavorazione, descrizione
+        )).casefold()
+        if int(id_lavorazione) == 2 or any(t in nome for t in ("cott", "forno", "inforn")):
+            colori[codice].append(colore)
+    return {codice: _colore_medio(valori) for codice, valori in colori.items()}
+
+
 def righe_fasi_miste(inizio: date, fine: date, ruolo: str) -> list[dict]:
     """Ritorna righe normalizzate per UI e PDF, una per slot effettivo.
 
@@ -129,6 +178,14 @@ def righe_fasi_miste(inizio: date, fine: date, ruolo: str) -> list[dict]:
     piani = _modelli_misti(inizio, fine)
     if not piani:
         return []
+    codici_articoli = {o.CodArt for p in piani for o in p.bozza.ordini}
+    descrizioni_articoli = {
+        articolo.CodArt: (articolo.DesArt or articolo.CodArt)
+        for articolo in db.session.scalars(db.select(AnagraficaArticoli).where(
+            AnagraficaArticoli.CodArt.in_(codici_articoli)
+        )).all()
+    } if codici_articoli else {}
+    colori_cottura_articolo = _colori_cottura_per_articolo(codici_articoli)
     ids_forni = {f.IdForno for p in piani for f in p.bozza.forni}
     ids_macchine = {m.IdImpastatrice for p in piani for m in p.bozza.impastatrici if m.KgAssegnati > 0}
     ids_lavorazioni = {f.IdLavorazione for p in piani for f in p.bozza.fasi_impasto}
@@ -157,6 +214,13 @@ def righe_fasi_miste(inizio: date, fine: date, ruolo: str) -> list[dict]:
         if ruolo == 'utente_produzione' and any(articolo_cnf(r.CodArt) for r in bozza.ordini):
             continue  # Non divulgare una pianificazione che contiene codici riservati.
         codici = sorted({r.CodArt for r in bozza.ordini})
+        # Ordinamento stabile delle righe ordine per tutte le fasi della stessa bozza.
+        righe_ordine = sorted(bozza.ordini, key=lambda r: (r.IdDocumento, r.IdRigaDoc))
+        quantita_ordini = [int(r.QtaPianificata or 0) for r in righe_ordine]
+        descrizioni_piano = sorted({
+            (descrizioni_articoli.get(codice) or 'Articolo senza descrizione').strip()
+            for codice in codici
+        })
         totale = sum(int(r.QtaPianificata) for r in bozza.ordini)
         identificativi = sorted(f'{r.IdDocumento}-{r.IdRigaDoc}' for r in bozza.ordini)
         mixer_nomi = [macchine.get(m.IdImpastatrice, f'Impastatrice #{m.IdImpastatrice}')
@@ -167,6 +231,7 @@ def righe_fasi_miste(inizio: date, fine: date, ruolo: str) -> list[dict]:
             'etichetta_piano': f'M-{bozza.IdBozza}',
             'stato': piano.Stato,
             'ordini': identificativi,
+            'quantita_per_ordine': quantita_ordini,
             'numero_ordini': len(bozza.ordini),
             'quantita': totale,
             'peso_kg': float((Decimal(str(bozza.PesoTotaleGrammi)) / 1000).quantize(Decimal('0.01'))),
@@ -183,7 +248,7 @@ def righe_fasi_miste(inizio: date, fine: date, ruolo: str) -> list[dict]:
                         'giorno': data, 'blocco': blocco,
                         'numero_fase': int(rf.IdFase) if rf else int(fase.OffsetBlocchi) + 1,
                         'id_lavorazione': fase.IdLavorazione, 'lavorazione': nome,
-                        'descrizione': 'Impasto comune: ' + ', '.join(codici),
+                        'descrizione': 'Impasto comune: ' + ', '.join(descrizioni_piano),
                         'colore_fase': rf.Colore if rf else None,
                         'forno': ', '.join(sorted({forni.get(f.IdForno, f'Forno #{f.IdForno}') for f in bozza.forni})),
                         'numero_cotte': sum(int(f.NumeroCotte) for f in bozza.forni),
@@ -199,18 +264,31 @@ def righe_fasi_miste(inizio: date, fine: date, ruolo: str) -> list[dict]:
                 for codart, qta in dettaglio['articoli'].items():
                     quantita_articoli[codart] += qta
             giorno, blocco = gruppo['giorno'], gruppo['blocco']
-            descrizione_articoli = ', '.join(
-                f'{codice}: {pezzi} pz' for codice, pezzi in sorted(quantita_articoli.items())
-            )
+            # Le cotte sono mostrate con le descrizioni, senza codici articolo.
+            descrizione_articoli = ', '.join(sorted({
+                (descrizioni_articoli.get(codice) or 'Articolo senza descrizione').strip()
+                for codice in quantita_articoli
+            }))
+            # La cotta puo' utilizzare solo un sottoinsieme degli ordini della bozza.
+            righe_cottura = [r for r in righe_ordine
+                             if f'{r.IdDocumento}-{r.IdRigaDoc}' in ordini_cottura]
+            quantita_cottura = [int(r.QtaPianificata or 0) for r in righe_cottura]
             output.append({**base,
                 'quantita': sum(quantita_articoli.values()),
                 'numero_ordini': len(ordini_cottura),
                 'ordini': sorted(ordini_cottura),
+                'quantita_per_ordine': quantita_cottura,
                 'id_evento': f'misto-{bozza.IdBozza}-cottura-{giorno:%Y%m%d}-{blocco}',
                 'giorno': giorno, 'blocco': blocco,
                 'numero_fase': 2, 'id_lavorazione': 2, 'lavorazione': 'Cottura',
                 'descrizione': descrizione_articoli,
-                'colore_fase': None,
+                # Cottura mista: se i colori ricetta coincidono rimangono
+                # invariati; altrimenti si usa la media RGB dei colori
+                # dei soli articoli effettivamente cotti in questo blocco.
+                'colore_fase': _colore_medio([
+                    colori_cottura_articolo.get(codice)
+                    for codice in sorted(quantita_articoli)
+                ]),
                 'forno': ' · '.join(f"{d['nome']} ({d['numero_cotte']} cotte)" for d in dettagli),
                 'forni_dettaglio': [
                     {'id_forno': d['id_forno'], 'nome': d['nome'],
@@ -245,6 +323,7 @@ def eventi_fasi_miste(inizio: date, fine: date, ruolo: str, url_dettaglio) -> li
                 'ordini': r['ordini'],
                 'numero_ordini': r['numero_ordini'],
                 'quantita_assegnata': r['quantita'],
+                'quantita_per_ordine': r['quantita_per_ordine'],
                 'panettoni_previsti': r['quantita'],
                 'peso_totale_kg': r['peso_kg'],
                 'impastatrici': r['impastatrici'],

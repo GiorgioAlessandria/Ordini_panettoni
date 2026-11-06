@@ -6,6 +6,7 @@
       <span class="ordini-riepilogo-voce">Ordini <strong>{{ riepilogo_misto.numero_ordini }}</strong></span>
       <span class="ordini-riepilogo-voce">Articoli <strong>{{ riepilogo_misto.numero_articoli }}</strong></span>
       <span class="ordini-riepilogo-voce">Pezzi disponibili <strong>{{ riepilogo_misto.quantita }}</strong></span>
+      <span class="ordini-riepilogo-voce">Impasto previsto <strong>{{ '%.2f'|format(riepilogo_misto.peso_impasto_kg) }} kg</strong></span>
     </div>
 {% elif errore %}
     <span class="small {{ 'text-muted' if errore == 'Nessun ordine selezionato' else 'text-danger' }}" role="status">{{ errore }}</span>

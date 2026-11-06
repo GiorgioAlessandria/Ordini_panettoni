@@ -327,6 +327,10 @@
              role="tabpanel" aria-labelledby="pianificazioni-tab" tabindex="0">
             <section class="ordini-panel" aria-label="Pianificazioni">
                 <div class="ordini-panel-body">
+                    <div id="avvisi-anomalie-erp" class="flex-shrink-0"
+                         hx-get="{{ url_for('ordini_cliente.anomalie_erp_banner') }}"
+                         hx-trigger="load, every 30s"
+                         hx-swap="innerHTML" aria-live="polite"></div>
                     <div id="ordini_cliente_in_produzione"
                          hx-get="{{ url_for('ordini_cliente.tabella_ordini_cliente_in_produzione') }}"
                          hx-trigger="load, every 30s, pianificazioneSalvata from:body, prioritaAggiornata from:body, pianificazioneChiusa from:body, pianificazioneAnnullata from:body"

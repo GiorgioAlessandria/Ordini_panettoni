@@ -25,6 +25,8 @@
     <a class="btn btn-outline-primary" href="{{ url_for('ordini_cliente.pianificazioni_chiuse') }}">Storico</a>
   </div>
 </div>
+<div id="avviso-anomalia-piano" hx-get="{{ url_for('ordini_cliente.anomalie_erp_banner') }}"
+     hx-trigger="load" hx-swap="innerHTML"></div>
 <div class="row g-3 mb-4">
   <div class="col-sm-3"><div class="border rounded p-3 h-100"><small class="text-secondary">Pezzi da produrre</small><div class="h4 mb-0">{{ piano.PanettoniPianificati }}</div></div></div>
   <div class="col-sm-3"><div class="border rounded p-3 h-100"><small class="text-secondary">Cotte</small><div class="h4 mb-0">{{ piano.NumeroCotte }}</div></div></div>
@@ -117,7 +119,7 @@
       <p class="small text-secondary">Indica i pezzi effettivamente destinati a ogni ordine. Seconda scelta e magazzino sono quantità aggiuntive, non sottratte dagli ordini. Nessun limite rispetto al pianificato.</p>
       <form method="post" action="{{ url_for('ordini_cliente.conferma_chiusura_pianificazione', IdPianificazione=piano.IdPianificazione) }}" onsubmit="return confirm('Confermare consuntivo e chiusura definitiva della pianificazione #{{ piano.IdPianificazione }}?')">
         <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
-        {% for a, o in associazioni %}
+        {% for a, o in associazioni if a.Stato == 'In produzione' %}
         <div class="row align-items-center g-2 mb-2">
           <label class="col-sm-7 col-form-label" for="qprod-{{ a.IdDocumento }}-{{ a.IdRiga }}">Ordine {{ a.IdDocumento }}-{{ a.IdRiga }} · pianificati {{ a.QtaPianificata }} (da stock {{ a.QtaDaStock or 0 }})</label>
           <div class="col-sm-5"><input id="qprod-{{ a.IdDocumento }}-{{ a.IdRiga }}" class="form-control" type="number" name="prodotta_{{ a.IdDocumento }}_{{ a.IdRiga }}" value="{{ a.QtaPianificata - (a.QtaDaStock or 0) }}" min="0" step="1" required></div>

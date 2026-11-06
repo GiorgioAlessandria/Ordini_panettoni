@@ -280,6 +280,15 @@ def eventi_fase_calendario():
     associazioni_per_piano = defaultdict(list)
     for a in associazioni:
         associazioni_per_piano[a.IdPianificazione].append(a)
+    # Quantita' realmente da produrre per ciascun ordine, non saldo ERP.
+    # Evita di conteggiare i pezzi prelevati da stock.
+    quantita_per_piano = {}
+    for id_piano, righe_piano in associazioni_per_piano.items():
+        righe_ordinate = sorted(righe_piano, key=lambda a: (a.IdDocumento, a.IdRiga))
+        quantita_per_piano[id_piano] = [
+            max(0, int(a.QtaPianificata or 0) - int(a.QtaDaStock or 0))
+            for a in righe_ordinate
+        ]
 
     impastatrici_associate = db.session.scalars(
         db.select(PianificazioneOrdiniImpastatrici).where(
@@ -325,6 +334,7 @@ def eventi_fase_calendario():
             associazioni=righe,
             descrizione_articolo=descrizioni_articoli.get(piano.CodArt) or "Articolo senza descrizione",
         )
+        evento["extendedProps"]["quantita_per_ordine"] = quantita_per_piano[fase.IdPianificazione]
         evento["extendedProps"]["impastatrici"] = impastatrici_per_piano[fase.IdPianificazione]
         evento["extendedProps"]["detailUrl"] = url_for(
             "ordini_cliente.calendario_riepilogo_piano", IdPianificazione=fase.IdPianificazione

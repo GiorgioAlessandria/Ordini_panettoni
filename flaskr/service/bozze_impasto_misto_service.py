@@ -118,7 +118,8 @@ def salva_bozza(*, esito: dict, gruppo_id: int, data_inizio, blocco: str,
     peso_kg = _d(esito['peso_kg'])
     if peso_kg <= 0:
         raise ErroreBozzaMista("Peso impasto non valido.")
-    riparto_macchine = distribuisci_peso_impastatrici(
+    from flaskr.service.ripartizione_uniforme_mista_service import distribuisci_uniformemente
+    riparto_macchine = distribuisci_uniformemente(
         peso_kg, {m.IdImpastatrice: _capacita_kg(m) for m in macchine}
     )
     if sum(riparto_macchine.values(), Decimal(0)) != peso_kg:

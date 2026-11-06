@@ -18,6 +18,10 @@ from sqlalchemy import delete, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from flaskr.extensions import db
+from flaskr.service.anomalie_erp_service import (
+    ErroreAnomalia, verifica_scelte_piano, aggiorna_spedizioni_a_chiusura,
+    _record_assente_riconosciuto,
+)
 from flaskr.service.consuntivi_service import registra_consuntivo, ErroreConsuntivo
 from flaskr.models.model_ordini import (
     BozzaPianificazioneMista, BozzaPianificazioneMistaOrdine,
@@ -126,6 +130,8 @@ def _rileggi_stato(id_documento: int, id_riga: int, adesso: datetime, operatore:
     """Ricalcola stato ordine includendo piani legacy e piani misti."""
     o = db.session.get(OrdiniCliente, (id_documento, id_riga))
     if o is None:
+        if _record_assente_riconosciuto(id_documento,id_riga):
+            return
         raise ErroreAttivazioneMista('Ordine ERP non più presente: aggiorna il feed.')
     if o.QTA_SALDO_DOC is None:
         raise ErroreAttivazioneMista('Saldo ordine sconosciuto.')
@@ -260,6 +266,7 @@ def chiudi_piano_misto(id_bozza: int, operatore: str, prodotte: dict, articoli: 
     """Chiude con consuntivo per CodArt e per riga ordine, senza surplus stimato."""
     try:
         _transazione_sqlite_immediata()
+        verifica_scelte_piano("MISTA",id_bozza)
         piano = db.session.get(PianificazioneMistaAttiva, id_bozza)
         if piano is None or piano.Stato != 'In produzione':
             raise ErroreAttivazioneMista('Pianificazione mista non attiva.')
@@ -277,9 +284,10 @@ def chiudi_piano_misto(id_bozza: int, operatore: str, prodotte: dict, articoli: 
         for r in piano.bozza.ordini:
             _rileggi_stato(r.IdDocumento, r.IdRigaDoc, adesso, operatore)
         _log(piano.bozza, operatore, 'Chiuso', adesso)
+        aggiorna_spedizioni_a_chiusura('MISTA',id_bozza)
         # Come per i piani storici, prenotazioni conservate nello storico.
         db.session.commit()
-    except (ErroreAttivazioneMista, ErroreConsuntivo):
+    except (ErroreAttivazioneMista, ErroreConsuntivo, ErroreAnomalia):
         db.session.rollback()
         raise
     except SQLAlchemyError as exc:

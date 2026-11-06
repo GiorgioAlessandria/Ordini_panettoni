@@ -271,7 +271,23 @@ def simula(*, gruppo_id: int, chiavi: list[str], forno_articolo: dict[str, int],
             f'capacità libera delle impastatrici: {capacita_kg:.2f} kg. '
             'Riduci le cotte o seleziona altre impastatrici.'
         )
+    from flaskr.service.ripartizione_uniforme_mista_service import distribuisci_uniformemente
+    riparto_kg = distribuisci_uniformemente(
+        peso_grammi / Decimal(1000), {i: libere[i] for i in impastatrici_ids}
+    )
+    peso_per_codice = {}
+    for o in selezionati:
+        pezzi = qta_pianificate.get((o.IdDocumento, o.IdRigaDoc), 0)
+        dati = peso_per_codice.setdefault(o.CodArt, {'pezzi': 0, 'kg': Decimal(0)})
+        dati['pezzi'] += pezzi
+        dati['kg'] += (_prezzo_peso_unitario(
+            articoli_per_codice[o.CodArt],
+            coefficients['PERCENTUALE_PESO_AGGIUNTIVO_GLASSATURA'],
+            coefficients['PERCENTUALE_PESO_AGGIUNTIVO_IMPASTO'],
+        ) * pezzi / Decimal(1000))
     return {
+        'riparto_kg': riparto_kg,
+        'peso_per_codice': peso_per_codice,
         'gruppo': gruppo,
         'risultati': risultati,
         'ordini': [dict(ordine=o,

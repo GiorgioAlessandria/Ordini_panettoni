@@ -1,0 +1,60 @@
+{% extends 'base.j2' %}
+{% block title %}Ordini rimossi dall'ERP durante la produzione{% endblock %}
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+    <div><h1 class="h4 mb-1">Ordini eliminati dall'ERP durante la produzione</h1>
+    <p class="small text-secondary mb-0">Il sync elimina l'ordine ERP, ma conserva questi dati e lascia la decisione all'operatore. Nessuna decisione viene presa automaticamente.</p></div>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('ordini_cliente.ordini_cliente') }}">Torna a Gestione ordini</a>
+  </div>
+  {% if tipo and id_piano %}
+  <div class="alert alert-info small">
+    Pianificazione <strong>{{ tipo }} #{{ id_piano }}</strong>. L'opzione «Ricalcola» modifica il piano esistente mantenendo ID, lotto, data, fasi e impastatrici. Le cotte possono diminuire; le quantità originali vengono salvate nell'audit.
+  </div>
+  {% endif %}
+  {% for a in anomalie %}
+  <section class="card mb-3 shadow-sm {{ 'border-warning' if a.Decisione=='DaDecidere' else 'border-light' }}">
+    <div class="card-body">
+      <div class="d-flex justify-content-between gap-2 flex-wrap">
+        <h2 class="h6 mb-1">{{ a.TipoPiano }} #{{ a.IdPiano }} · Ordine {{ a.IdDocumento }}-{{ a.IdRigaDoc }} · {{ a.CodArt }}</h2>
+        <span class="badge {{ 'text-bg-warning' if a.Decisione=='DaDecidere' else 'text-bg-success' }}">{{ a.Decisione }}</span>
+      </div>
+      <div class="small text-secondary mb-2">{{ a.ClienteSnapshot }} · {{ a.DesArtSnapshot }} · {{ a.QtaPianificata }} pz assegnati {% if a.QtaDaStock %}({{ a.QtaDaStock }} da stock){% endif %} · Rilevato {{ a.RilevataIl.strftime('%d/%m/%Y %H:%M') }}</div>
+      {% if a.Decisione=='DaDecidere' %}
+        <form method="post" action="{{ url_for('ordini_cliente.anomalie_erp_decidi',tipo=a.TipoPiano,id_piano=a.IdPiano,doc=a.IdDocumento,riga=a.IdRigaDoc) }}" onsubmit="return confirm('Confermare questa decisione? Verrà registrata nello storico.');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_ruoli() }}">
+          <label for="motivo-anomalia-{{ loop.index }}" class="form-label small fw-semibold">Motivazione della decisione (obbligatoria)</label>
+          <textarea class="form-control form-control-sm mb-2" name="motivazione" id="motivo-anomalia-{{ loop.index }}" rows="2" minlength="10" maxlength="500" required placeholder="Esempio: produzione già avviata, confermo i pezzi per il cliente"></textarea>
+          <div class="d-flex gap-3 flex-wrap align-items-center mb-2">
+            <label class="form-check-label"><input class="form-check-input me-1" type="radio" name="decisione" value="continua" checked> Continua produzione con ordine originale</label>
+            <label class="form-check-label"><input class="form-check-input me-1" type="radio" name="decisione" value="escludi"> Ricalcola senza questo ordine (opzione A)</label>
+          </div>
+          {% if a.TipoPiano == 'MISTA' %}
+          <fieldset class="border rounded p-2 my-2">
+            <legend class="float-none w-auto px-2 fs-6">Conferma manualmente le cotte per ciascun forno</legend>
+            <div class="row g-2">
+              {% for f in forni_misti.get(('MISTA', a.IdPiano), []) %}
+              <div class="col-sm-4"><label class="form-label small">Forno #{{ f.IdForno }} · attuali {{ f.NumeroCotte }} cotte</label>
+                <input type="number" class="form-control form-control-sm" name="cotte_forno_{{ f.IdForno }}"
+                  min="0" max="{{ f.NumeroCotte }}" step="1" value="{{ f.NumeroCotte }}" required>
+              </div>
+              {% endfor %}
+            </div>
+            <p class="small text-secondary mb-0 mt-1">Per «Ricalcola», il sistema verifica che le cotte dichiarate coprano tutti i pezzi rimasti. Scegli 0 solo per un forno rimasto senza articoli; se era l'ultimo ordine, imposta 0 per tutti i forni.</p>
+          </fieldset>
+          {% endif %}
+          <label class="form-check small mb-2"><input type="checkbox" class="form-check-input" name="conferma_ricalcolo" value="1"><span class="form-check-label">Confermo la verifica fisica dei pezzi già impastati, della restituzione da stock e delle cotte da mantenere (obbligatorio per Ricalcola).</span></label>
+          <div class="small text-warning-emphasis mb-2">Il sistema blocca il ricalcolo se lo stock/forno/peso non sono verificabili. Se era l’ultimo ordine, il piano viene marcato Annullato, mantenendo ID e lotto nello storico e rilasciando le prenotazioni.</div>
+          <button type="submit" class="btn btn-primary btn-sm">Conferma decisione</button>
+        </form>
+      {% else %}
+        <div class="small">Deciso da <strong>{{ a.Operatore }}</strong> il {{ a.DecisaIl.strftime('%d/%m/%Y %H:%M') if a.DecisaIl else '—' }}. {{ a.Motivazione }}</div>
+        {% if a.DatiDopo %}<details class="mt-2 small"><summary>Visualizza risultato del ricalcolo / dati conservati</summary><pre class="bg-light border p-2 mt-2" style="white-space:pre-wrap">{{ a.DatiDopo }}</pre></details>{% endif %}
+      {% endif %}
+      <div class="mt-2 small"><a href="{{ url_for('ordini_cliente.gestione_pianificazione',IdPianificazione=a.IdPiano) if a.TipoPiano=='TRAD' else url_for('ordini_cliente.dettaglio_bozza_impasto_misto',id_bozza=a.IdPiano) }}">Apri la pianificazione #{{ a.IdPiano }}</a>
+      {% if not tipo %} · <a href="{{ url_for('ordini_cliente.anomalie_erp_piano',tipo=a.TipoPiano,id_piano=a.IdPiano) }}">Decisioni del piano</a>{% endif %}</div>
+    </div>
+  </section>
+  {% else %}<div class="alert alert-success">Nessuna anomalia ERP registrata.</div>{% endfor %}
+</div>
+{% endblock %}
